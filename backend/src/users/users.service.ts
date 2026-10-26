@@ -254,7 +254,9 @@ export class UsersService {
 
     // 1. Upload le nouvel avatar
     const ext = filename.split('.').pop() ?? 'jpg';
-    const key = `users/${userId}/avatar.${ext}`;
+    // Unique key per upload: a fixed key would make the replacement overwrite the previous
+    // file, which step 3 would then delete — and it also defeats CDN cache invalidation.
+    const key = `users/${userId}/avatar-${crypto.randomUUID()}.${ext}`;
     const uploadResult = await this.photoStorage.upload(file, key);
 
     // 2. Mettre à jour en DB (rollback upload si échec)

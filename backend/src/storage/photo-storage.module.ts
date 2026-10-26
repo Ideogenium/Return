@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { PHOTO_STORAGE } from './interfaces/photo-storage.interface.js';
-import { LocalPhotoStorageService } from './local-photo-storage.service.js';
+import { createPhotoStorage } from './photo-storage.factory.js';
 
 // =============================================================================
 // PhotoStorageModule
 // =============================================================================
-// Fournit l'injection PHOTO_STORAGE avec l'implémentation locale (dev/tests).
-// Pour la production (R2), remplacer useClass par R2PhotoStorageService.
+// Fournit l'injection PHOTO_STORAGE : Cloudflare R2 si les variables R2_* sont
+// définies (production), stockage disque local sinon (dev / tests).
 // =============================================================================
 
 @Module({
@@ -16,7 +16,8 @@ import { LocalPhotoStorageService } from './local-photo-storage.service.js';
   providers: [
     {
       provide: PHOTO_STORAGE,
-      useClass: LocalPhotoStorageService,
+      useFactory: createPhotoStorage,
+      inject: [ConfigService],
     },
   ],
   exports: [PHOTO_STORAGE],
