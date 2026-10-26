@@ -55,7 +55,7 @@ async function bootstrap(): Promise<void> {
   // Security
   app.use(helmet());
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN', 'http://localhost:8081'),
+    origin: config.getOrThrow<string>('CORS_ORIGIN'),
     credentials: true,
   });
 

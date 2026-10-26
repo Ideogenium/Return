@@ -46,12 +46,27 @@ describe('validate (environment)', () => {
     expect(() => validate(withoutCors)).toThrow(/CORS_ORIGIN/);
   });
 
-  it.each(['http://localhost:8081', 'http://127.0.0.1:3000', 'https://localhost'])(
-    'refuses a local CORS origin in production (%s)',
+  it.each([
+    'https://return-api.fly.dev/',
+    'https://return-api.fly.dev/app',
+    'http://return-api.fly.dev',
+    'https://a.example.com,https://b.example.com',
+  ])(
+    'refuses a production CORS origin that the CORS middleware could never match (%s)',
     (origin) => {
       expect(() => validate({ ...PROD_ENV, CORS_ORIGIN: origin })).toThrow(/CORS_ORIGIN/);
     },
   );
+
+  it.each([
+    'http://localhost:8081',
+    'http://127.0.0.1:3000',
+    'https://localhost',
+    'https://0.0.0.0',
+    'https://app.localhost',
+  ])('refuses a local CORS origin in production (%s)', (origin) => {
+    expect(() => validate({ ...PROD_ENV, CORS_ORIGIN: origin })).toThrow(/CORS_ORIGIN/);
+  });
 
   it('keeps the localhost CORS default in development', () => {
     expect(validate({ ...BASE_ENV, NODE_ENV: 'development' }).CORS_ORIGIN).toBe(
