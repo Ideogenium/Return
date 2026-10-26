@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loggerConfig } from './common/logger/winston.config.js';
 import { AllExceptionsFilter } from './common/exceptions/all-exceptions.filter.js';
+import { readR2Settings } from './storage/r2-settings.js';
 
 // =============================================================================
 // class-validator constraint name → OpenAPI-compatible error code mapping
@@ -41,11 +42,14 @@ async function bootstrap(): Promise<void> {
     logger: loggerConfig,
   });
 
-  // Serve uploaded files (photos, avatars) at /uploads/*
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
-
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
+
+  // Local photo storage only: serve uploaded files at /uploads/*.
+  // With R2, photos are served by the bucket's public URL, never by the API.
+  if (!readR2Settings((key) => config.get<string>(key))) {
+    app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  }
 
   // Security
   app.use(helmet());
