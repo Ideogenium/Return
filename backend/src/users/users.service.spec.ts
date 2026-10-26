@@ -462,7 +462,7 @@ describe('UsersService', () => {
       );
       expect(photoStorage.upload).toHaveBeenCalledWith(
         Buffer.from('fake-image'),
-        `users/${MOCK_USER.id}/avatar.jpg`,
+        expect.stringMatching(new RegExp(`^users/${MOCK_USER.id}/avatar-[0-9a-f-]{36}\\.jpg$`)),
       );
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: MOCK_USER.id },
@@ -494,6 +494,35 @@ describe('UsersService', () => {
       expect(photoStorage.delete).toHaveBeenCalledWith(
         'http://localhost:3000/uploads/users/old-avatar.jpg',
       );
+    });
+
+    it('should use a distinct storage key on each upload so a replacement never overwrites the previous file', async () => {
+      prisma.user.findUnique.mockResolvedValue(MOCK_USER);
+      photoStorage.upload.mockImplementation((_file: Buffer, key: string) =>
+        Promise.resolve({ key, url: `http://localhost:3000/uploads/${key}`, thumbnailUrl: null }),
+      );
+      prisma.user.update.mockResolvedValue(MOCK_USER);
+
+      await service.updateAvatar(MOCK_USER.id, Buffer.from('img-1'), 'avatar.jpg');
+      await service.updateAvatar(MOCK_USER.id, Buffer.from('img-2'), 'avatar.jpg');
+
+      const [firstKey, secondKey] = photoStorage.upload.mock.calls.map(([, key]) => key);
+      expect(firstKey).not.toBe(secondKey);
+    });
+
+    it('should never delete the file it has just uploaded when the storage returns the previous URL', async () => {
+      const sameUrl = `http://localhost:3000/uploads/users/${MOCK_USER.id}/avatar.jpg`;
+      prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, profilePicture: sameUrl });
+      photoStorage.upload.mockResolvedValue({
+        key: `users/${MOCK_USER.id}/avatar.jpg`,
+        url: sameUrl,
+        thumbnailUrl: null,
+      });
+      prisma.user.update.mockResolvedValue({ ...MOCK_USER, profilePicture: sameUrl });
+
+      await service.updateAvatar(MOCK_USER.id, Buffer.from('img'), 'avatar.jpg');
+
+      expect(photoStorage.delete).not.toHaveBeenCalled();
     });
 
     it('should not delete old avatar if none exists', async () => {
