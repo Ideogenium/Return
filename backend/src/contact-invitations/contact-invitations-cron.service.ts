@@ -31,8 +31,7 @@ export class ContactInvitationsCronService {
       },
     });
 
-    if (result.count > 0) {
-      this.logger.log(`Expired ${result.count} pending invitation(s)`);
-    }
+    // One line per run, even when idle: a silent job is indistinguishable from a dead one.
+    this.logger.log(`Invitations tick: ${result.count} expired`);
   }
 }

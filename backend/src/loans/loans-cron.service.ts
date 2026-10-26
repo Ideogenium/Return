@@ -67,9 +67,9 @@ export class LoansCronService {
       return now - loan.createdAt.getTime() >= thresholdMs;
     });
 
+    // One line per run, even when idle: a silent job is indistinguishable from a dead one.
+    this.logger.log(`Pending-confirmation tick: ${expiredLoans.length} loan(s) to auto-confirm`);
     if (expiredLoans.length === 0) return;
-
-    this.logger.log(`Auto-confirming ${expiredLoans.length} pending loan(s) older than 48h`);
 
     // Batch update all expired loans
     await this.prisma.loan.updateMany({
