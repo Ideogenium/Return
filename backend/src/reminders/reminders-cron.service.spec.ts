@@ -1,3 +1,4 @@
+import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { ReminderStatus, ReminderType } from '@prisma/client';
 
@@ -71,6 +72,7 @@ describe('RemindersCronService', () => {
         where: {
           status: ReminderStatus.SCHEDULED,
           scheduledFor: { lte: expect.any(Date) },
+          loan: { deletedAt: null, status: { in: ACTIVE_LOAN_STATUSES } },
         },
         include: {
           loan: {

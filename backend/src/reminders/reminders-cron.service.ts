@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReminderStatus, ReminderType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { REMINDER_EVENTS } from '../common/events/reminder.events.js';
 import type { AllRemindersExhaustedEvent } from '../common/events/reminder.events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -26,6 +27,8 @@ export class RemindersCronService {
       where: {
         status: ReminderStatus.SCHEDULED,
         scheduledFor: { lte: now },
+        // Defense in depth: event-driven cancellation can be missed (in-process events).
+        loan: { deletedAt: null, status: { in: ACTIVE_LOAN_STATUSES } },
       },
       include: {
         loan: {

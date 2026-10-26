@@ -619,6 +619,68 @@ describe('LoansService', () => {
         expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
       }
     });
+
+    describe('return date change → reminders rescheduling', () => {
+      const inDays = (days: number): string => {
+        const date = new Date();
+        date.setUTCHours(0, 0, 0, 0);
+        date.setUTCDate(date.getUTCDate() + days);
+        return date.toISOString().slice(0, 10);
+      };
+
+      it.each([LoanStatus.PENDING_CONFIRMATION, LoanStatus.ACTIVE, LoanStatus.ACTIVE_BY_DEFAULT])(
+        'emits RETURN_DATE_CHANGED when the return date of an open %s loan changes',
+        async (status) => {
+          const newDate = inDays(10);
+          prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status });
+          prisma.loan.update.mockResolvedValue({
+            ...MOCK_LOAN,
+            status,
+            returnDate: new Date(newDate),
+          });
+
+          await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: newDate });
+
+          expect(eventEmitter.emit).toHaveBeenCalledWith(LOAN_EVENTS.RETURN_DATE_CHANGED, {
+            loanId: LOAN_ID,
+            returnDate: new Date(newDate),
+            changedAt: expect.any(Date),
+          });
+        },
+      );
+
+      it('emits RETURN_DATE_CHANGED with a null date when the return date is removed', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, returnDate: null });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: null });
+
+        expect(eventEmitter.emit).toHaveBeenCalledWith(
+          LOAN_EVENTS.RETURN_DATE_CHANGED,
+          expect.objectContaining({ loanId: LOAN_ID, returnDate: null }),
+        );
+      });
+
+      it('does not touch reminders when only the notes change', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, notes: 'n' });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { notes: 'n' });
+
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
+
+      it('does not touch reminders when the return date is unchanged', async () => {
+        const sameDate = inDays(10);
+        const loan = { ...MOCK_LOAN, status: LoanStatus.ACTIVE, returnDate: new Date(sameDate) };
+        prisma.loan.findUnique.mockResolvedValue(loan);
+        prisma.loan.update.mockResolvedValue(loan);
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: sameDate });
+
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
+    });
   });
 
   // ===========================================================================
