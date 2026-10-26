@@ -3,7 +3,7 @@ import type { ConfigService } from '@nestjs/config';
 
 import type { PhotoStorage } from './interfaces/photo-storage.interface.js';
 import { LocalPhotoStorageService } from './local-photo-storage.service.js';
-import { R2PhotoStorageService } from './r2-photo-storage.service.js';
+import { R2PhotoStorageService, createR2Client } from './r2-photo-storage.service.js';
 import { readR2Settings } from '../config/r2-settings.js';
 
 /** Picks the PhotoStorage implementation: Cloudflare R2 when configured, local disk otherwise. */
@@ -13,7 +13,8 @@ export function createPhotoStorage(config: ConfigService): PhotoStorage {
 
   if (r2Settings) {
     logger.log(`Using Cloudflare R2 photo storage (bucket "${r2Settings.bucketName}")`);
-    return new R2PhotoStorageService(r2Settings);
+    const { bucketName, publicUrl } = r2Settings;
+    return new R2PhotoStorageService({ bucketName, publicUrl }, createR2Client(r2Settings));
   }
 
   logger.log('Using local disk photo storage');

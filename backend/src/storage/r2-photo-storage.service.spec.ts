@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 
@@ -6,7 +7,7 @@ import type { R2Settings } from '../config/r2-settings.js';
 
 describe('R2PhotoStorageService', () => {
   const SETTINGS: R2Settings = {
-    accountId: 'account-123',
+    accountId: '0123456789abcdef0123456789abcdef',
     accessKeyId: 'access-key',
     secretAccessKey: 'secret-key',
     bucketName: 'return-photos',
@@ -15,11 +16,21 @@ describe('R2PhotoStorageService', () => {
 
   let send: jest.Mock;
   let service: R2PhotoStorageService;
+  let errorLog: jest.SpyInstance;
+
+  beforeAll(() => Logger.overrideLogger(false));
+  afterAll(() => Logger.overrideLogger(['log', 'error', 'warn', 'debug', 'verbose']));
 
   beforeEach(() => {
     send = jest.fn().mockResolvedValue({});
-    service = new R2PhotoStorageService(SETTINGS, { send } as unknown as Pick<S3Client, 'send'>);
+    errorLog = jest.spyOn(Logger.prototype, 'error');
+    service = new R2PhotoStorageService(
+      { bucketName: SETTINGS.bucketName, publicUrl: SETTINGS.publicUrl },
+      { send } as unknown as Pick<S3Client, 'send'>,
+    );
   });
+
+  afterEach(() => errorLog.mockRestore());
 
   const sentCommand = (): unknown => send.mock.calls[0][0];
 
@@ -54,11 +65,11 @@ describe('R2PhotoStorageService', () => {
       expect((sentCommand() as PutObjectCommand).input.ContentType).toBe(contentType);
     });
 
-    it('marks objects as immutable for caching, since every upload uses a fresh key', async () => {
+    it('lets clients cache forever (fresh key per upload) but keeps CDN edges short so deletions take effect', async () => {
       await service.upload(Buffer.from('img'), 'items/item-1/photo.jpg');
 
       expect((sentCommand() as PutObjectCommand).input.CacheControl).toBe(
-        'public, max-age=31536000, immutable',
+        'public, max-age=31536000, s-maxage=86400, immutable',
       );
     });
 
@@ -67,6 +78,16 @@ describe('R2PhotoStorageService', () => {
 
       await expect(service.upload(Buffer.from('img'), 'items/item-1/photo.jpg')).rejects.toThrow(
         'R2 unavailable',
+      );
+    });
+
+    it('logs a storage failure with the operation and the key', async () => {
+      send.mockRejectedValue(Object.assign(new Error('Access Denied'), { name: 'AccessDenied' }));
+
+      await expect(service.upload(Buffer.from('img'), 'items/item-1/photo.jpg')).rejects.toThrow();
+
+      expect(errorLog).toHaveBeenCalledWith(
+        expect.stringMatching(/upload.*items\/item-1\/photo\.jpg.*AccessDenied/),
       );
     });
   });
@@ -99,6 +120,9 @@ describe('R2PhotoStorageService', () => {
       send.mockRejectedValue(new Error('R2 unavailable'));
 
       await expect(service.delete('items/item-1/photo.jpg')).rejects.toThrow('R2 unavailable');
+      expect(errorLog).toHaveBeenCalledWith(
+        expect.stringMatching(/delete.*items\/item-1\/photo\.jpg/),
+      );
     });
   });
 
@@ -108,8 +132,21 @@ describe('R2PhotoStorageService', () => {
 
       const endpoint = await client.config.endpoint?.();
       await expect(client.config.region()).resolves.toBe('auto');
-      expect(endpoint?.hostname).toBe('account-123.r2.cloudflarestorage.com');
+      expect(endpoint?.hostname).toBe('0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com');
       expect(endpoint?.protocol).toBe('https:');
+    });
+
+    it('bounds retries so a slow R2 cannot hold upload requests indefinitely', async () => {
+      const client = createR2Client(SETTINGS);
+
+      await expect(client.config.maxAttempts()).resolves.toBe(3);
+    });
+
+    it('only computes checksums when required, as Cloudflare recommends for R2', async () => {
+      const client = createR2Client(SETTINGS);
+
+      await expect(client.config.requestChecksumCalculation()).resolves.toBe('WHEN_REQUIRED');
+      await expect(client.config.responseChecksumValidation()).resolves.toBe('WHEN_REQUIRED');
     });
   });
 

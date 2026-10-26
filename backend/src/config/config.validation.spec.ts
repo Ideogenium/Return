@@ -8,7 +8,7 @@ describe('validate (environment)', () => {
   };
 
   const R2_ENV = {
-    R2_ACCOUNT_ID: 'account-123',
+    R2_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
     R2_ACCESS_KEY_ID: 'access-key',
     R2_SECRET_ACCESS_KEY: 'secret-key',
     R2_BUCKET_NAME: 'return-photos',
@@ -31,9 +31,24 @@ describe('validate (environment)', () => {
     expect(() => validate({ ...BASE_ENV, ...R2_ENV, NODE_ENV: 'production' })).not.toThrow();
   });
 
+  it('refuses production with an http public URL', () => {
+    expect(() =>
+      validate({
+        ...BASE_ENV,
+        ...R2_ENV,
+        NODE_ENV: 'production',
+        R2_PUBLIC_URL: 'http://photos.example.r2.dev',
+      }),
+    ).toThrow(/R2_PUBLIC_URL/);
+  });
+
   it('refuses a partial R2 configuration in any environment', () => {
     expect(() =>
-      validate({ ...BASE_ENV, NODE_ENV: 'development', R2_ACCOUNT_ID: 'account-123' }),
+      validate({
+        ...BASE_ENV,
+        NODE_ENV: 'development',
+        R2_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
+      }),
     ).toThrow(/R2_ACCESS_KEY_ID/);
   });
 });

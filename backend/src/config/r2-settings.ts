@@ -29,7 +29,8 @@ export type EnvReader = (key: string) => string | undefined;
  * Reads the R2 configuration.
  *
  * @returns the settings, or `null` when no R2 variable is set
- * @throws Error when the configuration is partial or `R2_PUBLIC_URL` is not an https URL
+ * @throws Error when the configuration is partial, the account ID is malformed or
+ *         `R2_PUBLIC_URL` is not a plain https URL
  *         (the message names the variables, never their values)
  */
 export function readR2Settings(read: EnvReader): R2Settings | null {
@@ -48,7 +49,7 @@ export function readR2Settings(read: EnvReader): R2Settings | null {
   }
 
   return {
-    accountId: value('accountId'),
+    accountId: validateAccountId(value('accountId')),
     accessKeyId: value('accessKeyId'),
     secretAccessKey: value('secretAccessKey'),
     bucketName: value('bucketName'),
@@ -56,15 +57,27 @@ export function readR2Settings(read: EnvReader): R2Settings | null {
   };
 }
 
+// The account ID becomes the host of signed S3 requests: anything but a
+// Cloudflare ID could redirect them elsewhere.
+function validateAccountId(accountId: string): string {
+  if (!/^[a-f0-9]{32}$/.test(accountId)) {
+    throw new Error('R2_ACCOUNT_ID must be the 32-character hexadecimal Cloudflare account ID.');
+  }
+  return accountId;
+}
+
 function normalizePublicUrl(raw: string): string {
+  const invalid = new Error(
+    'R2_PUBLIC_URL must be an absolute https URL without credentials, query string or fragment.',
+  );
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new Error('R2_PUBLIC_URL must be an absolute https URL.');
+    throw invalid;
   }
-  if (url.protocol !== 'https:') {
-    throw new Error('R2_PUBLIC_URL must be an absolute https URL.');
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    throw invalid;
   }
-  return raw.replace(/\/+$/, '');
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }

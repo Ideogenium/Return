@@ -17,7 +17,7 @@ describe('createPhotoStorage', () => {
   it('uses Cloudflare R2 when R2 is fully configured', () => {
     const storage = createPhotoStorage(
       configWith({
-        R2_ACCOUNT_ID: 'account-123',
+        R2_ACCOUNT_ID: '0123456789abcdef0123456789abcdef',
         R2_ACCESS_KEY_ID: 'access-key',
         R2_SECRET_ACCESS_KEY: 'secret-key',
         R2_BUCKET_NAME: 'return-photos',
@@ -29,8 +29,8 @@ describe('createPhotoStorage', () => {
   });
 
   it('fails fast on a partial R2 configuration instead of falling back to local disk', () => {
-    expect(() => createPhotoStorage(configWith({ R2_ACCOUNT_ID: 'account-123' }))).toThrow(
-      /Incomplete Cloudflare R2 configuration/,
-    );
+    expect(() =>
+      createPhotoStorage(configWith({ R2_ACCOUNT_ID: '0123456789abcdef0123456789abcdef' })),
+    ).toThrow(/Incomplete Cloudflare R2 configuration/);
   });
 });
