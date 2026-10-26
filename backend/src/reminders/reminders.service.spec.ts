@@ -56,4 +56,66 @@ describe('RemindersService', () => {
       expect(prisma.reminder.createMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('cancelScheduled', () => {
+    const LOAN_ID = '11111111-1111-1111-1111-111111111111';
+
+    it('cancels only the still-scheduled reminders of the loan, keeping sent ones as history', async () => {
+      prisma.reminder.updateMany.mockResolvedValue({ count: 3 });
+
+      await service.cancelScheduled(LOAN_ID);
+
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { loanId: LOAN_ID, status: ReminderStatus.SCHEDULED },
+        data: { status: ReminderStatus.CANCELLED },
+      });
+    });
+  });
+
+  describe('reschedule', () => {
+    const LOAN_ID = '11111111-1111-1111-1111-111111111111';
+    const NOW = new Date('2026-10-26T10:00:00Z');
+
+    beforeEach(() => {
+      prisma.$transaction.mockResolvedValue([]);
+    });
+
+    it('replaces the scheduled reminders with the policy computed from the new return date', async () => {
+      const newReturnDate = new Date('2026-11-20');
+
+      await service.reschedule(LOAN_ID, newReturnDate, NOW);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { loanId: LOAN_ID, status: ReminderStatus.SCHEDULED },
+        data: { status: ReminderStatus.CANCELLED },
+      });
+      const data = prisma.reminder.createMany.mock.calls[0][0]!.data as Array<{
+        type: ReminderType;
+        scheduledFor: Date;
+      }>;
+      expect(data.map((r) => r.type)).toEqual(
+        ReminderPolicy.calculateDates(newReturnDate, NOW).map((s) => s.type),
+      );
+    });
+
+    it('never schedules a reminder in the past, which the hourly job would send immediately', async () => {
+      const newReturnDate = new Date('2026-10-28');
+
+      await service.reschedule(LOAN_ID, newReturnDate, NOW);
+
+      const data = prisma.reminder.createMany.mock.calls[0][0]!.data as Array<{
+        scheduledFor: Date;
+      }>;
+      expect(data.length).toBeGreaterThan(0);
+      expect(data.every((r) => r.scheduledFor.getTime() > NOW.getTime())).toBe(true);
+    });
+
+    it('only cancels when the return date is removed', async () => {
+      await service.reschedule(LOAN_ID, null, NOW);
+
+      expect(prisma.reminder.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.reminder.createMany).not.toHaveBeenCalled();
+    });
+  });
 });

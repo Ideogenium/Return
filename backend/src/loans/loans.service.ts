@@ -24,10 +24,23 @@ import type {
   LoanCreatedEvent,
   LoanStatusChangedEvent,
   LoanDeletedEvent,
+  LoanReturnDateChangedEvent,
 } from '../common/events/loan.events.js';
 import { LoanStatus, Prisma } from '@prisma/client';
 
 const MAX_LOANS_PER_DAY = 15;
+
+/** Statuses whose reminders follow the return date (not yet overdue, not closed). */
+const RESCHEDULABLE_STATUSES: ReadonlySet<LoanStatus> = new Set([
+  LoanStatus.PENDING_CONFIRMATION,
+  LoanStatus.ACTIVE,
+  LoanStatus.ACTIVE_BY_DEFAULT,
+]);
+
+function sameDay(a: Date | null, b: Date | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+}
 
 /** Transaction client type for Prisma interactive transactions */
 type TxClient = Prisma.TransactionClient;
@@ -280,6 +293,7 @@ export class LoansService {
     this.assertOwnership(loan, lenderId, `/v1/loans/${loanId}`);
 
     const data: Record<string, unknown> = {};
+    let newReturnDate: Date | null | undefined;
     if (dto.returnDate !== undefined) {
       if (dto.returnDate) {
         const returnDate = new Date(dto.returnDate);
@@ -295,10 +309,11 @@ export class LoansService {
             `/v1/loans/${loanId}`,
           );
         }
-        data.returnDate = returnDate;
+        newReturnDate = returnDate;
       } else {
-        data.returnDate = null;
+        newReturnDate = null;
       }
+      data.returnDate = newReturnDate;
     }
     if (dto.notes !== undefined) {
       data.notes = dto.notes;
@@ -313,6 +328,19 @@ export class LoansService {
         borrower: true,
       },
     });
+
+    if (
+      newReturnDate !== undefined &&
+      RESCHEDULABLE_STATUSES.has(loan.status) &&
+      !sameDay(loan.returnDate, newReturnDate)
+    ) {
+      const event: LoanReturnDateChangedEvent = {
+        loanId,
+        returnDate: newReturnDate,
+        changedAt: new Date(),
+      };
+      this.eventEmitter.emit(LOAN_EVENTS.RETURN_DATE_CHANGED, event);
+    }
 
     return toLoanResponse(updated as LoanWithRelations);
   }
