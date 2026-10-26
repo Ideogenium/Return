@@ -117,7 +117,7 @@ describe('ReminderListener', () => {
   });
 
   describe(`@OnEvent(${LOAN_EVENTS.RETURN_DATE_CHANGED})`, () => {
-    it('reschedules the reminders from the new return date', async () => {
+    it('reschedules the reminders of the loan', async () => {
       const event: LoanReturnDateChangedEvent = {
         loanId: LOAN_ID,
         returnDate: new Date('2026-11-20'),
@@ -126,11 +126,7 @@ describe('ReminderListener', () => {
 
       await listener.handleReturnDateChanged(event);
 
-      expect(remindersService.reschedule).toHaveBeenCalledWith(
-        LOAN_ID,
-        event.returnDate,
-        event.changedAt,
-      );
+      expect(remindersService.reschedule).toHaveBeenCalledWith(LOAN_ID, event.changedAt);
     });
   });
 });

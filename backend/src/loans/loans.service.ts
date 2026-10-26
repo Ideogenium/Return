@@ -10,7 +10,10 @@ import {
   RateLimitException,
 } from '../common/exceptions/problem-details.exception.js';
 import { LOAN_EVENTS } from '../common/events/loan.events.js';
-import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
+import {
+  ACTIVE_LOAN_STATUSES,
+  RETURN_DATE_RESCHEDULABLE_STATUSES,
+} from '../common/constants/loan-statuses.js';
 import { isValidTransition, isAllowedForRole } from './loan-status-machine.js';
 import type { LoanRole } from './loan-status-machine.js';
 import { CreateLoanDto } from './dto/create-loan.dto.js';
@@ -29,13 +32,6 @@ import type {
 import { LoanStatus, Prisma } from '@prisma/client';
 
 const MAX_LOANS_PER_DAY = 15;
-
-/** Statuses whose reminders follow the return date (not yet overdue, not closed). */
-const RESCHEDULABLE_STATUSES: ReadonlySet<LoanStatus> = new Set([
-  LoanStatus.PENDING_CONFIRMATION,
-  LoanStatus.ACTIVE,
-  LoanStatus.ACTIVE_BY_DEFAULT,
-]);
 
 function sameDay(a: Date | null, b: Date | null): boolean {
   if (a === null || b === null) return a === b;
@@ -331,12 +327,13 @@ export class LoansService {
 
     if (
       newReturnDate !== undefined &&
-      RESCHEDULABLE_STATUSES.has(loan.status) &&
+      RETURN_DATE_RESCHEDULABLE_STATUSES.includes(loan.status) &&
       !sameDay(loan.returnDate, newReturnDate)
     ) {
       const event: LoanReturnDateChangedEvent = {
         loanId,
-        returnDate: newReturnDate,
+        // Stored value: @db.Date drops any time part sent by the client.
+        returnDate: updated.returnDate,
         changedAt: new Date(),
       };
       this.eventEmitter.emit(LOAN_EVENTS.RETURN_DATE_CHANGED, event);

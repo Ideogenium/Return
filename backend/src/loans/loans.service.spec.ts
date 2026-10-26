@@ -649,6 +649,19 @@ describe('LoansService', () => {
         },
       );
 
+      it('emits the date-only value stored on the loan when a datetime is sent', async () => {
+        const day = inDays(10);
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, returnDate: new Date(day) });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: `${day}T23:30:00+01:00` });
+
+        expect(eventEmitter.emit).toHaveBeenCalledWith(
+          LOAN_EVENTS.RETURN_DATE_CHANGED,
+          expect.objectContaining({ returnDate: new Date(day) }),
+        );
+      });
+
       it('emits RETURN_DATE_CHANGED with a null date when the return date is removed', async () => {
         prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
         prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, returnDate: null });

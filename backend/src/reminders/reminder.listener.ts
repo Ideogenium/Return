@@ -49,6 +49,6 @@ export class ReminderListener {
 
   @OnEvent(LOAN_EVENTS.RETURN_DATE_CHANGED)
   async handleReturnDateChanged(event: LoanReturnDateChangedEvent): Promise<void> {
-    await this.remindersService.reschedule(event.loanId, event.returnDate, event.changedAt);
+    await this.remindersService.reschedule(event.loanId, event.changedAt);
   }
 }

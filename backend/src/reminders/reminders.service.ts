@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ReminderStatus, type Reminder } from '@prisma/client';
+import { ReminderStatus, type Prisma, type Reminder } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RETURN_DATE_RESCHEDULABLE_STATUSES } from '../common/constants/loan-statuses.js';
 import {
   ForbiddenException,
   NotFoundException,
@@ -31,7 +32,7 @@ export class RemindersService {
 
   /** Cancels the loan's still-scheduled reminders; sent ones stay as history. */
   async cancelScheduled(loanId: string): Promise<void> {
-    const { count } = await this.cancelScheduledQuery(loanId);
+    const { count } = await cancelScheduledQuery(this.prisma, loanId);
 
     if (count > 0) {
       this.logger.log(`Cancelled ${count} scheduled reminder(s) for loan ${loanId}`);
@@ -39,32 +40,32 @@ export class RemindersService {
   }
 
   /**
-   * Replaces the loan's scheduled reminders with the policy computed from the new
-   * return date. Past dates are dropped: the hourly job would send them at once.
+   * Replaces the loan's scheduled reminders with the policy computed from the
+   * return date currently stored on the loan. The loan is re-read in the same
+   * transaction, so out-of-order or late events cannot schedule a stale date or
+   * revive reminders of a loan that became overdue, closed or deleted meanwhile.
    */
-  async reschedule(loanId: string, returnDate: Date | null, now: Date): Promise<void> {
-    const futureSchedules = ReminderPolicy.calculateDates(returnDate, now).filter(
-      (schedule) => schedule.scheduledFor.getTime() > now.getTime(),
-    );
+  async reschedule(loanId: string, now: Date): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const loan = await tx.loan.findUnique({
+        where: { id: loanId },
+        select: { returnDate: true, status: true, deletedAt: true },
+      });
+      if (
+        !loan ||
+        loan.deletedAt !== null ||
+        !RETURN_DATE_RESCHEDULABLE_STATUSES.includes(loan.status)
+      ) {
+        return;
+      }
 
-    if (futureSchedules.length === 0) {
-      await this.cancelScheduledQuery(loanId);
-      this.logger.log(`Cancelled scheduled reminders for loan ${loanId} (no return date)`);
-      return;
-    }
+      const schedules = ReminderPolicy.calculateDates(loan.returnDate, now);
+      await cancelScheduledQuery(tx, loanId);
+      if (schedules.length > 0) {
+        await tx.reminder.createMany({ data: toScheduledRows(loanId, schedules) });
+      }
 
-    await this.prisma.$transaction([
-      this.cancelScheduledQuery(loanId),
-      this.prisma.reminder.createMany({ data: toScheduledRows(loanId, futureSchedules) }),
-    ]);
-
-    this.logger.log(`Rescheduled ${futureSchedules.length} reminder(s) for loan ${loanId}`);
-  }
-
-  private cancelScheduledQuery(loanId: string) {
-    return this.prisma.reminder.updateMany({
-      where: { loanId, status: ReminderStatus.SCHEDULED },
-      data: { status: ReminderStatus.CANCELLED },
+      this.logger.log(`Rescheduled ${schedules.length} reminder(s) for loan ${loanId}`);
     });
   }
 
@@ -173,4 +174,11 @@ function toScheduledRows(loanId: string, schedules: ReminderSchedule[]) {
     status: ReminderStatus.SCHEDULED,
     scheduledFor: schedule.scheduledFor,
   }));
+}
+
+function cancelScheduledQuery(db: Pick<Prisma.TransactionClient, 'reminder'>, loanId: string) {
+  return db.reminder.updateMany({
+    where: { loanId, status: ReminderStatus.SCHEDULED },
+    data: { status: ReminderStatus.CANCELLED },
+  });
 }
