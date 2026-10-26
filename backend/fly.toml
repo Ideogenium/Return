@@ -11,11 +11,9 @@ primary_region = 'cdg'
   PORT = '3000'
   API_PREFIX = 'v1'
   LOG_LEVEL = 'info'
-  # FIX-01/02 (short term): serve photo/avatar URLs from the public host instead
-  # of the localhost default. NOTE: Fly containers are ephemeral — files under
-  # /uploads are still lost on every redeploy. Persistence requires Cloudflare R2
-  # (CORR-02 / docs/10_ROADMAP_CLOUDFLARE_R2.md).
-  UPLOAD_BASE_URL = 'https://return-api.fly.dev/uploads'
+  # Photos are stored on Cloudflare R2: the five R2_* variables are Fly secrets
+  # (`fly secrets set`, never here). The app refuses to start in production
+  # without them, so set the secrets BEFORE deploying a version that needs them.
 
 [http_service]
   internal_port = 3000
