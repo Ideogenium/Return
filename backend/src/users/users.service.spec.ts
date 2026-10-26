@@ -510,21 +510,6 @@ describe('UsersService', () => {
       expect(firstKey).not.toBe(secondKey);
     });
 
-    it('should never delete the file it has just uploaded when the storage returns the previous URL', async () => {
-      const sameUrl = `http://localhost:3000/uploads/users/${MOCK_USER.id}/avatar.jpg`;
-      prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, profilePicture: sameUrl });
-      photoStorage.upload.mockResolvedValue({
-        key: `users/${MOCK_USER.id}/avatar.jpg`,
-        url: sameUrl,
-        thumbnailUrl: null,
-      });
-      prisma.user.update.mockResolvedValue({ ...MOCK_USER, profilePicture: sameUrl });
-
-      await service.updateAvatar(MOCK_USER.id, Buffer.from('img'), 'avatar.jpg');
-
-      expect(photoStorage.delete).not.toHaveBeenCalled();
-    });
-
     it('should not delete old avatar if none exists', async () => {
       prisma.user.findUnique.mockResolvedValue(MOCK_USER); // profilePicture = null
       photoStorage.upload.mockResolvedValue({

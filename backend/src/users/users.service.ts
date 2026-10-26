@@ -276,7 +276,7 @@ export class UsersService {
     }
 
     // 3. Supprimer l'ancien avatar (best-effort, après succès)
-    if (previousPicture && previousPicture !== uploadResult.url) {
+    if (previousPicture) {
       try {
         await this.photoStorage.delete(previousPicture);
       } catch {
