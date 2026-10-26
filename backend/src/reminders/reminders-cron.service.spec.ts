@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { ReminderStatus, ReminderType } from '@prisma/client';
 
@@ -62,6 +63,16 @@ describe('RemindersCronService', () => {
   });
 
   describe('sendScheduledReminders', () => {
+    it('logs one tick per run even when nothing is due, so the job is visible in production logs', async () => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      prisma.reminder.findMany.mockResolvedValue([]);
+
+      await cronService.sendScheduledReminders();
+
+      expect(log).toHaveBeenCalledWith('Reminders tick: 0 due');
+      log.mockRestore();
+    });
+
     it('should find SCHEDULED reminders where scheduledFor <= now', async () => {
       prisma.reminder.findMany.mockResolvedValue([]);
 

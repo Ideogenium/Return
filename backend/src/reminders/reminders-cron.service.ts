@@ -39,9 +39,9 @@ export class RemindersCronService {
       },
     });
 
+    // One line per run, even when idle: a silent job is indistinguishable from a dead one.
+    this.logger.log(`Reminders tick: ${reminders.length} due`);
     if (reminders.length === 0) return;
-
-    this.logger.log(`Processing ${reminders.length} scheduled reminder(s)`);
 
     for (const reminder of reminders) {
       try {

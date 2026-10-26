@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -59,6 +60,16 @@ describe('LoansCronService', () => {
   });
 
   describe('handlePendingTimeout', () => {
+    it('logs one tick per run even when no loan is due, so the job is visible in production logs', async () => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      prisma.loan.findMany.mockResolvedValue([]);
+
+      await cronService.handlePendingTimeout();
+
+      expect(log).toHaveBeenCalledWith('Pending-confirmation tick: 0 loan(s) to auto-confirm');
+      log.mockRestore();
+    });
+
     // FIX-05 vol. A: split auto-confirmation threshold by loan duration.
     // Short loans (Δ < 3 days) auto-confirm after 24h; longer loans after 48h.
 
