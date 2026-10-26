@@ -2,7 +2,7 @@ import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 
 import { R2PhotoStorageService, createR2Client } from './r2-photo-storage.service.js';
-import type { R2Settings } from './r2-settings.js';
+import type { R2Settings } from '../config/r2-settings.js';
 
 describe('R2PhotoStorageService', () => {
   const SETTINGS: R2Settings = {

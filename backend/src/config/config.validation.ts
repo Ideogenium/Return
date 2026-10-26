@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { Environment, EnvironmentVariables } from './env.validation.js';
-import { readR2Settings } from '../storage/r2-settings.js';
+import { readR2Settings } from './r2-settings.js';
 
 export function validate(config: Record<string, unknown>): EnvironmentVariables {
   const validated = plainToInstance(EnvironmentVariables, config, {

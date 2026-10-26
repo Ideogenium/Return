@@ -8,7 +8,8 @@ import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loggerConfig } from './common/logger/winston.config.js';
 import { AllExceptionsFilter } from './common/exceptions/all-exceptions.filter.js';
-import { readR2Settings } from './storage/r2-settings.js';
+import { PHOTO_STORAGE } from './storage/interfaces/photo-storage.interface.js';
+import { LocalPhotoStorageService } from './storage/local-photo-storage.service.js';
 
 // =============================================================================
 // class-validator constraint name → OpenAPI-compatible error code mapping
@@ -47,7 +48,7 @@ async function bootstrap(): Promise<void> {
 
   // Local photo storage only: serve uploaded files at /uploads/*.
   // With R2, photos are served by the bucket's public URL, never by the API.
-  if (!readR2Settings((key) => config.get<string>(key))) {
+  if (app.get(PHOTO_STORAGE, { strict: false }) instanceof LocalPhotoStorageService) {
     app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
   }
 

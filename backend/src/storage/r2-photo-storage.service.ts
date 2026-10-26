@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 import type { PhotoStorage, PhotoUploadResult } from './interfaces/photo-storage.interface.js';
-import type { R2Settings } from './r2-settings.js';
+import type { R2Settings } from '../config/r2-settings.js';
 
 // =============================================================================
 // R2PhotoStorage — Cloudflare R2 implementation (production)

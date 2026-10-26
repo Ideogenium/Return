@@ -1,5 +1,5 @@
 // =============================================================================
-// R2 settings — single source of truth for the photo storage driver choice
+// R2 settings — parsing and validation of the R2_* environment variables
 // =============================================================================
 // All R2_* variables set → Cloudflare R2. None set → local disk (dev/tests).
 // A partial configuration is always an error: it would otherwise fall back to
