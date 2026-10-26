@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   BadRequestException,
@@ -26,6 +26,8 @@ type ItemWithPhotos = Item & { photos: Photo[] };
 
 @Injectable()
 export class ItemsService {
+  private readonly logger = new Logger(ItemsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PHOTO_STORAGE) private readonly photoStorage: PhotoStorage,
@@ -225,19 +227,25 @@ export class ItemsService {
 
     // Upload vers le storage
     const ext = filename.split('.').pop() ?? 'jpg';
-    const key = `items/${itemId}/${crypto.randomUUID()}.${ext}`;
+    // Owner prefix: lets account deletion purge every photo of a user by prefix,
+    // even after the items themselves are gone.
+    const key = `users/${userId}/items/${itemId}/${crypto.randomUUID()}.${ext}`;
     const uploadResult = await this.photoStorage.upload(file, key);
 
-    // Créer l'enregistrement Photo en DB
-    const photo = await this.prisma.photo.create({
-      data: {
-        url: uploadResult.url,
-        thumbnailUrl: uploadResult.thumbnailUrl,
-        itemId,
-      },
-    });
-
-    return this.toPhotoResponse(photo);
+    // Créer l'enregistrement Photo en DB (rollback de l'upload si échec)
+    try {
+      const photo = await this.prisma.photo.create({
+        data: {
+          url: uploadResult.url,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          itemId,
+        },
+      });
+      return this.toPhotoResponse(photo);
+    } catch (error) {
+      await this.deleteStoredFile(uploadResult.key);
+      throw error;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -253,8 +261,19 @@ export class ItemsService {
       throw new NotFoundException('Photo', photoId, `/v1/items/${itemId}/photos/${photoId}`);
     }
 
-    await this.photoStorage.delete(photo.url);
     await this.prisma.photo.delete({ where: { id: photoId } });
+    await this.deleteStoredFile(photo.url);
+  }
+
+  /** Best-effort: a storage failure is logged, never surfaced; the record is the source of truth. */
+  private async deleteStoredFile(keyOrUrl: string): Promise<void> {
+    try {
+      await this.photoStorage.delete(keyOrUrl);
+    } catch (error) {
+      this.logger.warn(
+        `Stored photo could not be deleted, left orphaned: ${keyOrUrl} (${(error as Error).message})`,
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
