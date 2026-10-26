@@ -38,20 +38,33 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
 }
 
 // The class default (localhost) is a development convenience; production must
-// name its allowed origin explicitly.
+// name its allowed origin explicitly, exactly as browsers send it (the CORS
+// middleware compares strings: a trailing slash or a path never matches).
 function assertProductionCorsOrigin(origin: string | undefined): void {
-  const hostname = origin ? safeHostname(origin.trim()) : null;
-  if (!hostname || ['localhost', '127.0.0.1', '[::1]'].includes(hostname)) {
+  const url = origin ? safeUrl(origin) : null;
+  const valid =
+    url !== null &&
+    url.protocol === 'https:' &&
+    url.origin === origin &&
+    !isLocalHostname(url.hostname);
+  if (!valid) {
     throw new Error(
-      'Config validation error:\nCORS_ORIGIN must be set explicitly in production ' +
-        'to a non-local origin (the localhost default is for development only).',
+      'Config validation error:\nCORS_ORIGIN must be set explicitly in production to a single ' +
+        'non-local https origin such as https://app.example.com (no path, no trailing slash).',
     );
   }
 }
 
-function safeHostname(origin: string): string | null {
+function isLocalHostname(hostname: string): boolean {
+  return (
+    ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'].includes(hostname) ||
+    hostname.endsWith('.localhost')
+  );
+}
+
+function safeUrl(value: string): URL | null {
   try {
-    return new URL(origin).hostname;
+    return new URL(value);
   } catch {
     return null;
   }
