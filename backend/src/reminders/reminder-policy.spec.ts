@@ -102,4 +102,39 @@ describe('ReminderPolicy', () => {
       expect(result[0].type).toBe(ReminderType.ON_DUE_DATE);
     });
   });
+
+  describe('calendar days across a daylight-saving change (suite runs in Europe/Paris)', () => {
+    // A return date is a @db.Date (midnight UTC). Reminders must stay on midnight UTC of
+    // their calendar day even when the period crosses a DST change of the server zone.
+    const schedule = (returnDate: string, createdAt: string) =>
+      Object.fromEntries(
+        ReminderPolicy.calculateDates(new Date(returnDate), new Date(createdAt)).map((r) => [
+          r.type,
+          r.scheduledFor.toISOString(),
+        ]),
+      );
+
+    it('keeps J+7, J+14 and J+21 on midnight UTC across the spring change (2027-03-28)', () => {
+      expect(schedule('2027-03-25', '2027-03-01')).toEqual({
+        [ReminderType.PREVENTIVE]: '2027-03-22T00:00:00.000Z',
+        [ReminderType.ON_DUE_DATE]: '2027-03-25T00:00:00.000Z',
+        [ReminderType.FIRST_OVERDUE]: '2027-04-01T00:00:00.000Z',
+        [ReminderType.SECOND_OVERDUE]: '2027-04-08T00:00:00.000Z',
+        [ReminderType.FINAL_OVERDUE]: '2027-04-15T00:00:00.000Z',
+      });
+    });
+
+    it('keeps J-3 on midnight UTC when the change falls between J-3 and J (spring)', () => {
+      expect(schedule('2027-03-30', '2027-03-01')[ReminderType.PREVENTIVE]).toBe(
+        '2027-03-27T00:00:00.000Z',
+      );
+    });
+
+    it('keeps the overdue reminders on midnight UTC across the autumn change (2027-10-31)', () => {
+      const result = schedule('2027-10-28', '2027-10-01');
+
+      expect(result[ReminderType.FIRST_OVERDUE]).toBe('2027-11-04T00:00:00.000Z');
+      expect(result[ReminderType.FINAL_OVERDUE]).toBe('2027-11-18T00:00:00.000Z');
+    });
+  });
 });

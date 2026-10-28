@@ -5,9 +5,10 @@ export interface ReminderSchedule {
   scheduledFor: Date;
 }
 
+/** Calendar-day arithmetic in UTC: return dates are @db.Date (midnight UTC). */
 function addDays(date: Date, days: number): Date {
   const result = new Date(date);
-  result.setDate(result.getDate() + days);
+  result.setUTCDate(result.getUTCDate() + days);
   return result;
 }
 
