@@ -79,4 +79,47 @@ describe('ReminderExhaustedListener', () => {
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
+
+  describe('closeAsNotReturned (shared with the overdue catch-up)', () => {
+    const event: AllRemindersExhaustedEvent = {
+      loanId: LOAN_ID,
+      borrowerId: BORROWER_ID,
+      lenderUserId: LENDER_USER_ID,
+    };
+
+    it('returns true and transitions an AWAITING_RETURN loan to NOT_RETURNED', async () => {
+      prisma.loan.findUnique.mockResolvedValue({
+        id: LOAN_ID,
+        status: LoanStatus.AWAITING_RETURN,
+      } as never);
+
+      const closed = await listener.closeAsNotReturned(event);
+
+      expect(closed).toBe(true);
+      expect(prisma.loan.update).toHaveBeenCalledWith({
+        where: { id: LOAN_ID },
+        data: { status: LoanStatus.NOT_RETURNED },
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(LOAN_EVENTS.STATUS_CHANGED, {
+        loanId: LOAN_ID,
+        borrowerId: BORROWER_ID,
+        lenderUserId: LENDER_USER_ID,
+        previousStatus: LoanStatus.AWAITING_RETURN,
+        newStatus: LoanStatus.NOT_RETURNED,
+      });
+    });
+
+    it('returns false and changes nothing when the loan is not AWAITING_RETURN', async () => {
+      prisma.loan.findUnique.mockResolvedValue({
+        id: LOAN_ID,
+        status: LoanStatus.RETURNED,
+      } as never);
+
+      const closed = await listener.closeAsNotReturned(event);
+
+      expect(closed).toBe(false);
+      expect(prisma.loan.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -5,7 +5,9 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LoansCronService } from './loans-cron.service.js';
 import { LOAN_EVENTS } from '../common/events/loan.events.js';
-import { LoanStatus } from '@prisma/client';
+import { LoanStatus, ReminderStatus, ReminderType } from '@prisma/client';
+import { ReminderExhaustedListener } from './reminder-exhausted.listener.js';
+import { Logger } from '@nestjs/common';
 
 // =============================================================================
 // Fixtures
@@ -43,16 +45,19 @@ describe('LoansCronService', () => {
   let cronService: LoansCronService;
   let prisma: DeepMockProxy<PrismaService>;
   let eventEmitter: { emit: jest.Mock };
+  let exhaustedListener: { closeAsNotReturned: jest.Mock };
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaService>();
     eventEmitter = { emit: jest.fn() };
+    exhaustedListener = { closeAsNotReturned: jest.fn().mockResolvedValue(true) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LoansCronService,
         { provide: PrismaService, useValue: prisma },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: ReminderExhaustedListener, useValue: exhaustedListener },
       ],
     }).compile();
 
@@ -161,6 +166,222 @@ describe('LoansCronService', () => {
 
       expect(prisma.loan.updateMany).not.toHaveBeenCalled();
       expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================================
+  // FEAT-10 — handleOverdueLoans: ACTIVE / ACTIVE_BY_DEFAULT → AWAITING_RETURN
+  // ===========================================================================
+
+  describe('handleOverdueLoans', () => {
+    let logSpy: jest.SpyInstance;
+
+    // Mocks the two findMany calls of a tick: overdue candidates, then the
+    // AWAITING_RETURN catch-up candidates (told apart by their status filter).
+    function mockQueries(
+      overdue: Array<{ id: string; status: LoanStatus }>,
+      exhausted: string[] = [],
+    ): void {
+      prisma.loan.findMany.mockImplementation((async (args: { where: { status: unknown } }) => {
+        if (args.where.status === LoanStatus.AWAITING_RETURN) {
+          return exhausted.map((id) => ({ id, borrowerId: BORROWER_ID, lenderId: LENDER_ID }));
+        }
+        return overdue.map((l) => ({ ...l, borrowerId: BORROWER_ID, lenderId: LENDER_ID }));
+      }) as never);
+    }
+
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-03-10T15:30:00.000Z'));
+      logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+      prisma.loan.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      logSpy.mockRestore();
+    });
+
+    it('selects ACTIVE / ACTIVE_BY_DEFAULT, non-deleted loans due strictly before today (UTC)', async () => {
+      mockQueries([]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(prisma.loan.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: { in: [LoanStatus.ACTIVE, LoanStatus.ACTIVE_BY_DEFAULT] },
+            deletedAt: null,
+            returnDate: { not: null, lt: new Date('2026-03-10T00:00:00.000Z') },
+          },
+        }),
+      );
+    });
+
+    it.each([
+      [
+        'one millisecond before midnight UTC (still day J)',
+        '2026-03-10T23:59:59.999Z',
+        '2026-03-10',
+      ],
+      ['exactly midnight UTC (J+1 begins)', '2026-03-11T00:00:00.000Z', '2026-03-11'],
+      ['mid-day', '2026-03-11T12:00:00.000Z', '2026-03-11'],
+    ])('computes the UTC day boundary: %s', async (_label, now, expectedDay) => {
+      jest.setSystemTime(new Date(now));
+      mockQueries([]);
+
+      await cronService.handleOverdueLoans();
+
+      const where = (
+        prisma.loan.findMany.mock.calls[0][0] as { where: { returnDate: { lt: Date } } }
+      ).where;
+      expect(where.returnDate.lt.toISOString()).toBe(`${expectedDay}T00:00:00.000Z`);
+    });
+
+    it('moves overdue loans to AWAITING_RETURN guarded by their current status', async () => {
+      mockQueries([
+        { id: LOAN_ID_1, status: LoanStatus.ACTIVE },
+        { id: LOAN_ID_2, status: LoanStatus.ACTIVE_BY_DEFAULT },
+      ]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(prisma.loan.updateMany).toHaveBeenCalledWith({
+        where: { id: LOAN_ID_1, status: LoanStatus.ACTIVE },
+        data: { status: LoanStatus.AWAITING_RETURN },
+      });
+      expect(prisma.loan.updateMany).toHaveBeenCalledWith({
+        where: { id: LOAN_ID_2, status: LoanStatus.ACTIVE_BY_DEFAULT },
+        data: { status: LoanStatus.AWAITING_RETURN },
+      });
+    });
+
+    it('emits one STATUS_CHANGED event per transitioned loan', async () => {
+      mockQueries([
+        { id: LOAN_ID_1, status: LoanStatus.ACTIVE },
+        { id: LOAN_ID_2, status: LoanStatus.ACTIVE_BY_DEFAULT },
+      ]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(eventEmitter.emit).toHaveBeenCalledTimes(2);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(LOAN_EVENTS.STATUS_CHANGED, {
+        loanId: LOAN_ID_1,
+        borrowerId: BORROWER_ID,
+        lenderUserId: LENDER_ID,
+        previousStatus: LoanStatus.ACTIVE,
+        newStatus: LoanStatus.AWAITING_RETURN,
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(LOAN_EVENTS.STATUS_CHANGED, {
+        loanId: LOAN_ID_2,
+        borrowerId: BORROWER_ID,
+        lenderUserId: LENDER_ID,
+        previousStatus: LoanStatus.ACTIVE_BY_DEFAULT,
+        newStatus: LoanStatus.AWAITING_RETURN,
+      });
+    });
+
+    it('is idempotent: a loan already moved by a concurrent tick emits no event', async () => {
+      mockQueries([{ id: LOAN_ID_1, status: LoanStatus.ACTIVE }]);
+      prisma.loan.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValue({ count: 0 });
+
+      await cronService.handleOverdueLoans();
+      await cronService.handleOverdueLoans();
+
+      expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing and emits nothing when no loan is overdue', async () => {
+      mockQueries([]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(prisma.loan.updateMany).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+      expect(exhaustedListener.closeAsNotReturned).not.toHaveBeenCalled();
+    });
+
+    it('never cancels reminders (AWAITING_RETURN keeps them running)', async () => {
+      mockQueries([{ id: LOAN_ID_1, status: LoanStatus.ACTIVE }]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(prisma.reminder.updateMany).not.toHaveBeenCalled();
+      expect(prisma.reminder.update).not.toHaveBeenCalled();
+    });
+
+    it('catches up AWAITING_RETURN loans whose FINAL_OVERDUE reminder was already SENT', async () => {
+      mockQueries([], [LOAN_ID_3]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(prisma.loan.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: LoanStatus.AWAITING_RETURN,
+            deletedAt: null,
+            reminders: {
+              some: { type: ReminderType.FINAL_OVERDUE, status: ReminderStatus.SENT },
+            },
+          },
+        }),
+      );
+      expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledWith({
+        loanId: LOAN_ID_3,
+        borrowerId: BORROWER_ID,
+        lenderUserId: LENDER_ID,
+      });
+    });
+
+    it('closes in the same tick a late ACTIVE loan whose FINAL_OVERDUE was already SENT', async () => {
+      mockQueries([{ id: LOAN_ID_1, status: LoanStatus.ACTIVE }], [LOAN_ID_1]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(logSpy).toHaveBeenCalledWith(
+        'Overdue tick: 1 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up)',
+      );
+      // AWAITING_RETURN is written before the closure is attempted
+      const updateOrder = prisma.loan.updateMany.mock.invocationCallOrder[0];
+      const closeOrder = exhaustedListener.closeAsNotReturned.mock.invocationCallOrder[0];
+      expect(updateOrder).toBeLessThan(closeOrder);
+    });
+
+    it('does not count a catch-up closure that the listener skipped', async () => {
+      mockQueries([], [LOAN_ID_3]);
+      exhaustedListener.closeAsNotReturned.mockResolvedValue(false);
+
+      await cronService.handleOverdueLoans();
+
+      expect(logSpy).toHaveBeenCalledWith(
+        'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up)',
+      );
+    });
+
+    it('keeps going when one catch-up closure fails', async () => {
+      mockQueries([], [LOAN_ID_1, LOAN_ID_2]);
+      exhaustedListener.closeAsNotReturned
+        .mockRejectedValueOnce(new Error('db down'))
+        .mockResolvedValueOnce(true);
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+
+      await cronService.handleOverdueLoans();
+
+      expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledTimes(2);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(logSpy).toHaveBeenCalledWith(
+        'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up)',
+      );
+      errorSpy.mockRestore();
+    });
+
+    it('logs the team-convention line on every tick, even when there is nothing to do', async () => {
+      mockQueries([]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(logSpy).toHaveBeenCalledWith(
+        'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up)',
+      );
     });
   });
 });

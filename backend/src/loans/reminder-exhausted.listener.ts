@@ -19,7 +19,15 @@ export class ReminderExhaustedListener {
   @OnEvent(REMINDER_EVENTS.ALL_EXHAUSTED)
   async handleAllExhausted(event: AllRemindersExhaustedEvent): Promise<void> {
     this.logger.log(`All reminders exhausted for loan ${event.loanId}`);
+    await this.closeAsNotReturned(event);
+  }
 
+  /**
+   * AWAITING_RETURN → NOT_RETURNED, with the STATUS_CHANGED event that drives the
+   * borrower stats / trustScore recalculation. Shared by the ALL_EXHAUSTED handler
+   * and the overdue catch-up CRON. Returns true only if the loan was really closed.
+   */
+  async closeAsNotReturned(event: AllRemindersExhaustedEvent): Promise<boolean> {
     const loan = await this.prisma.loan.findUnique({
       where: { id: event.loanId },
       select: { id: true, status: true },
@@ -29,7 +37,7 @@ export class ReminderExhaustedListener {
       this.logger.warn(
         `Loan ${event.loanId} is not in AWAITING_RETURN status (current: ${loan?.status}), skipping NOT_RETURNED transition`,
       );
-      return;
+      return false;
     }
 
     await this.prisma.loan.update({
@@ -46,5 +54,6 @@ export class ReminderExhaustedListener {
     });
 
     this.logger.log(`Loan ${event.loanId} transitioned to NOT_RETURNED`);
+    return true;
   }
 }
