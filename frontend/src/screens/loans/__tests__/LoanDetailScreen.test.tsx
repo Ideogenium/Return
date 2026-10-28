@@ -8,6 +8,7 @@ import { LoanDetailScreen } from '../LoanDetailScreen';
 import { LoanListScreen } from '../LoanListScreen';
 import { useLoanStore } from '../../../stores/useLoanStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
+import { useReminderStore } from '../../../stores/useReminderStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { LoanStackParamList } from '../../../navigation/types';
 
@@ -75,6 +76,7 @@ beforeEach(() => {
 afterEach(() => {
   server.resetHandlers();
   useLoanStore.getState().reset();
+  useReminderStore.getState().reset();
   useAuthStore.setState({ user: null, accessToken: null });
 });
 afterAll(() => server.close());
@@ -256,6 +258,72 @@ describe('LoanDetailScreen', () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId('loan-detail')).toBeNull();
+    });
+  });
+
+  describe('reminders in timeline', () => {
+    const REMINDERS_URL = 'http://localhost:3000/v1/loans/:id/reminders';
+
+    it('should show sent and scheduled reminders to the lender', async () => {
+      renderDetailScreen();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reminder before due date')).toBeTruthy();
+      });
+      expect(screen.getByText('Reminder on due date')).toBeTruthy();
+    });
+
+    it('should not call the reminders endpoint for the borrower', async () => {
+      let remindersCalls = 0;
+      server.use(
+        http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+          HttpResponse.json(
+            {
+              id: params.id,
+              item: {
+                id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+                name: 'Perceuse Bosch',
+                category: 'TOOLS',
+                createdAt: '2026-02-10T10:00:00Z',
+              },
+              lender: { id: 'other-user-id', firstName: 'Alice', lastName: 'Martin' },
+              borrower: { id: 'b-1', firstName: 'John', lastName: 'Doe' },
+              status: 'ACTIVE',
+              returnDate: '2026-04-15',
+              confirmationDate: '2026-02-02T10:00:00Z',
+              returnedDate: null,
+              notes: null,
+              contestReason: null,
+              createdAt: '2026-02-01T10:00:00Z',
+              updatedAt: '2026-02-02T10:00:00Z',
+            },
+            { status: 200 },
+          ),
+        ),
+        http.get(REMINDERS_URL, () => {
+          remindersCalls += 1;
+          return HttpResponse.json([], { status: 200 });
+        }),
+      );
+
+      renderDetailScreen();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('loan-timeline')).toBeTruthy();
+      });
+      expect(remindersCalls).toBe(0);
+      expect(screen.queryByText(/reminder/i)).toBeNull();
+    });
+
+    it('should still render the timeline when the reminders request fails', async () => {
+      server.use(http.get(REMINDERS_URL, () => HttpResponse.error()));
+
+      renderDetailScreen();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('loan-timeline')).toBeTruthy();
+      });
+      expect(screen.queryByText(/reminder/i)).toBeNull();
     });
   });
 });

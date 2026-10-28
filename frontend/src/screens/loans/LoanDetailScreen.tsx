@@ -19,6 +19,7 @@ import { useLoanStore } from '../../stores/useLoanStore';
 import { RefreshError } from '../../components/common/RefreshError';
 import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useReminderStore } from '../../stores/useReminderStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { formatDate, toLocalIsoDate } from '../../utils/date';
 import { ReturnDateCalendar } from '../../components/loans/ReturnDateCalendar';
@@ -63,6 +64,18 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
   const [editApiError, setEditApiError] = useState<string | undefined>();
+
+  const reminders = useReminderStore((s) => s.reminders);
+  const isLenderOfLoan = selectedLoan?.id === id && selectedLoan.lender.id === currentUserId;
+
+  // Les rappels sont réservés au prêteur (403 côté API sinon) : aucun appel côté emprunteur
+  useEffect(() => {
+    if (isLenderOfLoan) {
+      void useReminderStore.getState().fetchLoanReminders(id);
+    } else {
+      useReminderStore.getState().reset();
+    }
+  }, [id, isLenderOfLoan]);
 
   const handleDelete = async () => {
     setDeleteDialogVisible(false);
@@ -255,7 +268,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
 
       {/* Timeline */}
       <View style={[styles.timelineCard, ui.card]}>
-        <LoanTimeline loan={selectedLoan} />
+        <LoanTimeline loan={selectedLoan} reminders={isLender ? reminders : undefined} />
       </View>
 
       {apiError && (
