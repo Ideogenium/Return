@@ -548,7 +548,7 @@ paths:
                   example: '2026-03-20'
                   description: |
                     Nouvelle date de retour prévue (null = indéfinie).
-                    **Contrainte** : doit être au minimum 2 jours après la date de création du prêt (J+2).
+                    **Contrainte** : doit être au minimum 2 jours après la date du jour (J+2).
                     Si des rappels sont déjà planifiés, ils seront recalculés automatiquement.
                     **Statuts autorisés** : la date ne peut être modifiée (ou retirée) que pour un prêt
                     `PENDING_CONFIRMATION`, `ACTIVE` ou `ACTIVE_BY_DEFAULT`. Pour un prêt en retard
