@@ -83,11 +83,17 @@ function matchesScalar(value: unknown, cond: unknown): boolean {
   return true;
 }
 
+function matchesReminder(reminder: FakeReminder, where: Where): boolean {
+  return Object.entries(where).every(([key, cond]) =>
+    matchesScalar((reminder as unknown as Record<string, unknown>)[key], cond),
+  );
+}
+
 function matchesLoan(loan: FakeLoan, where: Where): boolean {
   return Object.entries(where).every(([key, cond]) => {
     if (key === 'reminders') {
-      const some = (cond as { some: Partial<FakeReminder> }).some;
-      return loan.reminders.some((r) => r.type === some.type && r.status === some.status);
+      const some = (cond as { some: Where }).some;
+      return loan.reminders.some((r) => matchesReminder(r, some));
     }
     return matchesScalar((loan as unknown as Record<string, unknown>)[key], cond);
   });
@@ -166,10 +172,21 @@ describe('FEAT-10 overdue lifecycle (e2e, in-memory Prisma fake)', () => {
   }
 
   function wirePrismaFake(): void {
-    prisma.loan.findMany.mockImplementation(((args: { where: Where }) =>
-      Promise.resolve(
-        loans.filter((l) => matchesLoan(l, args.where)).map((l) => ({ ...l })),
-      )) as never);
+    prisma.loan.findMany.mockImplementation(((args: {
+      where: Where;
+      select?: { reminders?: { where?: Where } };
+    }) => {
+      const nested = args.select?.reminders?.where;
+      return Promise.resolve(
+        loans
+          .filter((l) => matchesLoan(l, args.where))
+          .map((l) => ({
+            ...l,
+            createdAt: new Date('2026-02-20T00:00:00.000Z'),
+            reminders: nested ? l.reminders.filter((r) => matchesReminder(r, nested)) : l.reminders,
+          })),
+      );
+    }) as never);
     prisma.loan.count.mockImplementation(((args: { where: Where }) =>
       Promise.resolve(loans.filter((l) => matchesLoan(l, args.where)).length)) as never);
     prisma.loan.findUnique.mockImplementation(((args: { where: { id: string } }) =>
@@ -393,5 +410,96 @@ describe('FEAT-10 overdue lifecycle (e2e, in-memory Prisma fake)', () => {
 
     const stats = await request(app.getHttpServer()).get('/v1/history/statistics').expect(200);
     expect(stats.body.overview.notReturnedLoans).toBe(1);
+  });
+
+  describe('FEAT-10 exclusions (behaviour on the in-memory store)', () => {
+    const OTHER_BASE = '110e8400-e29b-41d4-a716-4466554400';
+
+    function addLoan(suffix: string, overrides: Partial<FakeLoan>): FakeLoan {
+      const loan = { ...buildLoan(`${OTHER_BASE}${suffix}`, LoanStatus.ACTIVE, []), ...overrides };
+      loans.push(loan);
+      return loan;
+    }
+
+    it('only flips the eligible loan and leaves every excluded one untouched', async () => {
+      loans = []; // isolate from the default fixtures
+      const eligible = addLoan('10', {});
+      const excluded = [
+        addLoan('11', { returnDate: null }),
+        addLoan('12', { deletedAt: new Date('2026-03-01T00:00:00.000Z') }),
+        addLoan('13', { status: LoanStatus.CONTESTED }),
+        addLoan('14', { status: LoanStatus.RETURNED }),
+        addLoan('15', { status: LoanStatus.PENDING_CONFIRMATION }),
+        addLoan('16', { returnDate: new Date('2026-03-11T00:00:00.000Z') }), // due today
+      ];
+      setNow('2026-03-11T10:00:00.000Z');
+
+      await loansCron.handleOverdueLoans();
+      await flushEvents();
+
+      expect(eligible.status).toBe(LoanStatus.AWAITING_RETURN);
+      expect(excluded.map((l) => l.status)).toEqual([
+        LoanStatus.ACTIVE,
+        LoanStatus.ACTIVE,
+        LoanStatus.CONTESTED,
+        LoanStatus.RETURNED,
+        LoanStatus.PENDING_CONFIRMATION,
+        LoanStatus.ACTIVE,
+      ]);
+      expect(statusChanges().map((e) => e.loanId)).toEqual([eligible.id]);
+    });
+
+    it('catch-up never closes a soft-deleted or RETURNED loan, even with a SENT FINAL_OVERDUE', async () => {
+      loans = [];
+      const sent = [reminder(ReminderType.FINAL_OVERDUE, '2026-03-31T08:00:00.000Z')].map((r) => ({
+        ...r,
+        status: ReminderStatus.SENT,
+      }));
+      const deleted = addLoan('21', {
+        status: LoanStatus.AWAITING_RETURN,
+        deletedAt: new Date('2026-04-01T00:00:00.000Z'),
+        reminders: sent,
+      });
+      const returned = addLoan('22', { status: LoanStatus.RETURNED, reminders: sent });
+      setNow('2026-04-15T10:00:00.000Z');
+
+      await loansCron.handleOverdueLoans();
+      await flushEvents();
+
+      expect(deleted.status).toBe(LoanStatus.AWAITING_RETURN);
+      expect(returned.status).toBe(LoanStatus.RETURNED);
+      expect(statusChanges()).toHaveLength(0);
+    });
+
+    it('catch-up closes a loan whose FINAL_OVERDUE FAILED but not one whose SENT FINAL_OVERDUE is for an older due date', async () => {
+      loans = [];
+      const failed = addLoan('31', {
+        status: LoanStatus.AWAITING_RETURN,
+        reminders: [
+          {
+            ...reminder(ReminderType.FINAL_OVERDUE, '2026-03-31T08:00:00.000Z'),
+            status: ReminderStatus.FAILED,
+          },
+        ],
+      });
+      const postponed = addLoan('32', {
+        status: LoanStatus.AWAITING_RETURN,
+        returnDate: new Date('2026-03-20T00:00:00.000Z'), // pushed back after the J+21 of 03-10
+        reminders: [
+          {
+            ...reminder(ReminderType.FINAL_OVERDUE, '2026-03-31T08:00:00.000Z'),
+            id: 'rem-old',
+            status: ReminderStatus.SENT,
+          },
+        ],
+      });
+      setNow('2026-04-15T10:00:00.000Z');
+
+      await loansCron.handleOverdueLoans();
+      await flushEvents();
+
+      expect(failed.status).toBe(LoanStatus.NOT_RETURNED);
+      expect(postponed.status).toBe(LoanStatus.AWAITING_RETURN);
+    });
   });
 });
