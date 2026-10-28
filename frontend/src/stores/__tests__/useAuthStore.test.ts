@@ -151,6 +151,55 @@ describe('useAuthStore', () => {
     });
   });
 
+  describe('isHydrating (session restore) vs isLoading (user actions)', () => {
+    it('flags only the session restore as hydrating', async () => {
+      await setAccessToken('stored-access-token');
+      const pending = useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().isHydrating).toBe(true);
+      await pending;
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+
+    it('never flags a registration as hydrating, so the navigation is not torn down', async () => {
+      const pending = useAuthStore
+        .getState()
+        .register('new@example.com', 'Retour2026!', 'Jo', 'Do');
+
+      expect(useAuthStore.getState().isLoading).toBe(true);
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+      await pending.catch(() => {});
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+
+    it('never flags a login as hydrating', async () => {
+      const pending = useAuthStore.getState().login('test@example.com', 'password');
+
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+      await pending.catch(() => {});
+    });
+  });
+
+  describe('clearError', () => {
+    it('clears the last auth error, so it does not follow the user to another screen', async () => {
+      useAuthStore.setState({
+        error: {
+          type: 'https://api.return.app/errors/validation-failed',
+          title: 'Validation Failed',
+          status: 400,
+          detail: 'The request contains invalid data.',
+          instance: '/v1/auth/register',
+          timestamp: '2026-10-28T10:00:00Z',
+          requestId: 'req-mock',
+        },
+      });
+
+      useAuthStore.getState().clearError();
+
+      expect(useAuthStore.getState().error).toBeNull();
+    });
+  });
+
   describe('hydrate', () => {
     it('should restore session from stored token', async () => {
       await setAccessToken('stored-access-token');

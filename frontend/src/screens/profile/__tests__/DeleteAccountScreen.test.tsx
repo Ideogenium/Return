@@ -79,4 +79,25 @@ describe('DeleteAccountScreen', () => {
       expect(screen.getByTestId('api-error')).toBeTruthy();
     });
   });
+
+  it('only requires the current password to be filled in: it is verified by the API, not created', async () => {
+    let deleteCalled = false;
+    server.use(
+      http.delete('http://localhost:3000/v1/users/me', () => {
+        deleteCalled = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderDeleteScreen();
+
+    fireEvent.changeText(screen.getByTestId('password-input'), 'short');
+    fireEvent.changeText(screen.getByTestId('confirmationText-input'), 'DELETE MY ACCOUNT');
+    fireEvent.press(screen.getByTestId('delete-btn'));
+
+    await waitFor(() => {
+      expect(deleteCalled).toBe(true);
+    });
+    expect(screen.queryByTestId('password-error')).toBeNull();
+  });
 });

@@ -16,7 +16,7 @@ type Props = NativeStackScreenProps<AppStackParamList, 'Profile'>;
 
 export function ProfileScreen({ navigation }: Props) {
   const { t } = useTranslation();
-  const { user, isLoading, logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [snackbar, setSnackbar] = useState<{ message: string; type: 'success' | 'error' } | null>(
     null,
   );
@@ -53,7 +53,7 @@ export function ProfileScreen({ navigation }: Props) {
     }
   };
 
-  if (isLoading || !user) {
+  if (!user) {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />

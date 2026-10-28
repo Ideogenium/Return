@@ -13,7 +13,7 @@ import { AppNavigator } from './AppNavigator';
 import { navigateToLoanDetail } from './navigationRef';
 
 export function RootNavigator() {
-  const { isAuthenticated, isLoading, user, hydrate } = useAuthStore();
+  const { isAuthenticated, isHydrating, user, hydrate } = useAuthStore();
 
   useEffect(() => {
     hydrate();
@@ -105,7 +105,9 @@ export function RootNavigator() {
     };
   }, [isAuthenticated]);
 
-  if (isLoading) {
+  // Only the session restore replaces the navigation: user actions (login, register,
+  // avatar…) keep their screen mounted, with its form state and its error message.
+  if (isHydrating) {
     return (
       <View style={styles.splash} testID="splash-screen">
         <ActivityIndicator size="large" color="#6B8E7B" />

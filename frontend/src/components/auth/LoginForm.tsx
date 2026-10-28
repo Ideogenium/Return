@@ -5,6 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
 import type { LoginDto } from '../../types/api.types';
+import { EMAIL_PATTERN, normalizeEmail } from '../../utils/email';
 
 interface LoginFormProps {
   onSubmit: (data: LoginDto) => void;
@@ -33,7 +34,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
         name="email"
         rules={{
           required: t('auth.emailRequired'),
-          pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t('auth.emailInvalid') },
+          validate: (value) => EMAIL_PATTERN.test(normalizeEmail(value)) || t('auth.emailInvalid'),
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
@@ -61,10 +62,8 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       <Controller
         control={control}
         name="password"
-        rules={{
-          required: t('auth.passwordRequired'),
-          minLength: { value: 8, message: t('auth.passwordMinLength') },
-        }}
+        // Verification of an existing password: only required, as in the API (LoginDto).
+        rules={{ required: t('auth.passwordRequired') }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
             label={t('auth.password')}
@@ -102,7 +101,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       <Button
         mode="contained"
         icon="login"
-        onPress={handleSubmit(onSubmit)}
+        onPress={handleSubmit((data) => onSubmit({ ...data, email: normalizeEmail(data.email) }))}
         loading={isLoading}
         disabled={isLoading}
         testID="login-btn"

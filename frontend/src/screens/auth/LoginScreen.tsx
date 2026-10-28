@@ -12,7 +12,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: Props) {
   const { t } = useTranslation();
-  const { isLoading, error, login } = useAuthStore();
+  const { isLoading, error, login, clearError } = useAuthStore();
 
   const handleSubmit = async (data: LoginDto) => {
     try {
@@ -45,7 +45,10 @@ export function LoginScreen({ navigation }: Props) {
 
       <Button
         mode="text"
-        onPress={() => navigation.navigate('Register')}
+        onPress={() => {
+          clearError();
+          navigation.navigate('Register');
+        }}
         testID="go-register"
         textColor="#6B8E7B"
         labelStyle={styles.linkLabel}

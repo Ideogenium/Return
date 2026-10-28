@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Button, HelperText } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
+import { validatePasswordRules } from '../../utils/password';
+import { EMAIL_PATTERN, normalizeEmail } from '../../utils/email';
 
 interface RegisterFormData {
   email: string;
@@ -22,17 +24,18 @@ interface RegisterFormProps {
   }) => void;
   isLoading: boolean;
   error?: string;
+  /** Field-level messages derived from an API validation error. */
+  fieldErrors?: Partial<Record<'email' | 'password' | 'firstName' | 'lastName', string>>;
 }
 
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
-
-export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) {
+export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: RegisterFormProps) {
   const { t } = useTranslation();
   const {
     control,
     handleSubmit,
     formState: { errors },
     watch,
+    setError,
   } = useForm<RegisterFormData>({
     defaultValues: {
       firstName: '',
@@ -47,9 +50,15 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
 
+  useEffect(() => {
+    Object.entries(fieldErrors ?? {}).forEach(([field, message]) => {
+      if (message) setError(field as keyof RegisterFormData, { type: 'server', message });
+    });
+  }, [fieldErrors, setError]);
+
   const handleFormSubmit = (data: RegisterFormData) => {
     onSubmit({
-      email: data.email,
+      email: normalizeEmail(data.email),
       password: data.password,
       firstName: data.firstName,
       lastName: data.lastName,
@@ -124,7 +133,7 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
         name="email"
         rules={{
           required: t('auth.emailRequired'),
-          pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t('auth.emailInvalid') },
+          validate: (value) => EMAIL_PATTERN.test(normalizeEmail(value)) || t('auth.emailInvalid'),
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
@@ -156,7 +165,7 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
           required: t('auth.passwordRequired'),
           minLength: { value: 8, message: t('auth.passwordMinLength') },
           maxLength: { value: 100, message: t('auth.passwordMaxLength') },
-          pattern: { value: PASSWORD_REGEX, message: t('auth.passwordStrength') },
+          validate: (value) => validatePasswordRules(value, t),
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
@@ -180,9 +189,13 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
           />
         )}
       />
-      {errors.password && (
+      {errors.password ? (
         <HelperText type="error" testID="password-error">
           {errors.password.message}
+        </HelperText>
+      ) : (
+        <HelperText type="info" testID="password-rules">
+          {t('auth.passwordRules')}
         </HelperText>
       )}
 
