@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, StyleSheet } from 'react-native';
 import {
   Text,
@@ -13,7 +14,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import i18n from '../../config/i18n.config';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { LoanTimeline } from '../../components/loans/LoanTimeline';
+import { LoanTimeline, REMINDER_LOAN_STATUSES } from '../../components/loans/LoanTimeline';
 import { CATEGORY_I18N } from '../../components/items/ItemCard';
 import { useLoanStore } from '../../stores/useLoanStore';
 import { RefreshError } from '../../components/common/RefreshError';
@@ -50,6 +51,9 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const { t } = useTranslation();
   const { selectedLoan, fetchLoan } = useLoanStore();
   const { loadError, reload } = useEntityLoad(id, fetchLoan);
+  // selectedLoan is global and shared by every mounted LoanDetail (Loans tab and Profile > History):
+  // only the loan matching this route may be displayed or acted upon.
+  const loan = selectedLoan?.id === id ? selectedLoan : null;
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [abandonDialogVisible, setAbandonDialogVisible] = useState(false);
@@ -66,16 +70,35 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [editApiError, setEditApiError] = useState<string | undefined>();
 
   const reminders = useReminderStore((s) => s.reminders);
-  const isLenderOfLoan = selectedLoan?.id === id && selectedLoan.lender.id === currentUserId;
+  const remindersLoanId = useReminderStore((s) => s.loanId);
+  const isLenderOfLoan = loan !== null && loan.lender.id === currentUserId;
+  // Reminders are lender-only (403 otherwise) and only displayed for these statuses
+  const shouldLoadReminders = isLenderOfLoan && REMINDER_LOAN_STATUSES.includes(loan.status);
+  const hasFocusedOnce = useRef(false);
 
-  // Les rappels sont réservés au prêteur (403 côté API sinon) : aucun appel côté emprunteur
-  useEffect(() => {
-    if (isLenderOfLoan) {
-      void useReminderStore.getState().fetchLoanReminders(id);
-    } else {
-      useReminderStore.getState().reset();
-    }
-  }, [id, isLenderOfLoan]);
+  // useEntityLoad already fetches on mount; later focuses reload only if another screen
+  // replaced the shared loan meanwhile.
+  useFocusEffect(
+    useCallback(() => {
+      const isFirstFocus = !hasFocusedOnce.current;
+      hasFocusedOnce.current = true;
+      if (!isFirstFocus && useLoanStore.getState().selectedLoan?.id !== id) {
+        void reload();
+      }
+    }, [id, reload]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!shouldLoadReminders) {
+        if (useReminderStore.getState().loanId === id) useReminderStore.getState().reset();
+        return;
+      }
+      if (useReminderStore.getState().loanId !== id) {
+        void useReminderStore.getState().fetchLoanReminders(id);
+      }
+    }, [id, shouldLoadReminders]),
+  );
 
   const handleDelete = async () => {
     setDeleteDialogVisible(false);
@@ -137,12 +160,13 @@ export function LoanDetailScreen({ route, navigation }: Props) {
 
   const handleEdit = async () => {
     setEditApiError(undefined);
-    const originalReturnDate = selectedLoan?.returnDate?.slice(0, 10) ?? '';
+    if (!loan) return;
+    const originalReturnDate = loan.returnDate?.slice(0, 10) ?? '';
     const returnDateChanged = editReturnDate.slice(0, 10) !== originalReturnDate;
     try {
       await useLoanStore.getState().updateLoan(id, {
         notes: editNotes || null,
-        ...(isReturnDateEditable(selectedLoan?.status) && returnDateChanged
+        ...(isReturnDateEditable(loan.status) && returnDateChanged
           ? { returnDate: editReturnDate || null }
           : {}),
       });
@@ -160,8 +184,8 @@ export function LoanDetailScreen({ route, navigation }: Props) {
 
   const openEditDialog = () => {
     setEditApiError(undefined);
-    setEditNotes(selectedLoan?.notes ?? '');
-    const existingDate = selectedLoan?.returnDate ?? '';
+    setEditNotes(loan?.notes ?? '');
+    const existingDate = loan?.returnDate ?? '';
     setEditReturnDate(existingDate);
     setEditReturnDateObj(existingDate ? new Date(existingDate) : undefined);
     setCalendarExpanded(false);
@@ -170,7 +194,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
 
   // Full-screen states only while nothing is displayable for this id: actions and
   // refreshes keep the screen (and its open dialogs) mounted.
-  if (!selectedLoan || selectedLoan.id !== id) {
+  if (!loan) {
     if (!loadError) {
       return (
         <View style={styles.centerContainer}>
@@ -192,15 +216,15 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     );
   }
 
-  const isLender = selectedLoan.lender.id === currentUserId;
-  const contact = getContactForUser(selectedLoan, currentUserId);
+  const isLender = loan.lender.id === currentUserId;
+  const contact = getContactForUser(loan, currentUserId);
 
-  const canEdit = isLender && EDITABLE_STATUSES.includes(selectedLoan.status);
-  const canEditReturnDate = isReturnDateEditable(selectedLoan.status);
-  const canReturn = isLender && RETURNABLE_STATUSES.includes(selectedLoan.status);
-  const canAbandon = isLender && ABANDONABLE_STATUSES.includes(selectedLoan.status);
-  const canDelete = isLender && selectedLoan.status !== 'RETURNED';
-  const canConfirm = !isLender && selectedLoan.status === 'PENDING_CONFIRMATION';
+  const canEdit = isLender && EDITABLE_STATUSES.includes(loan.status);
+  const canEditReturnDate = isReturnDateEditable(loan.status);
+  const canReturn = isLender && RETURNABLE_STATUSES.includes(loan.status);
+  const canAbandon = isLender && ABANDONABLE_STATUSES.includes(loan.status);
+  const canDelete = isLender && loan.status !== 'RETURNED';
+  const canConfirm = !isLender && loan.status === 'PENDING_CONFIRMATION';
 
   return (
     <FormScrollView contentContainerStyle={styles.container} testID="loan-detail">
@@ -210,7 +234,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
         <View style={styles.header}>
           <Icon source="handshake-outline" size={32} color="#4A6355" />
           <Text variant="headlineSmall" style={styles.name}>
-            {selectedLoan.item.name}
+            {loan.item.name}
           </Text>
         </View>
 
@@ -219,7 +243,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
             {t('items.category')}
           </Text>
           <Text variant="bodyMedium" style={styles.value}>
-            {t(CATEGORY_I18N[selectedLoan.item.category])}
+            {t(CATEGORY_I18N[loan.item.category])}
           </Text>
         </View>
 
@@ -232,35 +256,35 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           </Text>
         </View>
 
-        {selectedLoan.returnDate && (
+        {loan.returnDate && (
           <View style={styles.field}>
             <Text variant="labelMedium" style={styles.label}>
               {t('loans.returnDate')}
             </Text>
             <Text variant="bodyMedium" style={styles.value}>
-              {formatDate(selectedLoan.returnDate, i18n.language)}
+              {formatDate(loan.returnDate, i18n.language)}
             </Text>
           </View>
         )}
 
-        {selectedLoan.notes && (
+        {loan.notes && (
           <View style={styles.field}>
             <Text variant="labelMedium" style={styles.label}>
               {t('loans.notes')}
             </Text>
             <Text variant="bodyMedium" style={styles.value}>
-              {selectedLoan.notes}
+              {loan.notes}
             </Text>
           </View>
         )}
 
-        {selectedLoan.contestReason && (
+        {loan.contestReason && (
           <View style={styles.field}>
             <Text variant="labelMedium" style={styles.label}>
               {t('loans.contestReason')}
             </Text>
             <Text variant="bodyMedium" style={styles.contestValue}>
-              {selectedLoan.contestReason}
+              {loan.contestReason}
             </Text>
           </View>
         )}
@@ -268,7 +292,10 @@ export function LoanDetailScreen({ route, navigation }: Props) {
 
       {/* Timeline */}
       <View style={[styles.timelineCard, ui.card]}>
-        <LoanTimeline loan={selectedLoan} reminders={isLender ? reminders : undefined} />
+        <LoanTimeline
+          loan={loan}
+          reminders={isLender && remindersLoanId === id ? reminders : undefined}
+        />
       </View>
 
       {apiError && (

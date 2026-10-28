@@ -30,7 +30,11 @@ const REMINDER_LABEL_KEYS: Record<ReminderType, string> = {
 // Rappels émis jusqu'à l'échéance ; les autres (J+7, J+14, J+21) suivent l'étape « retour attendu »
 const PRE_DUE_REMINDER_TYPES: ReminderType[] = ['PREVENTIVE', 'ON_DUE_DATE'];
 
-const REMINDER_LOAN_STATUSES: Loan['status'][] = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
+export const REMINDER_LOAN_STATUSES: Loan['status'][] = [
+  'ACTIVE',
+  'ACTIVE_BY_DEFAULT',
+  'AWAITING_RETURN',
+];
 
 function toReminderStep(reminder: Reminder, t: (key: string) => string): TimelineStep | null {
   const label = t(REMINDER_LABEL_KEYS[reminder.type]);
