@@ -40,7 +40,7 @@ describe('withNormalizedEmail', () => {
   });
 
   it('leaves a payload without email untouched', () => {
-    const data = { firstName: 'Jane' };
+    const data: { firstName: string; email?: string } = { firstName: 'Jane' };
     expect(withNormalizedEmail(data)).toBe(data);
   });
 });
