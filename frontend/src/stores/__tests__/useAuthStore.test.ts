@@ -162,7 +162,9 @@ describe('useAuthStore', () => {
     });
 
     it('never flags a registration as hydrating, so the navigation is not torn down', async () => {
-      const pending = useAuthStore.getState().register('new@example.com', 'Retour2026!', 'Jo', 'Do');
+      const pending = useAuthStore
+        .getState()
+        .register('new@example.com', 'Retour2026!', 'Jo', 'Do');
 
       expect(useAuthStore.getState().isLoading).toBe(true);
       expect(useAuthStore.getState().isHydrating).toBe(false);

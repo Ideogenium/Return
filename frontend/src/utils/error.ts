@@ -76,3 +76,37 @@ export function getErrorMessage(error: ProblemDetails, t: TFunction): string {
   }
   return error.detail || t('errors.unknownError');
 }
+
+/** i18n key per (field, API error code) — codes come from the API ValidationPipe (main.ts). */
+const FIELD_ERROR_KEYS: Record<string, Record<string, string>> = {
+  password: {
+    INVALID_FORMAT: 'auth.passwordRules',
+    TOO_SHORT: 'auth.passwordMinLength',
+    TOO_LONG: 'auth.passwordMaxLength',
+    REQUIRED: 'auth.passwordRequired',
+  },
+  newPassword: {
+    INVALID_FORMAT: 'auth.passwordRules',
+    TOO_SHORT: 'auth.passwordMinLength',
+    TOO_LONG: 'auth.passwordMaxLength',
+    REQUIRED: 'auth.passwordRequired',
+  },
+  currentPassword: { REQUIRED: 'auth.passwordRequired' },
+  email: { INVALID_EMAIL: 'auth.emailInvalid', REQUIRED: 'auth.emailRequired' },
+  firstName: { TOO_LONG: 'auth.nameMaxLength', REQUIRED: 'auth.firstNameRequired' },
+  lastName: { TOO_LONG: 'auth.nameMaxLength', REQUIRED: 'auth.lastNameRequired' },
+};
+
+/**
+ * Field-level messages for an API `validation-failed` problem, so a form can show
+ * each error under its own field instead of a generic banner. Empty for any other problem.
+ */
+export function getFieldErrors(error: ProblemDetails, t: TFunction): Record<string, string> {
+  if (!error.type.endsWith('/validation-failed') || !error.errors) return {};
+  return Object.fromEntries(
+    error.errors.map(({ field, code }) => [
+      field,
+      t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid'),
+    ]),
+  );
+}

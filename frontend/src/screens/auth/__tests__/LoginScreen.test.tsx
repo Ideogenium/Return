@@ -85,4 +85,25 @@ describe('LoginScreen', () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
     });
   });
+
+  it('clears the login error when going to the registration screen', async () => {
+    renderLoginScreen();
+    useAuthStore.setState({
+      error: {
+        type: 'https://api.return.app/errors/invalid-credentials',
+        title: 'Invalid Credentials',
+        status: 401,
+        detail: 'Invalid email or password.',
+        instance: '/v1/auth/login',
+        timestamp: '2026-10-28T10:00:00Z',
+        requestId: 'req-mock',
+      },
+    });
+
+    fireEvent.press(screen.getByTestId('go-register'));
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().error).toBeNull();
+    });
+  });
 });

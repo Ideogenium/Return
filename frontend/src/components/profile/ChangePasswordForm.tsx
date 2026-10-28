@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Button, HelperText } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
+import { validatePasswordRules } from '../../utils/password';
 
 interface ChangePasswordFormData {
   currentPassword: string;
@@ -15,11 +16,16 @@ interface ChangePasswordFormProps {
   onSubmit: (data: { currentPassword: string; newPassword: string }) => void;
   isLoading: boolean;
   error?: string;
+  /** Field-level messages derived from an API validation error. */
+  fieldErrors?: Partial<Record<'currentPassword' | 'newPassword', string>>;
 }
 
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
-
-export function ChangePasswordForm({ onSubmit, isLoading, error }: ChangePasswordFormProps) {
+export function ChangePasswordForm({
+  onSubmit,
+  isLoading,
+  error,
+  fieldErrors,
+}: ChangePasswordFormProps) {
   const { t } = useTranslation();
   const [currentVisible, setCurrentVisible] = useState(false);
   const [newVisible, setNewVisible] = useState(false);
@@ -29,7 +35,14 @@ export function ChangePasswordForm({ onSubmit, isLoading, error }: ChangePasswor
     handleSubmit,
     formState: { errors },
     watch,
+    setError,
   } = useForm<ChangePasswordFormData>();
+
+  useEffect(() => {
+    Object.entries(fieldErrors ?? {}).forEach(([field, message]) => {
+      if (message) setError(field as keyof ChangePasswordFormData, { type: 'server', message });
+    });
+  }, [fieldErrors, setError]);
 
   const newPassword = watch('newPassword');
 
@@ -78,7 +91,7 @@ export function ChangePasswordForm({ onSubmit, isLoading, error }: ChangePasswor
           required: t('auth.passwordRequired'),
           minLength: { value: 8, message: t('auth.passwordMinLength') },
           maxLength: { value: 100, message: t('auth.passwordMaxLength') },
-          pattern: { value: PASSWORD_REGEX, message: t('auth.passwordStrength') },
+          validate: (value) => validatePasswordRules(value, t),
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
@@ -102,9 +115,13 @@ export function ChangePasswordForm({ onSubmit, isLoading, error }: ChangePasswor
           />
         )}
       />
-      {errors.newPassword && (
+      {errors.newPassword ? (
         <HelperText type="error" testID="newPassword-error">
           {errors.newPassword.message}
+        </HelperText>
+      ) : (
+        <HelperText type="info" testID="newPassword-rules">
+          {t('auth.passwordRules')}
         </HelperText>
       )}
 

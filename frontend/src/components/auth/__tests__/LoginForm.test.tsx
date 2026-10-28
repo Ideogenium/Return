@@ -57,4 +57,31 @@ describe('LoginForm', () => {
 
     expect(screen.getByTestId('form-error')).toBeTruthy();
   });
+
+  it('only requires the password to be filled in: it is verified by the API, not created', async () => {
+    renderWithProvider(<LoginForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+    fireEvent.changeText(screen.getByTestId('email-input'), 'test@example.com');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'short');
+    fireEvent.press(screen.getByTestId('login-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith({ email: 'test@example.com', password: 'short' });
+    });
+  });
+
+  it('trims the email before sending it (iOS autocomplete adds a trailing space)', async () => {
+    renderWithProvider(<LoginForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+    fireEvent.changeText(screen.getByTestId('email-input'), 'test@example.com ');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'P@ssw0rd!');
+    fireEvent.press(screen.getByTestId('login-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'P@ssw0rd!',
+      });
+    });
+  });
 });

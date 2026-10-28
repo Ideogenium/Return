@@ -66,4 +66,62 @@ describe('RegisterForm', () => {
 
     expect(screen.getByTestId('form-error')).toBeTruthy();
   });
+
+  describe('password rules shown and enforced like the API contract', () => {
+    const fillValidFormExceptPassword = () => {
+      fireEvent.changeText(screen.getByTestId('firstName-input'), 'Jane');
+      fireEvent.changeText(screen.getByTestId('lastName-input'), 'Doe');
+      fireEvent.changeText(screen.getByTestId('email-input'), 'jane@example.com');
+    };
+
+    it('explains the password rules before any error, including the accepted special characters', () => {
+      renderWithProvider(<RegisterForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+      expect(screen.getByTestId('password-rules').props.children).toContain('@ $ ! % * ? &');
+    });
+
+    it('refuses a password with a character the API rejects and names that character', async () => {
+      renderWithProvider(<RegisterForm onSubmit={mockOnSubmit} isLoading={false} />);
+      fillValidFormExceptPassword();
+      fireEvent.changeText(screen.getByTestId('password-input'), 'Retour2026!#');
+      fireEvent.changeText(screen.getByTestId('confirmPassword-input'), 'Retour2026!#');
+      fireEvent.press(screen.getByTestId('register-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('password-error')).toBeTruthy();
+      });
+      expect(screen.getByTestId('password-error').props.children).toContain('#');
+      expect(mockOnSubmit).not.toHaveBeenCalled();
+    });
+
+    it('trims the email before sending it (iOS autocomplete adds a trailing space)', async () => {
+      renderWithProvider(<RegisterForm onSubmit={mockOnSubmit} isLoading={false} />);
+      fireEvent.changeText(screen.getByTestId('firstName-input'), 'Jane');
+      fireEvent.changeText(screen.getByTestId('lastName-input'), 'Doe');
+      fireEvent.changeText(screen.getByTestId('email-input'), ' jane@example.com ');
+      fireEvent.changeText(screen.getByTestId('password-input'), 'Retour2026!');
+      fireEvent.changeText(screen.getByTestId('confirmPassword-input'), 'Retour2026!');
+      fireEvent.press(screen.getByTestId('register-btn'));
+
+      await waitFor(() => {
+        expect(mockOnSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({ email: 'jane@example.com' }),
+        );
+      });
+    });
+
+    it('shows a field error returned by the API under that field', async () => {
+      renderWithProvider(
+        <RegisterForm
+          onSubmit={mockOnSubmit}
+          isLoading={false}
+          fieldErrors={{ password: 'Refused by the API' }}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('password-error').props.children).toBe('Refused by the API');
+      });
+    });
+  });
 });
