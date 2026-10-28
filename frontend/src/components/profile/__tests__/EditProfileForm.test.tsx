@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { EditProfileForm } from '../EditProfileForm';
+import i18n from '../../../config/i18n.config';
 import type { User } from '../../../types/api.types';
 
 const mockUser: User = {
@@ -84,5 +85,19 @@ describe('EditProfileForm', () => {
         expect.objectContaining({ email: 'new@example.com' }),
       );
     });
+  });
+
+  it('treats an email made only of spaces as empty and does not send it', async () => {
+    renderWithProvider(
+      <EditProfileForm user={mockUser} onSubmit={mockOnSubmit} isLoading={false} />,
+    );
+
+    fireEvent.changeText(screen.getByTestId('email-input'), '   ');
+    fireEvent.press(screen.getByTestId('save-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalled();
+    });
+    expect(mockOnSubmit.mock.calls[0][0]).not.toHaveProperty('email');
   });
 });

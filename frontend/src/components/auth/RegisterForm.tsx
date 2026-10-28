@@ -5,7 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
 import { PASSWORD_SPECIAL_CHARACTERS, validatePasswordRules } from '../../utils/password';
-import { EMAIL_PATTERN, normalizeEmail } from '../../utils/email';
+import { normalizeEmail, validateRequiredEmail } from '../../utils/email';
 
 interface RegisterFormData {
   email: string;
@@ -131,10 +131,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
       <Controller
         control={control}
         name="email"
-        rules={{
-          required: t('auth.emailRequired'),
-          validate: (value) => EMAIL_PATTERN.test(normalizeEmail(value)) || t('auth.emailInvalid'),
-        }}
+        rules={{ validate: (value) => validateRequiredEmail(value, t) }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
             label={t('auth.email')}

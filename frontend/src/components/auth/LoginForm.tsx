@@ -5,7 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
 import type { LoginDto } from '../../types/api.types';
-import { EMAIL_PATTERN, normalizeEmail } from '../../utils/email';
+import { normalizeEmail, validateRequiredEmail } from '../../utils/email';
 
 interface LoginFormProps {
   onSubmit: (data: LoginDto) => void;
@@ -32,10 +32,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       <Controller
         control={control}
         name="email"
-        rules={{
-          required: t('auth.emailRequired'),
-          validate: (value) => EMAIL_PATTERN.test(normalizeEmail(value)) || t('auth.emailInvalid'),
-        }}
+        rules={{ validate: (value) => validateRequiredEmail(value, t) }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
             label={t('auth.email')}
