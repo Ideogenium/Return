@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import apiClient from '../../api/apiClient';
 import type { GlobalTrustScore } from '../../types/api.types';
 import { useHistoryStore } from '../../stores/useHistoryStore';
+import { STATUS_COLORS } from '../../config/theme.config';
 
 interface StatItem {
   icon: string;
@@ -67,7 +68,12 @@ export function LenderStats() {
       value: overview?.notReturnedLoans ?? 0,
       color: '#D97A6B',
     },
-    // TODO FIX-14: réafficher overdueLoans quand le backend l'ajoutera à overview (à demander à Ozias)
+    {
+      icon: 'calendar-alert',
+      label: t('profile.overdueLoans'),
+      value: overview?.overdueLoans ?? 0,
+      color: STATUS_COLORS.AWAITING_RETURN.light,
+    },
   ];
 
   const borrowerStatsData: StatItem[] = [

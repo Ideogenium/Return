@@ -15,6 +15,7 @@ function makeStats(overrides: Partial<HistoryStatistics['overview']> = {}): Hist
       returnedLoans: 0,
       notReturnedLoans: 0,
       contestedLoans: 0,
+      overdueLoans: 0,
       averageReturnDelay: 0,
       ...overrides,
     },
@@ -103,9 +104,10 @@ describe('LenderStats (unified)', () => {
       expect(zeros.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('should NOT render the overdue label (FIX-14: overdue card was removed)', async () => {
+    it('should display the overdue loans card with its count (FEAT-04)', async () => {
+      // 7 is distinct from every other value on screen (MSW borrower defaults: 87%, 40, 31, 8)
       useHistoryStore.setState({
-        statistics: makeStats({ totalLoans: 10, activeLoans: 3, returnedLoans: 6 }),
+        statistics: makeStats({ totalLoans: 10, activeLoans: 3, returnedLoans: 6, overdueLoans: 7 }),
       });
 
       renderStats();
@@ -115,7 +117,8 @@ describe('LenderStats (unified)', () => {
       });
 
       // "Overdue" is the en.json translation for profile.overdueLoans
-      expect(screen.queryByText('Overdue')).toBeNull();
+      expect(screen.getByText('Overdue')).toBeTruthy();
+      expect(screen.getByText('7')).toBeTruthy();
     });
 
     it('should display contested and not-returned loan counts (new cards)', async () => {
