@@ -7,8 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Return** est une application mobile de suivi de prêts d'objets personnels et d'argent. Elle permet aux utilisateurs
 d'enregistrer des prêts, suivre les échéances et envoyer des rappels diplomatiques aux emprunteurs.
 
-**Statut actuel** : Sprints 1-3 complétés (Auth, Borrowers, Items/Photos) côté backend et frontend. Sprint 4 (Loans) en
-cours côté frontend.
+**Statut actuel** : phase **pré-production** (octobre 2026). Sprints 1 à 6 livrés (Auth, Borrowers, Items/Photos,
+Loans, Contact Invitations, Notifications, History/Dashboard). Backend déployé sur Fly.io (`return-api.fly.dev`),
+frontend branché dessus, builds EAS Android/iOS. Depuis le 25/10/2026, l'équipe travaille **par fonctionnalité** :
+chacun porte sa feature de bout en bout (back + front + tests + doc). Plan en cours : `16_ROADMAP_FEATURES.md`.
 
 ## Stack Technique
 
@@ -33,8 +35,11 @@ Modules NestJS découplés par événements (EventEmitter2 + @OnEvent) :
 - **Items** : Objets prêtés (CRUD, photos max 5, catégories, valeur estimée)
 - **Loans** : Cycle de vie des prêts (8 statuts, types OBJECT/MONEY) — Sprint 4
 - **ContactInvitations** : Invitations entre utilisateurs inscrits (recherche, envoi, acceptation, rejet, expiration) — Sprint 4.6
-- **Reminders** : Rappels automatiques (BullMQ jobs) — politique fixe avec PREVENTIVE adaptatif (J-3 si Δ≥3, sinon J-1), J, J+7, J+14, J+21. Date retour minimum J+2. — Sprint 5
-- **Notifications** : Push (FCM) en V1. Email, SMS en V2+.
+- **Reminders** : Rappels automatiques (CRON `@nestjs/schedule` in-process, BullMQ non implémenté) — politique fixe avec PREVENTIVE adaptatif (J-3 si Δ≥3, sinon J-1), J, J+7, J+14, J+21. Date retour minimum J+2. — Sprint 5
+- **Notifications** : Push via Expo Push Service (`expo-server-sdk`) en V1. Email, SMS en V2+.
+- **History** : Prêts archivés (`GET /history/loans`) et statistiques du prêteur (`GET /history/statistics`).
+- **Dashboard** : Pas de module backend dédié ; les chiffres clés viennent des statistiques du module History
+  (profil prêteur).
 
 ## Architecture & Patterns Obligatoires
 
@@ -173,9 +178,9 @@ docker compose up postgres redis        # Uniquement les services d'infrastructu
 | Sprint 2 | Borrowers | Fait | Fait |
 | Sprint 3 | Items + Photos | Fait | Fait |
 | Sprint 4 | Loans | Fait | Fait |
-| Sprint 4.6 | Contact Invitations | — | — |
-| Sprint 5 | Docker Dev + Validation J+2 + Notifications | — | — |
-| Sprint 6 | Dashboard + History | — | — |
+| Sprint 4.6 | Contact Invitations | Fait | Fait |
+| Sprint 5 | Docker Dev + Validation J+2 + Notifications | Fait | Fait |
+| Sprint 6 | Dashboard + History | Fait | Fait (historique ; dashboard dédié post-échéance) |
 
 ## Documents de Référence
 
