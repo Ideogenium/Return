@@ -1,5 +1,10 @@
 import { Logger } from '@nestjs/common';
-import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 
 import { R2PhotoStorageService, createR2Client } from './r2-photo-storage.service.js';
@@ -124,6 +129,88 @@ describe('R2PhotoStorageService', () => {
         expect.stringMatching(/delete.*items\/item-1\/photo\.jpg/),
       );
     });
+  });
+
+  describe('deleteByPrefix', () => {
+    const keysPage = (count: number, offset = 0) =>
+      Array.from({ length: count }, (_, i) => ({ Key: `users/user-1/items/i/${offset + i}.jpg` }));
+
+    it('deletes every object listed under the prefix and returns how many were deleted', async () => {
+      send.mockImplementation((command: unknown) =>
+        Promise.resolve(
+          command instanceof ListObjectsV2Command
+            ? { Contents: keysPage(3), IsTruncated: false }
+            : { Errors: [] },
+        ),
+      );
+
+      await expect(service.deleteByPrefix('users/user-1/')).resolves.toBe(3);
+
+      const list = send.mock.calls[0][0] as ListObjectsV2Command;
+      expect(list).toBeInstanceOf(ListObjectsV2Command);
+      expect(list.input).toMatchObject({ Bucket: 'return-photos', Prefix: 'users/user-1/' });
+      const del = send.mock.calls[1][0] as DeleteObjectsCommand;
+      expect(del).toBeInstanceOf(DeleteObjectsCommand);
+      expect(del.input.Bucket).toBe('return-photos');
+      expect(del.input.Delete?.Objects).toEqual(keysPage(3));
+    });
+
+    it('is idempotent: nothing listed means nothing deleted', async () => {
+      send.mockResolvedValue({ IsTruncated: false });
+
+      await expect(service.deleteByPrefix('users/user-1/')).resolves.toBe(0);
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('follows the listing pagination and deletes each page (at most 1000 keys per request)', async () => {
+      const pages = [
+        { Contents: keysPage(1000), IsTruncated: true, NextContinuationToken: 'next-1' },
+        { Contents: keysPage(250, 1000), IsTruncated: false },
+      ];
+      let listCall = 0;
+      send.mockImplementation((command: unknown) =>
+        Promise.resolve(command instanceof ListObjectsV2Command ? pages[listCall++] : { Errors: [] }),
+      );
+
+      await expect(service.deleteByPrefix('users/user-1/')).resolves.toBe(1250);
+
+      const lists = send.mock.calls
+        .map(([c]) => c)
+        .filter((c): c is ListObjectsV2Command => c instanceof ListObjectsV2Command);
+      expect(lists[1].input.ContinuationToken).toBe('next-1');
+      const deletes = send.mock.calls
+        .map(([c]) => c)
+        .filter((c): c is DeleteObjectsCommand => c instanceof DeleteObjectsCommand);
+      expect(deletes.map((d) => d.input.Delete?.Objects?.length)).toEqual([1000, 250]);
+    });
+
+    it('fails, logged, when R2 reports per-object deletion errors', async () => {
+      send.mockImplementation((command: unknown) =>
+        Promise.resolve(
+          command instanceof ListObjectsV2Command
+            ? { Contents: keysPage(2), IsTruncated: false }
+            : { Errors: [{ Key: 'users/user-1/items/i/0.jpg', Code: 'AccessDenied' }] },
+        ),
+      );
+
+      await expect(service.deleteByPrefix('users/user-1/')).rejects.toThrow();
+      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/users\/user-1\//));
+    });
+
+    it('propagates and logs a storage failure', async () => {
+      send.mockRejectedValue(Object.assign(new Error('R2 unavailable'), { name: 'ServiceUnavailable' }));
+
+      await expect(service.deleteByPrefix('users/user-1/')).rejects.toThrow('R2 unavailable');
+      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/purge.*users\/user-1\/.*ServiceUnavailable/));
+    });
+
+    it.each(['', '/', 'users', 'users/../', 'users/user-1'])(
+      'refuses a prefix that could reach beyond one folder, without calling R2 (%p)',
+      async (prefix) => {
+        await expect(service.deleteByPrefix(prefix)).rejects.toThrow(/prefix/i);
+        expect(send).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('createR2Client', () => {

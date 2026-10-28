@@ -110,6 +110,41 @@ describe('LocalPhotoStorageService', () => {
     });
   });
 
+  describe('deleteByPrefix', () => {
+    const write = async (key: string) => {
+      const filePath = join(TEST_UPLOAD_DIR, key);
+      await mkdir(join(filePath, '..'), { recursive: true });
+      await writeFile(filePath, Buffer.from('x'));
+      return filePath;
+    };
+
+    it('deletes every file under the prefix, recursively, and returns how many', async () => {
+      const avatar = await write('users/purge-me/avatar-1.jpg');
+      const photo = await write('users/purge-me/items/item-1/a.jpg');
+      const other = await write('users/keep-me/avatar-2.jpg');
+
+      await expect(service.deleteByPrefix('users/purge-me/')).resolves.toBe(2);
+
+      await expect(access(avatar)).rejects.toThrow();
+      await expect(access(photo)).rejects.toThrow();
+      await expect(access(other)).resolves.toBeUndefined();
+    });
+
+    it('is idempotent: an absent prefix deletes nothing', async () => {
+      await expect(service.deleteByPrefix('users/never-existed/')).resolves.toBe(0);
+    });
+
+    it.each(['', 'users', '../', 'users/../../', 'users/x/../../'])(
+      'refuses a prefix that could reach beyond one folder of the upload directory (%p)',
+      async (prefix) => {
+        const outside = await write('users/guard/avatar.jpg');
+
+        await expect(service.deleteByPrefix(prefix)).rejects.toThrow(/prefix/i);
+        await expect(access(outside)).resolves.toBeUndefined();
+      },
+    );
+  });
+
   describe('getUrl', () => {
     it('should return the URL for a given key', async () => {
       const key = 'items/some-id/photo.jpg';

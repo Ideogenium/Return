@@ -1,8 +1,15 @@
 import { Logger } from '@nestjs/common';
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 
 import type { PhotoStorage, PhotoUploadResult } from './interfaces/photo-storage.interface.js';
 import type { R2Settings } from '../config/r2-settings.js';
+import { assertPurgePrefix } from './purge-prefix.js';
 
 // =============================================================================
 // R2PhotoStorage — Cloudflare R2 implementation (production)
@@ -86,9 +93,48 @@ export class R2PhotoStorageService implements PhotoStorage {
     this.logger.debug(`Photo deleted from R2: ${key}`);
   }
 
-  /** Logs the failed operation with its key (never credentials), then rethrows. */
+  async deleteByPrefix(prefix: string): Promise<number> {
+    assertPurgePrefix(prefix);
+
+    let deleted = 0;
+    await this.logFailure('purge', prefix, async () => {
+      let continuationToken: string | undefined;
+      do {
+        // A listing page holds at most 1000 keys, which is also the DeleteObjects limit.
+        const page = await this.s3.send(
+          new ListObjectsV2Command({
+            Bucket: this.bucket.bucketName,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          }),
+        );
+        const objects = (page.Contents ?? []).map(({ Key }) => ({ Key }));
+        if (objects.length > 0) {
+          const result = await this.s3.send(
+            new DeleteObjectsCommand({
+              Bucket: this.bucket.bucketName,
+              Delete: { Objects: objects, Quiet: true },
+            }),
+          );
+          if (result.Errors && result.Errors.length > 0) {
+            throw Object.assign(
+              new Error(`${result.Errors.length} object(s) could not be deleted`),
+              { name: 'PartialDeleteError' },
+            );
+          }
+          deleted += objects.length;
+        }
+        continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+      } while (continuationToken);
+    });
+
+    this.logger.log(`Purged ${deleted} photo(s) from R2 under ${prefix}`);
+    return deleted;
+  }
+
+  /** Logs the failed operation with its key or prefix (never credentials), then rethrows. */
   private async logFailure(
-    operation: 'upload' | 'delete',
+    operation: 'upload' | 'delete' | 'purge',
     key: string,
     run: () => Promise<unknown>,
   ): Promise<void> {

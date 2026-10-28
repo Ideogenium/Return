@@ -40,6 +40,12 @@ export interface PhotoStorage {
    * Retourne l'URL (signée si nécessaire) d'un fichier existant.
    */
   getUrl(key: string): Promise<string>;
+
+  /**
+   * Supprime tous les fichiers dont la clé commence par `prefix` (ex: "users/<userId>/")
+   * et retourne leur nombre. Idempotent (0 si rien). Refuse un préfixe vide ou partiel.
+   */
+  deleteByPrefix(prefix: string): Promise<number>;
 }
 
 /** Token d'injection NestJS pour le provider PhotoStorage */
