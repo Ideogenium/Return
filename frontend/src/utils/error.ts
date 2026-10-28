@@ -131,12 +131,14 @@ export function getFieldErrors(
   fields?: readonly string[],
 ): Record<string, string> {
   if (!error.type.endsWith('/validation-failed') || !error.errors) return {};
+  // Own-property checks only: a server field named "toString" or "constructor" must not
+  // match what every object inherits.
   const messages: Record<string, string> = {};
   for (const { field, code } of error.errors) {
-    if (field in messages || (fields && !fields.includes(field))) continue;
-    messages[field] = t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid', {
-      allowed: PASSWORD_SPECIAL_CHARACTERS,
-    });
+    if (Object.hasOwn(messages, field) || (fields && !fields.includes(field))) continue;
+    const codes = Object.hasOwn(FIELD_ERROR_KEYS, field) ? FIELD_ERROR_KEYS[field] : undefined;
+    const key = (codes && Object.hasOwn(codes, code) && codes[code]) || 'errors.fieldInvalid';
+    messages[field] = t(key, { allowed: PASSWORD_SPECIAL_CHARACTERS });
   }
   return messages;
 }
