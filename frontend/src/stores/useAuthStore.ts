@@ -14,7 +14,10 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  /** A user action (login, register, avatar…) is in flight. Never tears down navigation. */
   isLoading: boolean;
+  /** The stored session is being restored at app start: the only global loading state. */
+  isHydrating: boolean;
   error: ProblemDetails | null;
 
   login: (email: string, password: string) => Promise<void>;
@@ -24,6 +27,7 @@ interface AuthState {
   hydrate: () => Promise<void>;
   updateAvatar: (formData: FormData) => Promise<void>;
   deleteAvatar: () => Promise<void>;
+  clearError: () => void;
   reset: () => void;
 }
 
@@ -32,6 +36,7 @@ const initialState = {
   accessToken: null,
   isAuthenticated: false,
   isLoading: false,
+  isHydrating: false,
   error: null,
 };
 
@@ -115,10 +120,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   hydrate: async () => {
-    set({ isLoading: true });
+    set({ isHydrating: true });
     const token = await getAccessToken();
     if (!token) {
-      set({ isLoading: false });
+      set({ isHydrating: false });
       return;
     }
 
@@ -128,7 +133,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         user,
         accessToken: token,
         isAuthenticated: true,
-        isLoading: false,
+        isHydrating: false,
       });
     } catch {
       await clearTokens();
@@ -173,6 +178,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw err;
     }
   },
+
+  clearError: () => set({ error: null }),
 
   reset: () => set({ ...initialState }),
 }));
