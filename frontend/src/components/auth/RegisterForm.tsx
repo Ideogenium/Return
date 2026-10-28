@@ -4,7 +4,7 @@ import { TextInput, Button, HelperText } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
-import { validatePasswordRules } from '../../utils/password';
+import { PASSWORD_SPECIAL_CHARACTERS, validatePasswordRules } from '../../utils/password';
 import { EMAIL_PATTERN, normalizeEmail } from '../../utils/email';
 
 interface RegisterFormData {
@@ -195,7 +195,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
         </HelperText>
       ) : (
         <HelperText type="info" testID="password-rules">
-          {t('auth.passwordRules')}
+          {t('auth.passwordRules', { allowed: PASSWORD_SPECIAL_CHARACTERS })}
         </HelperText>
       )}
 

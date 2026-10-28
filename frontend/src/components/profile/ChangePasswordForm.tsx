@@ -4,7 +4,7 @@ import { TextInput, Button, HelperText } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
-import { validatePasswordRules } from '../../utils/password';
+import { PASSWORD_SPECIAL_CHARACTERS, validatePasswordRules } from '../../utils/password';
 
 interface ChangePasswordFormData {
   currentPassword: string;
@@ -121,7 +121,7 @@ export function ChangePasswordForm({
         </HelperText>
       ) : (
         <HelperText type="info" testID="newPassword-rules">
-          {t('auth.passwordRules')}
+          {t('auth.passwordRules', { allowed: PASSWORD_SPECIAL_CHARACTERS })}
         </HelperText>
       )}
 

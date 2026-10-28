@@ -1,6 +1,7 @@
 import type { AxiosError } from 'axios';
 import type { TFunction } from 'i18next';
 import type { ProblemDetails } from '../types/api.types';
+import { PASSWORD_SPECIAL_CHARACTERS } from './password';
 
 // Extrait un ProblemDetails depuis une erreur Axios (retourne null si non-RFC 7807)
 export function parseProblemDetails(error: AxiosError): ProblemDetails | null {
@@ -126,7 +127,9 @@ export function getFieldErrors(
   const messages: Record<string, string> = {};
   for (const { field, code } of error.errors) {
     if (field in messages || (fields && !fields.includes(field))) continue;
-    messages[field] = t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid');
+    messages[field] = t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid', {
+      allowed: PASSWORD_SPECIAL_CHARACTERS,
+    });
   }
   return messages;
 }
