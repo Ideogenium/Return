@@ -36,7 +36,7 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
 | ID      | Titre                                                         | Resp.     | Effort | Dépend de                 | Statut |
 |---------|---------------------------------------------------------------|-----------|--------|---------------------------|--------|
 | PUSH-P1 | Créer et uploader la clé APNs (iOS)                           | natismael | 20 min | —                         | ✅ (FEAT-03, 31/10) |
-| PUSH-P2 | Uploader le compte de service FCM V1 (Android)                | natismael | 15 min | —                         | ☐      |
+| PUSH-P2 | Uploader le compte de service FCM V1 (Android)                | natismael | 15 min | —                         | ✅ (push reçu sur le build production Play, piste interne, 28/10) |
 | PUSH-F1 | Ajouter `projectId` à `getExpoPushTokenAsync`                 | Ismael    | 15 min | —                         | ✅     |
 | PUSH-F2 | Déclarer `expo-notifications` dans `app.json > plugins`       | Ismael    | 5 min  | —                         | ✅     |
 | PUSH-F3 | Canal Android `setNotificationChannelAsync`                   | Ismael    | 20 min | PUSH-F1                   | ✅     |
