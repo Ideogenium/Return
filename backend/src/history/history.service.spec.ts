@@ -317,6 +317,73 @@ describe('HistoryService', () => {
       expect(result.mostLoanedItems[0].loanCount).toBe(1);
     });
 
+    describe('overview.overdueLoans', () => {
+      const overdueCountCall = () =>
+        prisma.loan.count.mock.calls.find(
+          ([args]) =>
+            (args?.where as { returnDate?: unknown } | undefined)?.returnDate !== undefined,
+        )?.[0];
+
+      beforeEach(() => {
+        prisma.loan.count.mockResolvedValue(0);
+        prisma.loan.findMany.mockResolvedValue([]);
+      });
+
+      afterEach(() => jest.useRealTimers());
+
+      it('counts open, non-deleted loans whose return date is strictly before today (UTC)', async () => {
+        jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+        jest.setSystemTime(new Date('2026-10-28T15:30:00Z'));
+
+        await service.getStatistics(LENDER_USER_ID);
+
+        expect(overdueCountCall()).toEqual({
+          where: {
+            lenderId: LENDER_USER_ID,
+            deletedAt: null,
+            status: {
+              in: [LoanStatus.ACTIVE, LoanStatus.ACTIVE_BY_DEFAULT, LoanStatus.AWAITING_RETURN],
+            },
+            returnDate: { lt: new Date('2026-10-28T00:00:00Z') },
+          },
+        });
+      });
+
+      it('treats a loan due today as on time: the cutoff is the start of the current UTC day', async () => {
+        jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+        jest.setSystemTime(new Date('2026-10-28T23:59:59Z'));
+
+        await service.getStatistics(LENDER_USER_ID);
+
+        const where = overdueCountCall()?.where as { returnDate: { lt: Date } };
+        expect(where.returnDate.lt.toISOString()).toBe('2026-10-28T00:00:00.000Z');
+      });
+
+      it('excludes pending, contested and closed loans', async () => {
+        await service.getStatistics(LENDER_USER_ID);
+
+        const statuses = (overdueCountCall()?.where as { status: { in: LoanStatus[] } }).status.in;
+        for (const excluded of [
+          LoanStatus.PENDING_CONFIRMATION,
+          LoanStatus.CONTESTED,
+          LoanStatus.RETURNED,
+          LoanStatus.NOT_RETURNED,
+          LoanStatus.ABANDONED,
+        ]) {
+          expect(statuses).not.toContain(excluded);
+        }
+      });
+
+      it('returns the overdue count in the overview', async () => {
+        prisma.loan.count.mockImplementation(((args: { where?: { returnDate?: unknown } }) =>
+          Promise.resolve(args?.where?.returnDate !== undefined ? 2 : 0)) as never);
+
+        const result = await service.getStatistics(LENDER_USER_ID);
+
+        expect(result.overview.overdueLoans).toBe(2);
+      });
+    });
+
     it('should return zeros when no loans exist', async () => {
       // Overview counts: all zeros
       prisma.loan.count.mockResolvedValue(0);
@@ -332,6 +399,7 @@ describe('HistoryService', () => {
         returnedLoans: 0,
         notReturnedLoans: 0,
         contestedLoans: 0,
+        overdueLoans: 0,
         averageReturnDelay: 0,
       });
       expect(result.byCategory).toEqual([]);

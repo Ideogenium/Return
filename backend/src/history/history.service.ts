@@ -19,6 +19,18 @@ const ACTIVE_STATUSES: LoanStatus[] = [
   LoanStatus.PENDING_CONFIRMATION,
 ];
 
+/** Started, still-open statuses: the only ones that can be overdue */
+const OVERDUE_CANDIDATE_STATUSES: LoanStatus[] = [
+  LoanStatus.ACTIVE,
+  LoanStatus.ACTIVE_BY_DEFAULT,
+  LoanStatus.AWAITING_RETURN,
+];
+
+/** Start of the current UTC day: returnDate is a @db.Date, so the due day itself is on time. */
+function startOfUtcDay(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
 // =========================================================================
 // Response interfaces for statistics
 // =========================================================================
@@ -29,6 +41,8 @@ export interface HistoryOverview {
   returnedLoans: number;
   notReturnedLoans: number;
   contestedLoans: number;
+  /** Open loans past their return date; also counted in activeLoans */
+  overdueLoans: number;
   averageReturnDelay: number;
 }
 
@@ -181,6 +195,7 @@ export class HistoryService {
       notReturnedLoans,
       contestedLoans,
       returnedLoansData,
+      overdueLoans,
     ] = await Promise.all([
       this.prisma.loan.count({ where: baseWhere }),
       this.prisma.loan.count({
@@ -199,6 +214,13 @@ export class HistoryService {
       this.prisma.loan.findMany({
         where: { ...baseWhere, status: LoanStatus.RETURNED, returnDate: { not: null } },
         select: { returnDate: true, returnedDate: true },
+      }),
+      this.prisma.loan.count({
+        where: {
+          ...baseWhere,
+          status: { in: OVERDUE_CANDIDATE_STATUSES },
+          returnDate: { lt: startOfUtcDay(new Date()) },
+        },
       }),
     ]);
 
@@ -229,6 +251,7 @@ export class HistoryService {
       returnedLoans,
       notReturnedLoans,
       contestedLoans,
+      overdueLoans,
       averageReturnDelay,
     };
   }

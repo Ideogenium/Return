@@ -331,6 +331,8 @@ export interface HistoryOverview {
   returnedLoans: number;
   notReturnedLoans: number;
   contestedLoans: number;
+  /** Prêts ouverts dont l'échéance est dépassée (aussi comptés dans activeLoans) */
+  overdueLoans: number;
   averageReturnDelay: number;
 }
 
