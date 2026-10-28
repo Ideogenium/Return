@@ -176,15 +176,34 @@ describe('LoansCronService', () => {
   describe('handleOverdueLoans', () => {
     let logSpy: jest.SpyInstance;
 
+    const RETURN_DATE = new Date('2026-02-01T00:00:00.000Z');
+    const FINAL_DUE = new Date('2026-02-22T00:00:00.000Z'); // returnDate + 21 days
+
+    function exhaustedRow(
+      id: string,
+      status: ReminderStatus = ReminderStatus.SENT,
+      scheduledFor: Date = FINAL_DUE,
+      returnDate: Date | null = RETURN_DATE,
+    ): Record<string, unknown> {
+      return {
+        id,
+        borrowerId: BORROWER_ID,
+        lenderId: LENDER_ID,
+        createdAt: new Date('2026-01-20T00:00:00.000Z'),
+        returnDate,
+        reminders: [{ type: ReminderType.FINAL_OVERDUE, status, scheduledFor }],
+      };
+    }
+
     // Mocks the two findMany calls of a tick: overdue candidates, then the
     // AWAITING_RETURN catch-up candidates (told apart by their status filter).
     function mockQueries(
       overdue: Array<{ id: string; status: LoanStatus }>,
-      exhausted: string[] = [],
+      exhausted: Array<string | Record<string, unknown>> = [],
     ): void {
       prisma.loan.findMany.mockImplementation((async (args: { where: { status: unknown } }) => {
         if (args.where.status === LoanStatus.AWAITING_RETURN) {
-          return exhausted.map((id) => ({ id, borrowerId: BORROWER_ID, lenderId: LENDER_ID }));
+          return exhausted.map((e) => (typeof e === 'string' ? exhaustedRow(e) : e));
         }
         return overdue.map((l) => ({ ...l, borrowerId: BORROWER_ID, lenderId: LENDER_ID }));
       }) as never);
@@ -320,7 +339,10 @@ describe('LoansCronService', () => {
             status: LoanStatus.AWAITING_RETURN,
             deletedAt: null,
             reminders: {
-              some: { type: ReminderType.FINAL_OVERDUE, status: ReminderStatus.SENT },
+              some: {
+                type: ReminderType.FINAL_OVERDUE,
+                status: { in: [ReminderStatus.SENT, ReminderStatus.FAILED] },
+              },
             },
           },
         }),
@@ -370,6 +392,89 @@ describe('LoansCronService', () => {
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(logSpy).toHaveBeenCalledWith(
         'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up)',
+      );
+      errorSpy.mockRestore();
+    });
+
+    // FEAT-10 catch-up criterion: FINAL_OVERDUE SENT or FAILED, for the current due date.
+    it.each([ReminderStatus.SENT, ReminderStatus.FAILED])(
+      'closes an AWAITING_RETURN loan whose current FINAL_OVERDUE is %s',
+      async (status) => {
+        mockQueries([], [exhaustedRow(LOAN_ID_3, status)]);
+
+        await cronService.handleOverdueLoans();
+
+        expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledWith({
+          loanId: LOAN_ID_3,
+          borrowerId: BORROWER_ID,
+          lenderUserId: LENDER_ID,
+        });
+      },
+    );
+
+    it('does not close a loan whose FINAL_OVERDUE is still SCHEDULED', async () => {
+      mockQueries([], [exhaustedRow(LOAN_ID_3, ReminderStatus.SCHEDULED)]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(exhaustedListener.closeAsNotReturned).not.toHaveBeenCalled();
+    });
+
+    it('does not close a loan whose FINAL_OVERDUE belongs to a previous due date (postponed loan)', async () => {
+      // returnDate was pushed back by 10 days: the SENT FINAL_OVERDUE is for the old one
+      const postponedReturnDate = new Date('2026-02-11T00:00:00.000Z');
+      mockQueries(
+        [],
+        [exhaustedRow(LOAN_ID_3, ReminderStatus.SENT, FINAL_DUE, postponedReturnDate)],
+      );
+
+      await cronService.handleOverdueLoans();
+
+      expect(exhaustedListener.closeAsNotReturned).not.toHaveBeenCalled();
+    });
+
+    it('does not close a loan without returnDate', async () => {
+      mockQueries([], [exhaustedRow(LOAN_ID_3, ReminderStatus.SENT, FINAL_DUE, null)]);
+
+      await cronService.handleOverdueLoans();
+
+      expect(exhaustedListener.closeAsNotReturned).not.toHaveBeenCalled();
+    });
+
+    // FIX-B: one failing loan must not abort the tick
+    it('keeps marking the following loans when one updateMany fails, and still runs the catch-up and logs', async () => {
+      mockQueries(
+        [
+          { id: LOAN_ID_1, status: LoanStatus.ACTIVE },
+          { id: LOAN_ID_2, status: LoanStatus.ACTIVE },
+        ],
+        [LOAN_ID_3],
+      );
+      prisma.loan.updateMany
+        .mockRejectedValueOnce(new Error('db down'))
+        .mockResolvedValue({ count: 1 });
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+
+      await expect(cronService.handleOverdueLoans()).resolves.toBeUndefined();
+
+      expect(prisma.loan.updateMany).toHaveBeenCalledTimes(2);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
+      expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledTimes(1);
+      expect(logSpy).toHaveBeenCalledWith(
+        'Overdue tick: 1 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up)',
+      );
+      errorSpy.mockRestore();
+    });
+
+    it('emits the summary line even when a query throws', async () => {
+      prisma.loan.findMany.mockRejectedValue(new Error('db down'));
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+
+      await cronService.handleOverdueLoans().catch(() => undefined);
+
+      expect(logSpy).toHaveBeenCalledWith(
+        'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up)',
       );
       errorSpy.mockRestore();
     });

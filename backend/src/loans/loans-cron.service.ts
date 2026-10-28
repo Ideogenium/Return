@@ -7,6 +7,7 @@ import { LoanStatus, ReminderStatus, ReminderType } from '@prisma/client';
 import type { LoanStatusChangedEvent } from '../common/events/loan.events.js';
 import { isAllowedForRole } from './loan-status-machine.js';
 import { ReminderExhaustedListener } from './reminder-exhausted.listener.js';
+import { ReminderPolicy } from '../reminders/reminder-policy.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -108,23 +109,30 @@ export class LoansCronService {
    * Idempotent: each loan is updated with its current status in the `where`, and
    * the event is only emitted when that update really matched a row.
    *
-   * Catch-up: loans already AWAITING_RETURN whose FINAL_OVERDUE reminder was SENT
-   * (ALL_EXHAUSTED was missed, since nothing could close them) are closed now,
-   * through the same logic as the ALL_EXHAUSTED listener.
+   * Catch-up: loans already AWAITING_RETURN whose FINAL_OVERDUE reminder is SENT or
+   * FAILED *for the current due date* are closed now, through the same logic as the
+   * ALL_EXHAUSTED listener. Why: a FAILED FINAL_OVERDUE does not emit ALL_EXHAUSTED, so
+   * this catch-up is the only thing that closes such a loan (at the next tick) instead
+   * of leaving it AWAITING_RETURN forever; and a FINAL_OVERDUE sent for an older
+   * returnDate (postponed since) must not close the loan prematurely.
    *
    * Reminders are deliberately left untouched here (cancellation is FEAT-11).
    */
   @Cron(CronExpression.EVERY_HOUR)
   async handleOverdueLoans(): Promise<void> {
-    const markedAwaitingReturn = await this.markOverdueLoansAwaitingReturn();
-    const closedNotReturned = await this.closeExhaustedLoans();
-
-    this.logger.log(
-      `Overdue tick: ${markedAwaitingReturn} loan(s) marked AWAITING_RETURN, ${closedNotReturned} closed NOT_RETURNED (catch-up)`,
-    );
+    const counters = { marked: 0, closed: 0 };
+    try {
+      await this.markOverdueLoansAwaitingReturn(counters);
+      await this.closeExhaustedLoans(counters);
+    } finally {
+      // Emitted on every pass, even if a query failed
+      this.logger.log(
+        `Overdue tick: ${counters.marked} loan(s) marked AWAITING_RETURN, ${counters.closed} closed NOT_RETURNED (catch-up)`,
+      );
+    }
   }
 
-  private async markOverdueLoansAwaitingReturn(): Promise<number> {
+  private async markOverdueLoansAwaitingReturn(counters: { marked: number }): Promise<void> {
     const now = new Date();
     const startOfTodayUtc = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
@@ -139,42 +147,67 @@ export class LoansCronService {
       select: { id: true, status: true, borrowerId: true, lenderId: true },
     });
 
-    let marked = 0;
     for (const loan of overdueLoans) {
       if (!isAllowedForRole(loan.status, LoanStatus.AWAITING_RETURN, 'system')) continue;
 
-      const { count } = await this.prisma.loan.updateMany({
-        where: { id: loan.id, status: loan.status },
-        data: { status: LoanStatus.AWAITING_RETURN },
-      });
-      if (count === 0) continue; // already moved (concurrent tick / lender action)
+      try {
+        const { count } = await this.prisma.loan.updateMany({
+          where: { id: loan.id, status: loan.status },
+          data: { status: LoanStatus.AWAITING_RETURN },
+        });
+        if (count === 0) continue; // already moved (concurrent tick / lender action)
 
-      marked++;
-      const event: LoanStatusChangedEvent = {
-        loanId: loan.id,
-        borrowerId: loan.borrowerId,
-        lenderUserId: loan.lenderId,
-        previousStatus: loan.status,
-        newStatus: LoanStatus.AWAITING_RETURN,
-      };
-      this.eventEmitter.emit(LOAN_EVENTS.STATUS_CHANGED, event);
+        counters.marked++;
+        const event: LoanStatusChangedEvent = {
+          loanId: loan.id,
+          borrowerId: loan.borrowerId,
+          lenderUserId: loan.lenderId,
+          previousStatus: loan.status,
+          newStatus: LoanStatus.AWAITING_RETURN,
+        };
+        this.eventEmitter.emit(LOAN_EVENTS.STATUS_CHANGED, event);
+      } catch (error) {
+        this.logger.error(`Failed to mark loan ${loan.id} AWAITING_RETURN: ${String(error)}`);
+      }
     }
-    return marked;
   }
 
-  private async closeExhaustedLoans(): Promise<number> {
-    const exhaustedLoans = await this.prisma.loan.findMany({
+  private async closeExhaustedLoans(counters: { closed: number }): Promise<void> {
+    const finalOverdueFilter = {
+      type: ReminderType.FINAL_OVERDUE,
+      status: { in: [ReminderStatus.SENT, ReminderStatus.FAILED] },
+    };
+
+    const candidates = await this.prisma.loan.findMany({
       where: {
         status: LoanStatus.AWAITING_RETURN,
         deletedAt: null,
-        reminders: {
-          some: { type: ReminderType.FINAL_OVERDUE, status: ReminderStatus.SENT },
-        },
+        reminders: { some: finalOverdueFilter },
       },
-      select: { id: true, borrowerId: true, lenderId: true },
+      select: {
+        id: true,
+        borrowerId: true,
+        lenderId: true,
+        createdAt: true,
+        returnDate: true,
+        reminders: { where: finalOverdueFilter, select: { status: true, scheduledFor: true } },
+      },
     });
 
-    let closed = 0;
+    // Only keep loans whose FINAL_OVERDUE matches the current returnDate: its
+    // scheduledFor must not be earlier than the one the policy computes today.
+    const exhaustedLoans = candidates.filter((loan) => {
+      const expected = ReminderPolicy.calculateDates(loan.returnDate, loan.createdAt).find(
+        (schedule) => schedule.type === ReminderType.FINAL_OVERDUE,
+      );
+      if (!expected) return false;
+      return loan.reminders.some(
+        (reminder) =>
+          reminder.status !== ReminderStatus.SCHEDULED &&
+          reminder.scheduledFor.getTime() >= expected.scheduledFor.getTime(),
+      );
+    });
+
     for (const loan of exhaustedLoans) {
       try {
         const wasClosed = await this.reminderExhaustedListener.closeAsNotReturned({
@@ -182,11 +215,10 @@ export class LoansCronService {
           borrowerId: loan.borrowerId,
           lenderUserId: loan.lenderId,
         });
-        if (wasClosed) closed++;
+        if (wasClosed) counters.closed++;
       } catch (error) {
         this.logger.error(`Failed to close overdue loan ${loan.id}: ${String(error)}`);
       }
     }
-    return closed;
   }
 }

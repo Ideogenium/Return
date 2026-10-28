@@ -29,32 +29,29 @@ describe('ReminderExhaustedListener', () => {
     listener = new ReminderExhaustedListener(prisma, eventEmitter as never);
   });
 
-  describe(`@OnEvent(${REMINDER_EVENTS.ALL_EXHAUSTED})`, () => {
-    const event: AllRemindersExhaustedEvent = {
-      loanId: LOAN_ID,
-      borrowerId: BORROWER_ID,
-      lenderUserId: LENDER_USER_ID,
-    };
+  const event: AllRemindersExhaustedEvent = {
+    loanId: LOAN_ID,
+    borrowerId: BORROWER_ID,
+    lenderUserId: LENDER_USER_ID,
+  };
 
-    it('should transition loan to NOT_RETURNED', async () => {
-      prisma.loan.findUnique.mockResolvedValue({
-        id: LOAN_ID,
-        status: LoanStatus.AWAITING_RETURN,
-      } as never);
+  const guardedWrite = {
+    where: { id: LOAN_ID, status: LoanStatus.AWAITING_RETURN, deletedAt: null },
+    data: { status: LoanStatus.NOT_RETURNED },
+  };
+
+  describe(`@OnEvent(${REMINDER_EVENTS.ALL_EXHAUSTED})`, () => {
+    it('should transition loan to NOT_RETURNED with a guarded write', async () => {
+      prisma.loan.updateMany.mockResolvedValue({ count: 1 });
 
       await listener.handleAllExhausted(event);
 
-      expect(prisma.loan.update).toHaveBeenCalledWith({
-        where: { id: LOAN_ID },
-        data: { status: LoanStatus.NOT_RETURNED },
-      });
+      expect(prisma.loan.updateMany).toHaveBeenCalledWith(guardedWrite);
+      expect(prisma.loan.update).not.toHaveBeenCalled();
     });
 
     it('should emit LOAN_EVENTS.STATUS_CHANGED after transition', async () => {
-      prisma.loan.findUnique.mockResolvedValue({
-        id: LOAN_ID,
-        status: LoanStatus.AWAITING_RETURN,
-      } as never);
+      prisma.loan.updateMany.mockResolvedValue({ count: 1 });
 
       await listener.handleAllExhausted(event);
 
@@ -67,39 +64,24 @@ describe('ReminderExhaustedListener', () => {
       });
     });
 
-    it('should not transition if loan is not in AWAITING_RETURN status', async () => {
-      prisma.loan.findUnique.mockResolvedValue({
-        id: LOAN_ID,
-        status: LoanStatus.RETURNED,
-      } as never);
+    it('should not emit if the loan is no longer AWAITING_RETURN', async () => {
+      prisma.loan.updateMany.mockResolvedValue({ count: 0 });
 
       await listener.handleAllExhausted(event);
 
-      expect(prisma.loan.update).not.toHaveBeenCalled();
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
 
   describe('closeAsNotReturned (shared with the overdue catch-up)', () => {
-    const event: AllRemindersExhaustedEvent = {
-      loanId: LOAN_ID,
-      borrowerId: BORROWER_ID,
-      lenderUserId: LENDER_USER_ID,
-    };
-
     it('returns true and transitions an AWAITING_RETURN loan to NOT_RETURNED', async () => {
-      prisma.loan.findUnique.mockResolvedValue({
-        id: LOAN_ID,
-        status: LoanStatus.AWAITING_RETURN,
-      } as never);
+      prisma.loan.updateMany.mockResolvedValue({ count: 1 });
 
       const closed = await listener.closeAsNotReturned(event);
 
       expect(closed).toBe(true);
-      expect(prisma.loan.update).toHaveBeenCalledWith({
-        where: { id: LOAN_ID },
-        data: { status: LoanStatus.NOT_RETURNED },
-      });
+      expect(prisma.loan.updateMany).toHaveBeenCalledWith(guardedWrite);
+      expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
       expect(eventEmitter.emit).toHaveBeenCalledWith(LOAN_EVENTS.STATUS_CHANGED, {
         loanId: LOAN_ID,
         borrowerId: BORROWER_ID,
@@ -109,17 +91,35 @@ describe('ReminderExhaustedListener', () => {
       });
     });
 
-    it('returns false and changes nothing when the loan is not AWAITING_RETURN', async () => {
-      prisma.loan.findUnique.mockResolvedValue({
-        id: LOAN_ID,
-        status: LoanStatus.RETURNED,
-      } as never);
+    // Loan already RETURNED by the lender, soft-deleted, unknown, or closed by a
+    // concurrent tick: the guarded write matches no row.
+    it('returns false and emits nothing when the guarded write matches no row (count = 0)', async () => {
+      prisma.loan.updateMany.mockResolvedValue({ count: 0 });
 
       const closed = await listener.closeAsNotReturned(event);
 
       expect(closed).toBe(false);
-      expect(prisma.loan.update).not.toHaveBeenCalled();
       expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('returns false when the loan does not exist', async () => {
+      prisma.loan.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(listener.closeAsNotReturned({ ...event, loanId: 'missing-loan' })).resolves.toBe(
+        false,
+      );
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('never writes a soft-deleted or non AWAITING_RETURN loan (guard in the where)', async () => {
+      prisma.loan.updateMany.mockResolvedValue({ count: 0 });
+
+      await listener.closeAsNotReturned(event);
+
+      const { where } = prisma.loan.updateMany.mock.calls[0][0] as {
+        where: Record<string, unknown>;
+      };
+      expect(where).toMatchObject({ status: LoanStatus.AWAITING_RETURN, deletedAt: null });
     });
   });
 });
