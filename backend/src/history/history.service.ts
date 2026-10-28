@@ -125,8 +125,9 @@ export class HistoryService {
         createdAt.gte = new Date(query.startDate);
       }
       if (query.endDate) {
+        // Same UTC calendar day convention as startDate (and as @db.Date return dates).
         const end = new Date(query.endDate);
-        end.setHours(23, 59, 59, 999);
+        end.setUTCHours(23, 59, 59, 999);
         createdAt.lte = end;
       }
       where.createdAt = createdAt;
