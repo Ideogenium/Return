@@ -45,6 +45,7 @@
     "changePassword": "Changer le mot de passe",
     "deleteAccount": "Supprimer mon compte",
     "settings": "Paramètres",
+    "history": "Historique des prêts",
     "currentPassword": "Mot de passe actuel",
     "newPassword": "Nouveau mot de passe",
     "confirmNewPassword": "Confirmer le nouveau mot de passe",
@@ -299,6 +300,15 @@
     "timeHours": "{{count}}h",
     "timeDays": "{{count}}j",
     "unreadBadge": "{{count}} notifications non lues"
+  },
+  "history": {
+    "title": "Historique",
+    "filterAll": "Tous",
+    "empty": "Aucun prêt dans l'historique",
+    "emptySubtitle": "Les prêts terminés (rendus, non rendus, contestés ou abandonnés) apparaîtront ici",
+    "emptyFiltered": "Aucun prêt pour ce statut",
+    "emptyFilteredSubtitle": "Essayez un autre filtre ou affichez tous les prêts",
+    "loadMoreError": "Impossible de charger la suite"
   },
   "navigation": {
     "loans": "Prêts",

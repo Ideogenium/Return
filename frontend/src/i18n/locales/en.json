@@ -45,6 +45,7 @@
     "changePassword": "Change password",
     "deleteAccount": "Delete my account",
     "settings": "Settings",
+    "history": "Loan history",
     "currentPassword": "Current password",
     "newPassword": "New password",
     "confirmNewPassword": "Confirm new password",
@@ -299,6 +300,15 @@
     "timeHours": "{{count}}h",
     "timeDays": "{{count}}d",
     "unreadBadge": "{{count}} unread notifications"
+  },
+  "history": {
+    "title": "History",
+    "filterAll": "All",
+    "empty": "No loans in your history",
+    "emptySubtitle": "Completed loans (returned, not returned, contested or abandoned) will appear here",
+    "emptyFiltered": "No loans with this status",
+    "emptyFilteredSubtitle": "Try another filter or show all loans",
+    "loadMoreError": "Unable to load more loans"
   },
   "navigation": {
     "loans": "Loans",
