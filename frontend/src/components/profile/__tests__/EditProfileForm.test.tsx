@@ -85,4 +85,18 @@ describe('EditProfileForm', () => {
       );
     });
   });
+
+  it('treats an email made only of spaces as empty and does not send it', async () => {
+    renderWithProvider(
+      <EditProfileForm user={mockUser} onSubmit={mockOnSubmit} isLoading={false} />,
+    );
+
+    fireEvent.changeText(screen.getByTestId('email-input'), '   ');
+    fireEvent.press(screen.getByTestId('save-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalled();
+    });
+    expect(mockOnSubmit.mock.calls[0][0]).not.toHaveProperty('email');
+  });
 });

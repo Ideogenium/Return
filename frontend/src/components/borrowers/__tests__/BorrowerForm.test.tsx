@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { BorrowerForm } from '../BorrowerForm';
+import i18n from '../../../config/i18n.config';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -193,5 +194,21 @@ describe('BorrowerForm', () => {
         expect.objectContaining({ email: 'marie@example.com' }),
       );
     });
+  });
+
+  it('asks for the email (not "invalid") when it is made only of spaces', async () => {
+    renderWithProvider(
+      <BorrowerForm onSubmit={mockOnSubmit} isLoading={false} submitLabel="Save" />,
+    );
+
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Marie');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Dupont');
+    fireEvent.changeText(screen.getByTestId('email-input'), '   ');
+    fireEvent.press(screen.getByTestId('borrower-submit-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
+    });
+    expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 });

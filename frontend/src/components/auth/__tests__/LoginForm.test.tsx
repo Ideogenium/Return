@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { LoginForm } from '../LoginForm';
+import i18n from '../../../config/i18n.config';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -83,5 +84,18 @@ describe('LoginForm', () => {
         password: 'P@ssw0rd!',
       });
     });
+  });
+
+  it('asks for the email (not "invalid") when it is made only of spaces', async () => {
+    renderWithProvider(<LoginForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+    fireEvent.changeText(screen.getByTestId('email-input'), '   ');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'P@ssw0rd!');
+    fireEvent.press(screen.getByTestId('login-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
+    });
+    expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 });

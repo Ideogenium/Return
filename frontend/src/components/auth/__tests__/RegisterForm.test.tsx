@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { RegisterForm } from '../RegisterForm';
+import i18n from '../../../config/i18n.config';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -122,6 +123,17 @@ describe('RegisterForm', () => {
       await waitFor(() => {
         expect(screen.getByTestId('password-error').props.children).toBe('Refused by the API');
       });
+    });
+  });
+
+  it('asks for the email (not "invalid") when it is made only of spaces', async () => {
+    renderWithProvider(<RegisterForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+    fireEvent.changeText(screen.getByTestId('email-input'), '   ');
+    fireEvent.press(screen.getByTestId('register-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
     });
   });
 });

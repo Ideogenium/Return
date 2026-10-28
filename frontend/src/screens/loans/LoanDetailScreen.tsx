@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
 import {
   Text,
@@ -17,6 +17,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LoanTimeline } from '../../components/loans/LoanTimeline';
 import { CATEGORY_I18N } from '../../components/items/ItemCard';
 import { useLoanStore } from '../../stores/useLoanStore';
+import { RefreshError } from '../../components/common/RefreshError';
+import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { getMinReturnDate, formatDate } from '../../utils/date';
@@ -44,7 +46,8 @@ const ABANDONABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 export function LoanDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const { selectedLoan, error, fetchLoan } = useLoanStore();
+  const { selectedLoan, fetchLoan } = useLoanStore();
+  const { loadError, reload } = useEntityLoad(id, fetchLoan);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [abandonDialogVisible, setAbandonDialogVisible] = useState(false);
@@ -59,10 +62,6 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
   const [editApiError, setEditApiError] = useState<string | undefined>();
-
-  useEffect(() => {
-    fetchLoan(id).catch(() => {});
-  }, [id, fetchLoan]);
 
   const handleDelete = async () => {
     setDeleteDialogVisible(false);
@@ -140,7 +139,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
       setEditApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
       if (problem?.type?.endsWith('/loan-return-date-locked')) {
         // The loan left the editable statuses meanwhile: reload it to lock the date field.
-        fetchLoan(id).catch(() => {});
+        void reload();
       }
     }
   };
@@ -158,7 +157,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   // Full-screen states only while nothing is displayable for this id: actions and
   // refreshes keep the screen (and its open dialogs) mounted.
   if (!selectedLoan || selectedLoan.id !== id) {
-    if (!error) {
+    if (!loadError) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
@@ -168,7 +167,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     return (
       <View style={styles.centerContainer} testID="loan-error">
         <Text variant="titleMedium" style={styles.errorText}>
-          {error?.type?.includes('loan-not-found')
+          {loadError.type?.includes('loan-not-found')
             ? t('errors.loanNotFound')
             : t('errors.unknownError')}
         </Text>
@@ -191,6 +190,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.container} testID="loan-detail">
+      {loadError && <RefreshError problem={loadError} onRetry={reload} />}
       {/* Info card */}
       <View style={[styles.infoCard, ui.card]}>
         <View style={styles.header}>

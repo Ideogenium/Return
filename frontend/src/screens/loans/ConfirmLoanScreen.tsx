@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { ActivityIndicator, Text, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ConfirmationDialog } from '../../components/loans/ConfirmationDialog';
 import { useLoanStore } from '../../stores/useLoanStore';
+import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import type { LoanStackParamList } from '../../navigation/types';
 import type { AxiosError } from 'axios';
@@ -14,16 +15,12 @@ type Props = NativeStackScreenProps<LoanStackParamList, 'ConfirmLoan'>;
 export function ConfirmLoanScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const { selectedLoan, error, fetchLoan } = useLoanStore();
+  const { selectedLoan, fetchLoan } = useLoanStore();
+  const { loadError } = useEntityLoad(id, fetchLoan);
   const [actionLoading, setActionLoading] = useState(false);
-  const [dialogVisible, setDialogVisible] = useState(false);
+  // Shown as soon as the loan is displayable: it never waits for a refresh to succeed.
+  const [dialogVisible, setDialogVisible] = useState(true);
   const [apiError, setApiError] = useState<string | undefined>();
-
-  useEffect(() => {
-    fetchLoan(id)
-      .then(() => setDialogVisible(true))
-      .catch(() => {});
-  }, [id, fetchLoan]);
 
   const handleConfirm = async () => {
     setActionLoading(true);
@@ -56,7 +53,7 @@ export function ConfirmLoanScreen({ route, navigation }: Props) {
   // Full-screen states only while nothing is displayable for this id: actions and
   // refreshes keep the screen (and its open dialogs) mounted.
   if (!selectedLoan || selectedLoan.id !== id) {
-    if (!error) {
+    if (!loadError) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
@@ -66,7 +63,7 @@ export function ConfirmLoanScreen({ route, navigation }: Props) {
     return (
       <View style={styles.centerContainer} testID="loan-error">
         <Text variant="titleMedium" style={styles.errorText}>
-          {error?.type?.includes('loan-not-found')
+          {loadError.type?.includes('loan-not-found')
             ? t('errors.loanNotFound')
             : t('errors.unknownError')}
         </Text>
@@ -89,7 +86,8 @@ export function ConfirmLoanScreen({ route, navigation }: Props) {
         onConfirm={handleConfirm}
         onContest={handleContest}
         isLoading={actionLoading}
-        error={apiError}
+        // The dialog covers the screen: a failed refresh is reported inside it.
+        error={apiError ?? (loadError ? getErrorMessage(loadError, t) : undefined)}
       />
     </View>
   );

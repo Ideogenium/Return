@@ -229,4 +229,16 @@ describe('getFieldErrors', () => {
       ),
     ).toEqual({});
   });
+
+  it('keeps an error whose field name collides with an Object.prototype property', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'toString', code: 'INVALID_FORMAT', message: 'x' },
+          { field: 'constructor', code: 'INVALID_FORMAT', message: 'x' },
+        ]),
+        mockT,
+      ),
+    ).toEqual({ toString: 'errors.fieldInvalid', constructor: 'errors.fieldInvalid' });
+  });
 });

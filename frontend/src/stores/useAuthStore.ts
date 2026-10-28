@@ -130,6 +130,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user });
     } catch (err) {
       set({ error: extractProblemDetails(err) });
+      throw err;
     }
   },
 
