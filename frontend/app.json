@@ -19,6 +19,9 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Return needs access to your camera to take photos of loaned items.",
         "NSPhotoLibraryUsageDescription": "Return needs access to your photo library to attach photos to loaned items."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
