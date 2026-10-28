@@ -58,6 +58,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [editReturnDateObj, setEditReturnDateObj] = useState<Date | undefined>();
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
+  const [editApiError, setEditApiError] = useState<string | undefined>();
 
   useEffect(() => {
     fetchLoan(id).catch(() => {});
@@ -122,8 +123,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   };
 
   const handleEdit = async () => {
-    setEditDialogVisible(false);
-    setApiError(undefined);
+    setEditApiError(undefined);
     const originalReturnDate = selectedLoan?.returnDate?.slice(0, 10) ?? '';
     const returnDateChanged = editReturnDate.slice(0, 10) !== originalReturnDate;
     try {
@@ -133,13 +133,20 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           ? { returnDate: editReturnDate || null }
           : {}),
       });
+      setEditDialogVisible(false);
     } catch (err) {
+      // Keep the dialog (and the typed notes) open so the lender can retry.
       const problem = parseProblemDetails(err as AxiosError);
-      setApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+      setEditApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+      if (problem?.type?.endsWith('/loan-return-date-locked')) {
+        // The loan left the editable statuses meanwhile: reload it to lock the date field.
+        fetchLoan(id).catch(() => {});
+      }
     }
   };
 
   const openEditDialog = () => {
+    setEditApiError(undefined);
     setEditNotes(selectedLoan?.notes ?? '');
     const existingDate = selectedLoan?.returnDate ?? '';
     setEditReturnDate(existingDate);
@@ -526,6 +533,11 @@ export function LoanDetailScreen({ route, navigation }: Props) {
                   testID="edit-notes-input"
                   contentStyle={{ textAlignVertical: 'top' }}
                 />
+                {editApiError && (
+                  <HelperText type="error" testID="edit-api-error">
+                    {editApiError}
+                  </HelperText>
+                )}
               </View>
             </ScrollView>
           </Dialog.ScrollArea>

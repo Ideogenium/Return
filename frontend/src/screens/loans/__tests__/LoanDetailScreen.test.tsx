@@ -11,6 +11,18 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { LoanStackParamList } from '../../../navigation/types';
 
+jest.mock('react-native-paper-dates', () => {
+  const React = require('react');
+  const { Pressable } = require('react-native');
+  return {
+    Calendar: ({ onChange }: { onChange: (params: { date: Date }) => void }) =>
+      React.createElement(Pressable, {
+        testID: 'mock-calendar-select',
+        onPress: () => onChange({ date: new Date('2026-12-31T12:00:00Z') }),
+      }),
+  };
+});
+
 const Stack = createNativeStackNavigator<LoanStackParamList>();
 
 function DummyCreateLoan() {
@@ -357,11 +369,13 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
     expect(captured.body).not.toHaveProperty('returnDate');
   });
 
-  it('shows a localized message when the API answers 409 loan-return-date-locked', async () => {
+  it('keeps the edit open, preserves the notes and refreshes the loan when the date is refused with 409', async () => {
     serveLoanWithStatus('ACTIVE');
     server.use(
-      http.patch('http://localhost:3000/v1/loans/:id', ({ params }) =>
-        HttpResponse.json(
+      http.patch('http://localhost:3000/v1/loans/:id', ({ params }) => {
+        // The loan turned overdue while the lender was editing it.
+        serveLoanWithStatus('AWAITING_RETURN');
+        return HttpResponse.json(
           {
             type: 'https://api.return.app/errors/loan-return-date-locked',
             title: 'Return Date Locked',
@@ -372,18 +386,38 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
             requestId: 'req-mock',
           },
           { status: 409 },
-        ),
-      ),
+        );
+      }),
     );
+
+    await openEditDialog();
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-api-error')).toBeTruthy();
+    });
+    expect(screen.getByText('The return date can no longer be changed for this loan.')).toBeTruthy();
+    expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    expect(screen.getByTestId('edit-notes-input').props.value).toBe('new notes');
+    await waitFor(() => {
+      expect(screen.getByTestId('return-date-locked-hint')).toBeTruthy();
+    });
+    expect(screen.queryByTestId('edit-return-date-input')).toBeNull();
+  });
+
+  it('closes the edit dialog once the changes are saved', async () => {
+    serveLoanWithStatus('ACTIVE');
+    capturePatchBody();
 
     await openEditDialog();
     fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
     fireEvent.press(screen.getByTestId('confirm-edit-btn'));
 
     await waitFor(() => {
-      expect(
-        screen.getByText('The return date can no longer be changed for this loan.'),
-      ).toBeTruthy();
+      expect(screen.queryByTestId('edit-loan-dialog')).toBeNull();
     });
   });
 });
