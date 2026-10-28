@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BorrowerStatsBadge } from '../../components/borrowers/BorrowerStatsBadge';
 import { useBorrowerStore } from '../../stores/useBorrowerStore';
+import { RefreshError } from '../../components/common/RefreshError';
+import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { ui } from '../../config/theme.config';
 import type { BorrowerStackParamList } from '../../navigation/types';
@@ -20,10 +22,12 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
 
+  const { loadError, reload } = useEntityLoad(id, fetchBorrower);
+
+  // Statistics are secondary: their failure only hides the stats section.
   useEffect(() => {
-    fetchBorrower(id).catch(() => {});
     fetchBorrowerStats(id).catch(() => {});
-  }, [id, fetchBorrower, fetchBorrowerStats]);
+  }, [id, fetchBorrowerStats]);
 
   const handleDelete = async () => {
     setDeleteDialogVisible(false);
@@ -40,7 +44,7 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
   // Full-screen states only while nothing is displayable for this id: actions and
   // refreshes keep the screen (and its open dialogs) mounted.
   if (!selectedBorrower || selectedBorrower.id !== id) {
-    if (!error) {
+    if (!loadError) {
       return (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
@@ -50,7 +54,7 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
     return (
       <View style={styles.centerContainer} testID="borrower-error">
         <Text variant="titleMedium" style={styles.errorText}>
-          {error.type?.includes('borrower-not-found')
+          {loadError.type?.includes('borrower-not-found')
             ? t('errors.borrowerNotFound')
             : t('errors.unknownError')}
         </Text>
@@ -63,6 +67,7 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.container} testID="borrower-detail">
+      {loadError && <RefreshError problem={loadError} onRetry={reload} />}
       <View style={[styles.infoCard, ui.card]}>
         <View style={styles.avatar}>
           <Text variant="headlineMedium" style={styles.initials}>
