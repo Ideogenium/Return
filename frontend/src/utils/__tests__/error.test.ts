@@ -132,6 +132,62 @@ describe('getFieldErrors', () => {
     ).toEqual({ email: 'auth.emailInvalid', firstName: 'auth.nameMaxLength' });
   });
 
+  it('maps every code the API produces for the registration names (empty name = TOO_SHORT)', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'firstName', code: 'TOO_SHORT', message: 'x' },
+          { field: 'lastName', code: 'INVALID_TYPE', message: 'x' },
+        ]),
+        mockT,
+      ),
+    ).toEqual({ firstName: 'auth.firstNameRequired', lastName: 'auth.lastNameRequired' });
+  });
+
+  it('maps a missing field (INVALID_TYPE) to its "required" message', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'email', code: 'INVALID_TYPE', message: 'x' },
+          { field: 'password', code: 'INVALID_TYPE', message: 'x' },
+          { field: 'currentPassword', code: 'INVALID_TYPE', message: 'x' },
+          { field: 'newPassword', code: 'INVALID_TYPE', message: 'x' },
+        ]),
+        mockT,
+      ),
+    ).toEqual({
+      email: 'auth.emailRequired',
+      password: 'auth.passwordRequired',
+      currentPassword: 'auth.passwordRequired',
+      newPassword: 'auth.passwordRequired',
+    });
+  });
+
+  it('keeps the first error of a field when the API reports several', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'password', code: 'TOO_SHORT', message: 'x' },
+          { field: 'password', code: 'INVALID_FORMAT', message: 'x' },
+        ]),
+        mockT,
+      ),
+    ).toEqual({ password: 'auth.passwordMinLength' });
+  });
+
+  it('only returns the fields the form actually displays', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'password', code: 'INVALID_FORMAT', message: 'x' },
+          { field: 'foo', code: 'UNKNOWN_FIELD', message: 'x' },
+        ]),
+        mockT,
+        ['email', 'password'],
+      ),
+    ).toEqual({ password: 'auth.passwordRules' });
+  });
+
   it('falls back to a generic field message for an unknown code', () => {
     expect(
       getFieldErrors(

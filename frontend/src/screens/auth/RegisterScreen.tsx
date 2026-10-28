@@ -9,11 +9,14 @@ import type { AuthStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
+/** Fields displayed by RegisterForm: API errors on any other field fall back to the banner. */
+const REGISTER_FIELDS = ['email', 'password', 'firstName', 'lastName'] as const;
+
 export function RegisterScreen({ navigation }: Props) {
   const { t } = useTranslation();
   const { isLoading, error, register, clearError } = useAuthStore();
   // A field validation error is shown under its field; anything else as a form message.
-  const fieldErrors = error ? getFieldErrors(error, t) : {};
+  const fieldErrors = error ? getFieldErrors(error, t, REGISTER_FIELDS) : {};
   const hasFieldErrors = Object.keys(fieldErrors).length > 0;
 
   const handleSubmit = async (data: {

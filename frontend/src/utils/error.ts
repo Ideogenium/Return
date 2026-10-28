@@ -79,35 +79,54 @@ export function getErrorMessage(error: ProblemDetails, t: TFunction): string {
 }
 
 /** i18n key per (field, API error code) — codes come from the API ValidationPipe (main.ts). */
+const PASSWORD_FIELD_KEYS: Record<string, string> = {
+  INVALID_FORMAT: 'auth.passwordRules',
+  TOO_SHORT: 'auth.passwordMinLength',
+  TOO_LONG: 'auth.passwordMaxLength',
+  REQUIRED: 'auth.passwordRequired',
+  INVALID_TYPE: 'auth.passwordRequired',
+};
+
 const FIELD_ERROR_KEYS: Record<string, Record<string, string>> = {
-  password: {
-    INVALID_FORMAT: 'auth.passwordRules',
-    TOO_SHORT: 'auth.passwordMinLength',
-    TOO_LONG: 'auth.passwordMaxLength',
-    REQUIRED: 'auth.passwordRequired',
+  password: PASSWORD_FIELD_KEYS,
+  newPassword: PASSWORD_FIELD_KEYS,
+  currentPassword: { REQUIRED: 'auth.passwordRequired', INVALID_TYPE: 'auth.passwordRequired' },
+  email: {
+    INVALID_EMAIL: 'auth.emailInvalid',
+    REQUIRED: 'auth.emailRequired',
+    INVALID_TYPE: 'auth.emailRequired',
   },
-  newPassword: {
-    INVALID_FORMAT: 'auth.passwordRules',
-    TOO_SHORT: 'auth.passwordMinLength',
-    TOO_LONG: 'auth.passwordMaxLength',
-    REQUIRED: 'auth.passwordRequired',
+  firstName: {
+    TOO_LONG: 'auth.nameMaxLength',
+    TOO_SHORT: 'auth.firstNameRequired',
+    REQUIRED: 'auth.firstNameRequired',
+    INVALID_TYPE: 'auth.firstNameRequired',
   },
-  currentPassword: { REQUIRED: 'auth.passwordRequired' },
-  email: { INVALID_EMAIL: 'auth.emailInvalid', REQUIRED: 'auth.emailRequired' },
-  firstName: { TOO_LONG: 'auth.nameMaxLength', REQUIRED: 'auth.firstNameRequired' },
-  lastName: { TOO_LONG: 'auth.nameMaxLength', REQUIRED: 'auth.lastNameRequired' },
+  lastName: {
+    TOO_LONG: 'auth.nameMaxLength',
+    TOO_SHORT: 'auth.lastNameRequired',
+    REQUIRED: 'auth.lastNameRequired',
+    INVALID_TYPE: 'auth.lastNameRequired',
+  },
 };
 
 /**
  * Field-level messages for an API `validation-failed` problem, so a form can show
  * each error under its own field instead of a generic banner. Empty for any other problem.
+ *
+ * @param fields the fields the form displays: errors on other fields are left out, so the
+ *               caller can fall back to its banner when nothing can be shown under a field.
  */
-export function getFieldErrors(error: ProblemDetails, t: TFunction): Record<string, string> {
+export function getFieldErrors(
+  error: ProblemDetails,
+  t: TFunction,
+  fields?: readonly string[],
+): Record<string, string> {
   if (!error.type.endsWith('/validation-failed') || !error.errors) return {};
-  return Object.fromEntries(
-    error.errors.map(({ field, code }) => [
-      field,
-      t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid'),
-    ]),
-  );
+  const messages: Record<string, string> = {};
+  for (const { field, code } of error.errors) {
+    if (field in messages || (fields && !fields.includes(field))) continue;
+    messages[field] = t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid');
+  }
+  return messages;
 }
