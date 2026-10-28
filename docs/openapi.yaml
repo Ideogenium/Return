@@ -2369,6 +2369,15 @@ paths:
                         type: integer
                         example: 0
                         description: Prêts contestés
+                      overdueLoans:
+                        type: integer
+                        example: 1
+                        description: |
+                          Prêts en retard : prêts encore ouverts (ACTIVE, ACTIVE_BY_DEFAULT, AWAITING_RETURN),
+                          non supprimés, dont la `returnDate` est renseignée et strictement antérieure à la date
+                          du jour (UTC). Un prêt dont l'échéance est aujourd'hui est à l'heure ; un prêt sans
+                          `returnDate` n'est jamais en retard. Un prêt en retard reste aussi compté dans
+                          `activeLoans`. Différent de `notReturnedLoans` (prêts clos définitivement).
                       averageReturnDelay:
                         type: number
                         format: float
