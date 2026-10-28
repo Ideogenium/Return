@@ -177,4 +177,21 @@ describe('BorrowerForm', () => {
       expect(screen.queryByTestId('email-readonly-hint')).toBeNull();
     });
   });
+
+  it('accepts and trims an email ending with a space (iOS autocomplete)', async () => {
+    renderWithProvider(
+      <BorrowerForm onSubmit={mockOnSubmit} isLoading={false} submitLabel="Save" />,
+    );
+
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Marie');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Dupont');
+    fireEvent.changeText(screen.getByTestId('email-input'), ' marie@example.com ');
+    fireEvent.press(screen.getByTestId('borrower-submit-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'marie@example.com' }),
+      );
+    });
+  });
 });

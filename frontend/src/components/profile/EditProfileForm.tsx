@@ -5,6 +5,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
 import type { User, UpdateProfileDto } from '../../types/api.types';
+import { EMAIL_PATTERN, normalizeEmail } from '../../utils/email';
 
 const COUNTRY_CODES = [
   { code: 'FR', dial: '+33', flag: '\u{1F1EB}\u{1F1F7}' },
@@ -137,7 +138,10 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
         control={control}
         name="email"
         rules={{
-          pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t('auth.emailInvalid') },
+          validate: (value) =>
+            !normalizeEmail(value ?? '') ||
+            EMAIL_PATTERN.test(normalizeEmail(value ?? '')) ||
+            t('auth.emailInvalid'),
         }}
         render={({ field: { onChange, onBlur, value } }) => (
           <TextInput
@@ -231,7 +235,9 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
       <Button
         mode="contained"
         icon="content-save-outline"
-        onPress={handleSubmit(onSubmit)}
+        onPress={handleSubmit((data) =>
+          onSubmit({ ...data, ...(data.email && { email: normalizeEmail(data.email) }) }),
+        )}
         loading={isLoading}
         disabled={isLoading}
         testID="save-btn"

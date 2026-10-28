@@ -70,4 +70,19 @@ describe('EditProfileForm', () => {
       });
     });
   });
+
+  it('accepts and trims an email ending with a space (iOS autocomplete)', async () => {
+    renderWithProvider(
+      <EditProfileForm user={mockUser} onSubmit={mockOnSubmit} isLoading={false} />,
+    );
+
+    fireEvent.changeText(screen.getByTestId('email-input'), 'new@example.com ');
+    fireEvent.press(screen.getByTestId('save-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'new@example.com' }),
+      );
+    });
+  });
 });
