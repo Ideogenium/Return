@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react-native';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider } from 'react-native-paper';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -10,6 +10,8 @@ import { LoanDetailScreen } from '../loans/LoanDetailScreen';
 import { ConfirmLoanScreen } from '../loans/ConfirmLoanScreen';
 import { ItemDetailScreen } from '../items/ItemDetailScreen';
 import { BorrowerDetailScreen } from '../borrowers/BorrowerDetailScreen';
+import { EditItemScreen } from '../items/EditItemScreen';
+import { EditBorrowerScreen } from '../borrowers/EditBorrowerScreen';
 import { useLoanStore } from '../../stores/useLoanStore';
 import { useItemStore } from '../../stores/useItemStore';
 import { useBorrowerStore } from '../../stores/useBorrowerStore';
@@ -115,6 +117,36 @@ const CASES: DetailCase[] = [
     fullErrorTestId: 'borrower-error',
     contentTestId: 'borrower-detail',
   },
+  {
+    name: 'EditItemScreen',
+    route: 'EditItem',
+    Screen: EditItemScreen as unknown as ComponentType<object>,
+    id: ITEM_ID,
+    url: `${API}/items/:id`,
+    preload: () => useItemStore.getState().fetchItem(ITEM_ID),
+    setLeftover: () =>
+      useItemStore.setState({ selectedItem: null, error: leftoverError, fetchItem: pending }),
+    reset: () => useItemStore.setState(itemDefaults),
+    fullErrorTestId: 'item-error',
+    contentTestId: 'edit-item',
+  },
+  {
+    name: 'EditBorrowerScreen',
+    route: 'EditBorrower',
+    Screen: EditBorrowerScreen as unknown as ComponentType<object>,
+    id: BORROWER_ID,
+    url: `${API}/borrowers/:id`,
+    preload: () => useBorrowerStore.getState().fetchBorrower(BORROWER_ID),
+    setLeftover: () =>
+      useBorrowerStore.setState({
+        selectedBorrower: null,
+        error: leftoverError,
+        fetchBorrower: pending,
+      }),
+    reset: () => useBorrowerStore.setState(borrowerDefaults),
+    fullErrorTestId: 'borrower-error',
+    contentTestId: 'edit-borrower',
+  },
 ];
 
 const Stack = createNativeStackNavigator();
@@ -175,3 +207,41 @@ describe.each(CASES)('$name — load errors', (c) => {
     expect(screen.queryByTestId(c.fullErrorTestId)).toBeNull();
   });
 });
+
+describe.each([
+  {
+    name: 'EditItemScreen',
+    c: () => CASES.find((x) => x.name === 'EditItemScreen')!,
+    input: 'name-input',
+    submit: 'item-submit-btn',
+    patchUrl: `${API}/items/:id`,
+  },
+  {
+    name: 'EditBorrowerScreen',
+    c: () => CASES.find((x) => x.name === 'EditBorrowerScreen')!,
+    input: 'firstName-input',
+    submit: 'borrower-submit-btn',
+    patchUrl: `${API}/borrowers/:id`,
+  },
+])('$name — saving', ({ c, input, submit, patchUrl }) => {
+  afterEach(() => act(() => c().reset()));
+
+  it('keeps the form and what the user typed when saving fails', async () => {
+    await act(() => c().preload());
+    server.use(http.patch(patchUrl, () => HttpResponse.error()));
+
+    renderScreen(c());
+    await waitFor(() => {
+      expect(screen.getByTestId(input)).toBeTruthy();
+    });
+    fireEvent.changeText(screen.getByTestId(input), 'Typed by the user');
+    fireEvent.press(screen.getByTestId(submit));
+
+    // Save errors go through the screen's own message (unknownError for a network failure).
+    await waitFor(() => {
+      expect(screen.getByText(i18n.t('errors.unknownError'))).toBeTruthy();
+    });
+    expect(screen.getByTestId(input).props.value).toBe('Typed by the user');
+  });
+});
+
