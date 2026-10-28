@@ -620,6 +620,112 @@ describe('LoansService', () => {
       }
     });
 
+    describe('return date lock (409 loan-return-date-locked)', () => {
+      const inTenDays = (): string => {
+        const date = new Date();
+        date.setUTCHours(0, 0, 0, 0);
+        date.setUTCDate(date.getUTCDate() + 10);
+        return date.toISOString().slice(0, 10);
+      };
+
+      const expectReturnDateLocked = async (promise: Promise<unknown>) => {
+        try {
+          await promise;
+          fail('Expected ConflictException');
+        } catch (error) {
+          const err = error as { response: ProblemDetails };
+          expect(err.response.status).toBe(HttpStatus.CONFLICT);
+          expect(err.response.type).toBe('https://api.return.app/errors/loan-return-date-locked');
+        }
+      };
+
+      it.each([
+        LoanStatus.AWAITING_RETURN,
+        LoanStatus.RETURNED,
+        LoanStatus.NOT_RETURNED,
+        LoanStatus.ABANDONED,
+        LoanStatus.CONTESTED,
+      ])('refuses to change the return date of a %s loan', async (status) => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status });
+
+        await expectReturnDateLocked(
+          service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() }),
+        );
+        expect(prisma.loan.update).not.toHaveBeenCalled();
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
+
+      it('refuses to remove the return date of an overdue loan (it would never reach NOT_RETURNED)', async () => {
+        prisma.loan.findUnique.mockResolvedValue({
+          ...MOCK_LOAN,
+          status: LoanStatus.AWAITING_RETURN,
+        });
+
+        await expectReturnDateLocked(service.update(LOAN_ID, LENDER_USER_ID, { returnDate: null }));
+        expect(prisma.loan.update).not.toHaveBeenCalled();
+      });
+
+      it('still lets the lender edit the notes of a closed loan', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.RETURNED });
+        prisma.loan.update.mockResolvedValue({
+          ...MOCK_LOAN,
+          status: LoanStatus.RETURNED,
+          notes: 'n',
+        });
+
+        const result = await service.update(LOAN_ID, LENDER_USER_ID, { notes: 'n' });
+
+        expect(result.notes).toBe('n');
+        expect(prisma.loan.update).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: LOAN_ID } }),
+        );
+      });
+
+      it('makes the date update conditional on the loan still being open', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() });
+
+        expect(prisma.loan.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              id: LOAN_ID,
+              status: {
+                in: [
+                  LoanStatus.PENDING_CONFIRMATION,
+                  LoanStatus.ACTIVE,
+                  LoanStatus.ACTIVE_BY_DEFAULT,
+                ],
+              },
+            },
+          }),
+        );
+      });
+
+      it('returns 409 when the loan stops being open between the read and the update (race)', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockRejectedValue(
+          Object.assign(new Error('Record to update not found.'), { code: 'P2025' }),
+        );
+
+        await expectReturnDateLocked(
+          service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() }),
+        );
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
+
+      it('propagates any other database error', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        const dbError = Object.assign(new Error('connection lost'), { code: 'P1001' });
+        prisma.loan.update.mockRejectedValue(dbError);
+
+        await expect(
+          service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() }),
+        ).rejects.toBe(dbError);
+      });
+    });
+
     describe('return date change → reminders rescheduling', () => {
       const inDays = (days: number): string => {
         const date = new Date();
