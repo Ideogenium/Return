@@ -392,7 +392,7 @@ Cyclé TDD par comportement.
 
 | ID           | Titre                                                                                       | Dépendance | Critère de Fin                    | Temps |
 | ------------ | ------------------------------------------------------------------------------------------- | ---------- | --------------------------------- | ----- |
-| **LOAN-017** | RED : Test ACTIVE -> AWAITING_RETURN si returnDate dépassée                                 | LOAN-016   | Test écrit, échoue                | 20min |
+| **LOAN-017** | RED : Test ACTIVE -> AWAITING_RETURN si returnDate dépassée                                 | LOAN-016   | ✅ Fait (FEAT-10, 28/10/2026)     | 20min |
 | **LOAN-018** | RED : Test AWAITING_RETURN -> RETURNED                                                      | LOAN-017   | Test écrit, échoue                | 20min |
 | **LOAN-019** | RED : Test AWAITING_RETURN -> NOT_RETURNED après 5 rappels (via AllRemindersExhaustedEvent) | LOAN-018   | Test écrit, échoue                | 25min |
 | **LOAN-020** | RED : Test transition invalide retourne 409 Conflict (ex: RETURNED -> ACTIVE)               | LOAN-019   | Test écrit, échoue                | 20min |
