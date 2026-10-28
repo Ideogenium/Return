@@ -74,9 +74,13 @@ export class LocalPhotoStorageService implements PhotoStorage {
     try {
       const entries = await readdir(folder, { recursive: true, withFileTypes: true });
       files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
-    } catch {
-      // Absent folder → idempotent, nothing to delete
-      return 0;
+    } catch (error) {
+      // Absent folder → idempotent, nothing to delete. Any other failure must surface.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+      this.logger.error(
+        `Local purge failed for ${prefix}: ${(error as NodeJS.ErrnoException).code ?? 'unknown'}`,
+      );
+      throw error;
     }
 
     await rm(folder, { recursive: true, force: true });
