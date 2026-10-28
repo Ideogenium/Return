@@ -537,6 +537,33 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  // GET /loans/:id/reminders
+  http.get(`${API_REAL}/loans/:id/reminders`, ({ params }) => {
+    return HttpResponse.json(
+      [
+        {
+          id: 'c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f',
+          loanId: params.id,
+          type: 'PREVENTIVE',
+          status: 'SENT',
+          scheduledFor: '2026-04-12T08:00:00Z',
+          sentAt: '2026-04-12T08:00:03Z',
+          channel: 'PUSH',
+        },
+        {
+          id: 'd2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f6a',
+          loanId: params.id,
+          type: 'ON_DUE_DATE',
+          status: 'SCHEDULED',
+          scheduledFor: '2026-04-15T08:00:00Z',
+          sentAt: null,
+          channel: 'PUSH',
+        },
+      ],
+      { status: 200 },
+    );
+  }),
+
   // PATCH /loans/:id/status
   http.patch(`${API_REAL}/loans/:id/status`, async ({ params, request }) => {
     const body = (await request.json()) as Record<string, unknown>;
