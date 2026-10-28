@@ -26,6 +26,10 @@ export type ProfileStackParamList = {
   ChangePassword: undefined;
   DeleteAccount: undefined;
   Settings: undefined;
+  LoanHistory: undefined;
+  // Registered in the Profile stack so that going back from a loan opened from the
+  // history returns to the history list (not to the Loans tab).
+  LoanDetail: { id: string };
 };
 
 // Backward compat — les écrans existants utilisent NativeStackScreenProps<AppStackParamList, ...>
