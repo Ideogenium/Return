@@ -34,6 +34,10 @@ const EDITABLE_STATUSES = [
   'AWAITING_RETURN',
   'CONTESTED',
 ];
+// The API answers 409 loan-return-date-locked outside these statuses (notes stay editable).
+const RETURN_DATE_EDITABLE_STATUSES = ['PENDING_CONFIRMATION', 'ACTIVE', 'ACTIVE_BY_DEFAULT'];
+const isReturnDateEditable = (status: string | undefined): boolean =>
+  status !== undefined && RETURN_DATE_EDITABLE_STATUSES.includes(status);
 const RETURNABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 const ABANDONABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 
@@ -54,6 +58,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [editReturnDateObj, setEditReturnDateObj] = useState<Date | undefined>();
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
+  const [editApiError, setEditApiError] = useState<string | undefined>();
 
   useEffect(() => {
     fetchLoan(id).catch(() => {});
@@ -118,20 +123,30 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   };
 
   const handleEdit = async () => {
-    setEditDialogVisible(false);
-    setApiError(undefined);
+    setEditApiError(undefined);
+    const originalReturnDate = selectedLoan?.returnDate?.slice(0, 10) ?? '';
+    const returnDateChanged = editReturnDate.slice(0, 10) !== originalReturnDate;
     try {
       await useLoanStore.getState().updateLoan(id, {
         notes: editNotes || null,
-        returnDate: editReturnDate || null,
+        ...(isReturnDateEditable(selectedLoan?.status) && returnDateChanged
+          ? { returnDate: editReturnDate || null }
+          : {}),
       });
+      setEditDialogVisible(false);
     } catch (err) {
+      // Keep the dialog (and the typed notes) open so the lender can retry.
       const problem = parseProblemDetails(err as AxiosError);
-      setApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+      setEditApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+      if (problem?.type?.endsWith('/loan-return-date-locked')) {
+        // The loan left the editable statuses meanwhile: reload it to lock the date field.
+        fetchLoan(id).catch(() => {});
+      }
     }
   };
 
   const openEditDialog = () => {
+    setEditApiError(undefined);
     setEditNotes(selectedLoan?.notes ?? '');
     const existingDate = selectedLoan?.returnDate ?? '';
     setEditReturnDate(existingDate);
@@ -167,6 +182,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const contact = getContactForUser(selectedLoan, currentUserId);
 
   const canEdit = isLender && EDITABLE_STATUSES.includes(selectedLoan.status);
+  const canEditReturnDate = isReturnDateEditable(selectedLoan.status);
   const canReturn = isLender && RETURNABLE_STATUSES.includes(selectedLoan.status);
   const canAbandon = isLender && ABANDONABLE_STATUSES.includes(selectedLoan.status);
   const canDelete = isLender && selectedLoan.status !== 'RETURNED';
@@ -471,18 +487,24 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           <Dialog.ScrollArea style={styles.editScrollArea}>
             <ScrollView>
               <View style={styles.editContent}>
-                <Button
-                  mode="outlined"
-                  icon="calendar"
-                  onPress={() => setCalendarExpanded((v) => !v)}
-                  style={styles.editInput}
-                  testID="edit-return-date-input"
-                >
-                  {editReturnDateObj
-                    ? formatDate(editReturnDateObj, i18n.language)
-                    : t('loans.returnDate')}
-                </Button>
-                {calendarExpanded && (
+                {canEditReturnDate ? (
+                  <Button
+                    mode="outlined"
+                    icon="calendar"
+                    onPress={() => setCalendarExpanded((v) => !v)}
+                    style={styles.editInput}
+                    testID="edit-return-date-input"
+                  >
+                    {editReturnDateObj
+                      ? formatDate(editReturnDateObj, i18n.language)
+                      : t('loans.returnDate')}
+                  </Button>
+                ) : (
+                  <HelperText type="info" testID="return-date-locked-hint">
+                    {t('loans.returnDateLocked')}
+                  </HelperText>
+                )}
+                {canEditReturnDate && calendarExpanded && (
                   <Calendar
                     locale={i18n.language}
                     mode="single"
@@ -499,7 +521,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
                     validRange={{ startDate: getMinReturnDate() }}
                   />
                 )}
-                {calendarExpanded && (
+                {canEditReturnDate && calendarExpanded && (
                   <HelperText type="info">{t('loans.returnDateTooSoon')}</HelperText>
                 )}
                 <TextInput
@@ -511,6 +533,11 @@ export function LoanDetailScreen({ route, navigation }: Props) {
                   testID="edit-notes-input"
                   contentStyle={{ textAlignVertical: 'top' }}
                 />
+                {editApiError && (
+                  <HelperText type="error" testID="edit-api-error">
+                    {editApiError}
+                  </HelperText>
+                )}
               </View>
             </ScrollView>
           </Dialog.ScrollArea>

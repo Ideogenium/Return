@@ -29,6 +29,7 @@ import type {
   LoanDeletedEvent,
   LoanReturnDateChangedEvent,
 } from '../common/events/loan.events.js';
+import { isPrismaRecordNotFoundError } from '../common/utils/prisma-errors.util.js';
 import { LoanStatus, Prisma } from '@prisma/client';
 
 const MAX_LOANS_PER_DAY = 15;
@@ -291,6 +292,9 @@ export class LoansService {
     const data: Record<string, unknown> = {};
     let newReturnDate: Date | null | undefined;
     if (dto.returnDate !== undefined) {
+      if (!RETURN_DATE_RESCHEDULABLE_STATUSES.includes(loan.status)) {
+        throw this.returnDateLockedException(loanId);
+      }
       if (dto.returnDate) {
         const returnDate = new Date(dto.returnDate);
         const today = new Date();
@@ -315,21 +319,29 @@ export class LoansService {
       data.notes = dto.notes;
     }
 
-    const updated = await this.prisma.loan.update({
-      where: { id: loanId },
-      data,
-      include: {
-        item: { include: { photos: true } },
-        lender: true,
-        borrower: true,
-      },
-    });
+    let updated: LoanWithRelations;
+    try {
+      updated = (await this.prisma.loan.update({
+        // The status filter closes the race with a concurrent return or overdue transition.
+        where:
+          newReturnDate === undefined
+            ? { id: loanId }
+            : { id: loanId, status: { in: RETURN_DATE_RESCHEDULABLE_STATUSES } },
+        data,
+        include: {
+          item: { include: { photos: true } },
+          lender: true,
+          borrower: true,
+        },
+      })) as LoanWithRelations;
+    } catch (error) {
+      if (newReturnDate !== undefined && isPrismaRecordNotFoundError(error)) {
+        throw this.returnDateLockedException(loanId);
+      }
+      throw error;
+    }
 
-    if (
-      newReturnDate !== undefined &&
-      RETURN_DATE_RESCHEDULABLE_STATUSES.includes(loan.status) &&
-      !sameDay(loan.returnDate, newReturnDate)
-    ) {
+    if (newReturnDate !== undefined && !sameDay(loan.returnDate, newReturnDate)) {
       const event: LoanReturnDateChangedEvent = {
         loanId,
         // Stored value: @db.Date drops any time part sent by the client.
@@ -339,7 +351,16 @@ export class LoansService {
       this.eventEmitter.emit(LOAN_EVENTS.RETURN_DATE_CHANGED, event);
     }
 
-    return toLoanResponse(updated as LoanWithRelations);
+    return toLoanResponse(updated);
+  }
+
+  private returnDateLockedException(loanId: string): ConflictException {
+    return new ConflictException(
+      'loan-return-date-locked',
+      'Return Date Locked',
+      'The return date can only be changed while the loan is pending or active.',
+      `/v1/loans/${loanId}`,
+    );
   }
 
   // =========================================================================

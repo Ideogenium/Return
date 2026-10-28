@@ -130,6 +130,7 @@
     "loanNotFound": "Loan not found",
     "dailyLoanLimitExceeded": "Daily loan limit exceeded",
     "loanAlreadyReturned": "This loan has already been returned",
+    "loanReturnDateLocked": "The return date can no longer be changed for this loan.",
     "forbiddenStatusTransition": "You are not authorized to perform this status transition",
     "invalidStatusTransition": "Invalid status transition",
     "invalidReturnDate": "Return date must be in the future",
@@ -241,7 +242,8 @@
     "emptyBorrowings": "No borrowings",
     "emptyBorrowingsSubtitle": "Loans addressed to you will appear here",
     "filterLoans": "Filter loans",
-    "returnDateTooSoon": "Return date must be at least 2 days from now"
+    "returnDateTooSoon": "Return date must be at least 2 days from now",
+    "returnDateLocked": "The return date can no longer be changed: the loan is overdue or closed."
   },
   "invitations": {
     "searchPlaceholder": "Search for a user by name or email...",

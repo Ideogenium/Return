@@ -550,6 +550,10 @@ paths:
                     Nouvelle date de retour prévue (null = indéfinie).
                     **Contrainte** : doit être au minimum 2 jours après la date de création du prêt (J+2).
                     Si des rappels sont déjà planifiés, ils seront recalculés automatiquement.
+                    **Statuts autorisés** : la date ne peut être modifiée (ou retirée) que pour un prêt
+                    `PENDING_CONFIRMATION`, `ACTIVE` ou `ACTIVE_BY_DEFAULT`. Pour un prêt en retard
+                    (`AWAITING_RETURN`) ou clos, la requête est refusée avec `409 loan-return-date-locked`.
+                    Les notes restent modifiables quel que soit le statut.
                 notes:
                   type: [string, 'null']
                   maxLength: 500
@@ -569,6 +573,22 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            La date de retour ne peut plus être modifiée : le prêt est en retard (`AWAITING_RETURN`)
+            ou clos (`RETURNED`, `NOT_RETURNED`, `ABANDONED`, `CONTESTED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://api.return.app/errors/loan-return-date-locked
+                title: Return Date Locked
+                status: 409
+                detail: The return date can only be changed while the loan is pending or active.
+                instance: /v1/loans/loan-123
+                timestamp: 2026-10-28T10:00:00Z
+                requestId: req-9a8b7c6d
 
     delete:
       tags:

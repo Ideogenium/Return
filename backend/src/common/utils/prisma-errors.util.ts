@@ -19,3 +19,17 @@ export function isPrismaUniqueConstraintError(error: unknown): error is Error & 
     (error as { code: string }).code === 'P2002'
   );
 }
+
+/**
+ * Vérifie si une erreur Prisma signale qu'aucun enregistrement ne correspond (P2025).
+ *
+ * Levée par `update` quand son `where` (y compris un filtre de statut) ne trouve rien.
+ */
+export function isPrismaRecordNotFoundError(error: unknown): error is Error & { code: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: string }).code === 'P2025'
+  );
+}

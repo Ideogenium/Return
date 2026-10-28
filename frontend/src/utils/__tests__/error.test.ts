@@ -32,6 +32,20 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(error, mockT)).toBe('errors.invalidReturnDate');
   });
 
+  it('should return i18n key for loan-return-date-locked', () => {
+    const error: ProblemDetails = {
+      type: 'https://api.return.app/errors/loan-return-date-locked',
+      title: 'Return Date Locked',
+      status: 409,
+      detail: 'The return date can only be changed while the loan is pending or active.',
+      instance: '/v1/loans/loan-123',
+      timestamp: '2026-01-01T00:00:00Z',
+      requestId: 'req-1',
+    };
+
+    expect(getErrorMessage(error, mockT)).toBe('errors.loanReturnDateLocked');
+  });
+
   it('should fallback to detail for unmapped error types', () => {
     const error: ProblemDetails = {
       type: 'https://api.return.app/errors/some-unknown-error',
