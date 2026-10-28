@@ -136,6 +136,18 @@ export function ProfileScreen({ navigation }: Props) {
 
         <Button
           mode="outlined"
+          icon="history"
+          onPress={() => navigation.navigate('LoanHistory')}
+          style={styles.outlinedButton}
+          labelStyle={styles.outlinedLabel}
+          contentStyle={styles.buttonContent}
+          testID="history-btn"
+        >
+          {t('profile.history')}
+        </Button>
+
+        <Button
+          mode="outlined"
           icon="cog-outline"
           onPress={() => navigation.navigate('Settings')}
           style={styles.outlinedButton}
