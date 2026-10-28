@@ -10,9 +10,14 @@ interface ConfirmationDialogProps {
   visible: boolean;
   onDismiss: () => void;
   onConfirm: () => void;
+  /**
+   * Called with the typed reason. The dialog keeps the reason and the contest form
+   * after the call, so a failure loses nothing: on success, the caller must close
+   * the dialog (or leave the screen), which is when the draft is discarded.
+   */
   onContest: (reason: string) => void;
   isLoading: boolean;
-  /** Message of a failed confirm/contest, shown inside the dialog. */
+  /** Message of a failed load, confirm or contest, shown inside the dialog. */
   error?: string;
 }
 
@@ -34,7 +39,6 @@ export function ConfirmationDialog({
 
   const isReasonValid = reason.length >= MIN_REASON_LENGTH && reason.length <= MAX_REASON_LENGTH;
 
-  // The reason is kept until the screen leaves on success, so a failure never loses it.
   const handleContest = () => {
     if (isReasonValid) {
       onContest(reason);
