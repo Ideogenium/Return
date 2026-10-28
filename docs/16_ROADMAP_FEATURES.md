@@ -33,6 +33,22 @@ frontend + tests + intégration + mise à jour de la doc. Conséquences :
 **Définition de « fini »** (identique pour toutes les features) : back + front concernés livrés · tests verts
 (`npm run lint` + `typecheck` + `jest` front ET back) · intégré sur la branche cible · statuts de la doc mis à jour.
 
+### Décisions d'équipe du 28/10/2026
+
+- **Exception au contrat HTTP (FEAT-11, Ozias)** : FEAT-11 ajoutera une réponse **409 `loan-return-date-locked`** sur
+  `PATCH /loans/{id}` : la date de retour ne sera modifiable qu'en `PENDING_CONFIRMATION`, `ACTIVE` et
+  `ACTIVE_BY_DEFAULT`. C'est une exception à la phrase « FEAT-10 et FEAT-11 ne changent aucun contrat HTTP » ci-dessus.
+  Ozias documente ses propres lignes (fiche FEAT-11, `openapi.yaml`).
+- **« Aujourd'hui » = jour calendaire UTC** pour FEAT-04 (`overdueLoans`) et FEAT-10 (`handleOverdueLoans`).
+- **Convention CRON** : chaque CRON écrit une ligne de log `… tick: …` à chaque passage. Le critère de vérification
+  des CRON de FEAT-02 devient `fly logs | grep tick`.
+- **FEAT-10, rattrapage `NOT_RETURNED`** : il s'applique quand le rappel `FINAL_OVERDUE` est `SENT` **ou `FAILED`** et
+  correspond à l'échéance actuelle (un J+21 en échec ne doit plus bloquer le prêt).
+- **`openapi.yaml`, `PATCH /loans/{loanId}`** : la `returnDate` doit être au minimum 2 jours après **la date du jour**
+  (J+2), et non après la date de création du prêt ; c'est le comportement réel du code.
+- **FEAT-07** : version **complète** livrée (filtre par statut + pagination), le repli « liste simple » n'a pas été
+  utilisé. Tri par date de **création** du prêt, comme l'API.
+
 ---
 
 ### Légende
@@ -55,12 +71,12 @@ frontend + tests + intégration + mise à jour de la doc. Conséquences :
 | FEAT-02 | Durcissement prod (CORS, secrets, 1 seule machine, Expo token)   | Ozias                               | Must     | 2 h                | —                                  | CORR-05, PUSH-B5, CORR-01              | ☐      |
 | FEAT-03 | Distribution iOS (EAS prod iOS, APNs, TestFlight, push e2e iOS)  | Ozias                               | Must     | 7 h                | accès EAS (ACC-A1 ✅)              | PUSH-P1, PUSH-F5, ACC-A2/A3, ACC-E1→E5 | ☐      |
 | FEAT-04 | Stats prêts en retard : `overdueLoans` back + carte front        | Ozias                               | Should   | 1,5 h              | —                                  | FIX-14 (reste)                         | ☐      |
-| FEAT-05 | Distribution Android (Play internal via `eas submit`)            | Ismael                              | Must     | 3 h                | Play Console OK (fait)             | PUSH-P2, ACC-G*, ACC-E3/E4             | ☐      |
-| FEAT-06 | Rappels visibles dans la timeline du prêt                        | Ismael                              | Should   | 3,5 h              | —                                  | CORR-07                                | ☐      |
-| FEAT-07 | Historique des prêts (écran dédié, périmètre réduit)             | Ismael                              | Should   | 8 h                | —                                  | CORR-14 (partiel), CORR-08             | ☐      |
+| FEAT-05 | Distribution Android (Play internal via `eas submit`)            | Ismael                              | Must     | 3 h                | Play Console OK (fait)             | PUSH-P2, ACC-G*, ACC-E3/E4             | ✅ (28/10) — `eas submit` auto à valider |
+| FEAT-06 | Rappels visibles dans la timeline du prêt                        | Ismael                              | Should   | 3,5 h              | —                                  | CORR-07                                | ✅ (28/10) |
+| FEAT-07 | Historique des prêts (écran dédié, périmètre réduit)             | Ismael                              | Should   | 8 h                | —                                  | CORR-14 (partiel), CORR-08             | ✅ (28/10) — version complète ; vérif device à faire |
 | FEAT-08 | Mise à jour de la documentation                                  | Ismael (porteur) + Ozias (sous-lot) | Must     | 4,5 h (2,5 + 2)    | features terminées (en continu)    | CORR-11, doc 12 §A                     | ☐      |
 | FEAT-09 | Seuils de couverture (`coverageThreshold` front + back)          | Ismael (front) + Ozias (back)       | Could    | 2 h (1 + 1)        | —                                  | CORR-10                                | ☐      |
-| FEAT-10 | Passage automatique en retard (AWAITING_RETURN) puis non rendu   | Ismael                              | Must     | 3,5 h (3-4 h)      | — (contrat : événement `STATUS_CHANGED`) | LOAN-017 (doc 04), doc 13:209-212, openapi.yaml:638-639 | ☐ |
+| FEAT-10 | Passage automatique en retard (AWAITING_RETURN) puis non rendu   | Ismael                              | Must     | 3,5 h (3-4 h)      | — (contrat : événement `STATUS_CHANGED`) | LOAN-017 (doc 04), doc 13:209-212, openapi.yaml:638-639 | ✅ (28/10) — déploiement prévu D2 |
 | FEAT-11 | Rappels annulés / replanifiés selon le cycle de vie du prêt      | Ozias                               | Must     | 1,5 h (1-2 h)      | — (contrat : événement `STATUS_CHANGED`) | `reminders.service.ts:107-112`, `loans.service.ts:283-300` | ☐ |
 
 > FEAT-10 et FEAT-11 (validées par Ismael le 25/10) sont des **Must placées au-dessus de FEAT-04** : elles touchent
@@ -300,10 +316,21 @@ distincts).
       accepte `eas submit` — prévoir ce cas.
     - **Test** : installation depuis le Play Store (lien interne), push reçu, login contre l'API prod.
 - **Critères d'acceptation**
-    - [ ] Service account Play API créé, **fichier non versionné** (`git status` propre)
-    - [ ] AAB production construit et soumis sur la piste « Test interne »
-    - [ ] App installée depuis le lien Play interne sur au moins un device, push reçu
-    - [ ] Doc : PUSH-P2, ACC-G1→G3, ACC-E1/E3/E4 (volet Android) cochés (docs 14, 15)
+    - [x] Service account Play API créé, **fichier non versionné** (`git status` propre)
+    - [x] AAB production construit et soumis sur la piste « Test interne » (1er AAB **importé manuellement**, comme
+      Google l'exige pour la première release)
+    - [x] App installée depuis le lien Play interne sur au moins un device, push reçu
+    - [ ] `eas submit` automatique validé (à faire au prochain build, versionCode 2)
+    - [x] Doc : PUSH-P2, ACC-G1→G3, ACC-E1/E3/E4 (volet Android) cochés (docs 14, 15)
+
+> **Livré le 28/10/2026.** Compte de service `eas-submit@return-642c7.iam.gserviceaccount.com` (projet GCP
+> `return-642c7`, API « Google Play Android Developer » activée ; droits Play Console : publier sur les canaux de test
+> et gérer les canaux de test). Clé locale `frontend/google-play-service-account.json`, non versionnée (`.gitignore`
+> couvre `*service-account*.json`). App créée dans Play Console, package `com.ideogen.returnapp`. Build EAS production
+> AAB `c2fcaeca-07b9-4a0c-a4fc-c6ea176902b1`, version 1.0.0 (versionCode 1) ; release déployée sur « Test interne »,
+> liste de testeurs créée, Play App Signing activé. Installation depuis la piste interne OK sur un téléphone Android
+> (désinstallation préalable de l'ancien APK preview, signé avec une autre clé), connexion à l'API prod OK, push reçu.
+> `eas.json` non modifié.
 
 ---
 
@@ -325,11 +352,15 @@ distincts).
     - **Tests** : tests de `getTimelineSteps` avec rappels (envoyés / planifiés / aucun), rendu prêteur vs emprunteur,
       handler MSW `GET /loans/:id/reminders`.
 - **Critères d'acceptation**
-    - [ ] Le prêteur voit les rappels envoyés (date d'envoi) et à venir (date prévue) dans la timeline
-    - [ ] L'emprunteur ne déclenche aucun appel reminders ni erreur
-    - [ ] Prêt sans rappel / échec réseau : la timeline s'affiche sans les rappels (dégradation silencieuse)
-    - [ ] FR + EN, tests front verts, lint + typecheck OK, TODO supprimé
-    - [ ] Doc : CORR-07 → ✅ (doc 11)
+    - [x] Le prêteur voit les rappels envoyés (date d'envoi) et à venir (date prévue) dans la timeline
+    - [x] L'emprunteur ne déclenche aucun appel reminders ni erreur
+    - [x] Prêt sans rappel / échec réseau : la timeline s'affiche sans les rappels (dégradation silencieuse)
+    - [x] FR + EN, tests front verts, lint + typecheck OK, TODO supprimé
+    - [x] Doc : CORR-07 → ✅ (doc 11)
+
+> **Livré le 28/10/2026** (commits `ef9db61`, `5f8995a`, `1327c4c`, corrigés par `2fcab49` et `661bec7`). Seul le
+> prêteur voit les rappels `SENT` et `SCHEDULED` ; `CANCELLED` et `FAILED` sont ignorés. Affichage pour les prêts
+> `ACTIVE`, `ACTIVE_BY_DEFAULT` et `AWAITING_RETURN`.
 
 ---
 
@@ -357,13 +388,18 @@ distincts).
       d'abord le front au contrat réel et se branche sur l'API une fois déployée).
     - **Tests** : store (pagination, filtre, erreur), écran (rendu liste, vide, filtre, navigation).
 - **Critères d'acceptation**
-    - [ ] L'écran Historique liste les prêts terminés du prêteur, du plus récent au plus ancien
-    - [ ] Filtre par statut fonctionnel, pagination (page suivante au scroll)
-    - [ ] Tap sur un prêt ouvre son détail ; retour conserve la liste
-    - [ ] États vide / erreur / chargement gérés, FR + EN
-    - [ ] Tests front verts, lint + typecheck OK, vérifié sur device contre l'API prod
-    - [ ] Doc : CORR-08 → ✅, CORR-14 → « partiel (historique livré, dashboard post-échéance) » (doc 11)
-- **Repli** : si retard mercredi midi, livrer la liste sans filtre (−2 h).
+    - [x] L'écran Historique liste les prêts terminés du prêteur, du plus récent au plus ancien (tri par date de
+      **création** du prêt, comme l'API)
+    - [x] Filtre par statut fonctionnel, pagination (page suivante au scroll)
+    - [x] Tap sur un prêt ouvre son détail ; retour conserve la liste
+    - [x] États vide / erreur / chargement gérés, FR + EN
+    - [x] Tests front verts, lint + typecheck OK
+    - [ ] Vérifié sur device contre l'API prod (**reste à faire**)
+    - [x] Doc : CORR-08 → ✅, CORR-14 → « partiel (historique livré, dashboard post-échéance) » (doc 11)
+- **Repli** : si retard mercredi midi, livrer la liste sans filtre (−2 h). **Non utilisé** : version complète livrée.
+
+> **Livré le 28/10/2026** (commits `f042c29`, `1a59912`, `83602f4`, `2f1f2cb`, puis correctifs `cf090b7` et
+> `2fcab49`). Point d'entrée « Historique » dans le Profil.
 
 ---
 
@@ -399,13 +435,25 @@ distincts).
       `ACTIVE` → `AWAITING_RETURN` → rappels → `ALL_EXHAUSTED` → `NOT_RETURNED`, en vérifiant que `notReturnedLoans`
       et le trustScore évoluent.
 - **Critères d'acceptation**
-    - [ ] Un prêt `ACTIVE` / `ACTIVE_BY_DEFAULT` dont la `returnDate` est passée (< jour courant) passe en
+    - [x] Un prêt `ACTIVE` / `ACTIVE_BY_DEFAULT` dont la `returnDate` est passée (< jour courant) passe en
       `AWAITING_RETURN` au tick suivant ; un prêt dont la date est aujourd'hui reste inchangé
-    - [ ] Idempotent (deux ticks = une seule transition, un seul événement)
-    - [ ] Chemin complet jusqu'à `NOT_RETURNED` couvert par un e2e vert ; `notReturnedLoans` > 0 et trustScore pénalisé
-    - [ ] Rattrapage des prêts déjà en retard / FINAL_OVERDUE déjà envoyé testé
-    - [ ] Tests back verts, lint + typecheck OK ; mergée sur `fix/preprod-corrections`
-    - [ ] Doc : LOAN-017 coché (doc 04), doc 13 : sujet reporté (l.209) noté « traité »
+    - [x] Idempotent (deux ticks = une seule transition, un seul événement)
+    - [x] Chemin complet jusqu'à `NOT_RETURNED` couvert par un e2e vert ; `notReturnedLoans` > 0 et trustScore pénalisé
+    - [x] Rattrapage des prêts déjà en retard / FINAL_OVERDUE déjà envoyé testé
+    - [x] Tests back verts, lint + typecheck OK (hors e2e `/health`, environnement)
+    - [ ] Mergée sur `fix/preprod-corrections` (non vérifié à la date de mise à jour : commits sur
+      `feature/loans-lifecycle-history`)
+    - [x] Doc : LOAN-017 coché (doc 04), doc 13 : sujet reporté (l.209) noté « traité »
+
+> **Livré le 28/10/2026** (commits `4e1a5c6`, `3dd611c`, `561876e`, `473317d`). **Pas encore déployé : prévu pour D2.**
+> « En retard » = `returnDate` antérieure au début du jour courant **en UTC**. Rattrapage `NOT_RETURNED` quand le rappel
+> `FINAL_OVERDUE` est `SENT` ou `FAILED` (décision du 28/10, cf. ci-dessus). Clôture protégée par `updateMany` sur le
+> statut et `deletedAt` ; une erreur sur un prêt n'interrompt pas le passage. Log à chaque passage :
+> `Overdue tick: N loan(s) marked AWAITING_RETURN, M closed NOT_RETURNED (catch-up)`. Le listener
+> `reminder-exhausted` a été légèrement refactoré (extraction de `closeAsNotReturned`), sans régression.
+>
+> **Dette de tests corrigée au passage** (`c26fe22`, `4ceab43`) : typage dans `history.controller.spec.ts` et deux e2e
+> contact-invitations sans `returnDate`. Il reste un e2e `/health` en échec faute de Redis local (environnement).
 
 ---
 
@@ -562,6 +610,9 @@ leur neutralisation :
 
 | Item                                                                                                               | Raison                                                                                                                         |
 |--------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| Prolonger un prêt déjà en retard (décision 28/10)                                                                  | Bloqué par le 409 `loan-return-date-locked` de FEAT-11, et la machine à états n'a pas de transition `AWAITING_RETURN` → `ACTIVE` |
+| Tri de l'historique par date de clôture plutôt que de création (décision 28/10)                                    | FEAT-07 trie par date de création, comme l'API ; changement de contrat à prévoir                                               |
+| Pagination de l'historique par curseur ou avec un tri secondaire (décision 28/10)                                  | Pagination actuelle sans tri secondaire : ordre instable possible entre deux pages                                             |
 | Dashboard dédié (graphiques `byCategory`, `topBorrowers`, `mostLoanedItems`) — reste de CORR-14                    | Trop gros pour la fenêtre (2-4 j) ; l'historique et les stats de base livrés couvrent le besoin immédiat                       |
 | Filtres historique par date / emprunteur                                                                           | Valeur secondaire, endpoint prêt côté back, ajout simple ensuite                                                               |
 | CORR-12 — DNS `api.return.app`                                                                                     | Nécessite l'achat d'un domaine + config DNS/TLS ; aucun utilisateur public avant la prod publique, `return-api.fly.dev` suffit |
