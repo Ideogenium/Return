@@ -26,7 +26,7 @@ type Props = NativeStackScreenProps<ItemStackParamList, 'ItemDetail'>;
 export function ItemDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const { selectedItem, isLoading, error, fetchItem } = useItemStore();
+  const { selectedItem, error, fetchItem } = useItemStore();
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [deletePhotoId, setDeletePhotoId] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | undefined>();
@@ -72,19 +72,22 @@ export function ItemDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
-      </View>
-    );
-  }
-
-  if (!selectedItem) {
+  // Full-screen states only while nothing is displayable for this id: actions and
+  // refreshes keep the screen (and its open dialogs) mounted.
+  if (!selectedItem || selectedItem.id !== id) {
+    if (!error) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
+        </View>
+      );
+    }
     return (
       <View style={styles.centerContainer} testID="item-error">
         <Text variant="titleMedium" style={styles.errorText}>
-          {error ? t('errors.itemNotFound') : t('errors.unknownError')}
+          {error.type?.includes('item-not-found')
+            ? t('errors.itemNotFound')
+            : t('errors.unknownError')}
         </Text>
         <Button mode="outlined" onPress={() => navigation.goBack()} style={styles.backButton}>
           {t('common.back')}

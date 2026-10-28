@@ -418,8 +418,58 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
     fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
     fireEvent.press(screen.getByTestId('confirm-edit-btn'));
 
+    await waitFor(
+      () => {
+        expect(screen.queryByTestId('edit-loan-dialog')).toBeNull();
+      },
+      { timeout: 3000 },
+    );
+  });
+});
+
+describe('LoanDetailScreen — actions never unmount the screen', () => {
+  /** A request that stays pending until `release()` is called. */
+  function gate() {
+    let release!: () => void;
+    const opened = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return { opened, release };
+  }
+
+  it('keeps the screen and the edit dialog mounted while the change is being saved', async () => {
+    const { opened, release } = gate();
+    server.use(
+      http.patch('http://localhost:3000/v1/loans/:id', async ({ request }) => {
+        await opened;
+        const body = (await request.json()) as Record<string, unknown>;
+        // The API answers with the full updated loan.
+        return HttpResponse.json(
+          { ...useLoanStore.getState().selectedLoan, ...body },
+          { status: 200 },
+        );
+      }),
+    );
+    renderDetailScreen();
     await waitFor(() => {
-      expect(screen.queryByTestId('edit-loan-dialog')).toBeNull();
+      expect(screen.getByTestId('edit-loan-btn')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByTestId('edit-loan-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    });
+
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(useLoanStore.getState().isLoading).toBe(true);
+    });
+    expect(screen.queryByTestId('loading')).toBeNull();
+    expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    release();
+    await waitFor(() => {
+      expect(useLoanStore.getState().isLoading).toBe(false);
     });
   });
 });

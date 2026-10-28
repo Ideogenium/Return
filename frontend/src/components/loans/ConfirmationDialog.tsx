@@ -12,6 +12,8 @@ interface ConfirmationDialogProps {
   onConfirm: () => void;
   onContest: (reason: string) => void;
   isLoading: boolean;
+  /** Message of a failed confirm/contest, shown inside the dialog. */
+  error?: string;
 }
 
 const MIN_REASON_LENGTH = 10;
@@ -24,6 +26,7 @@ export function ConfirmationDialog({
   onConfirm,
   onContest,
   isLoading,
+  error,
 }: ConfirmationDialogProps) {
   const { t, i18n } = useTranslation();
   const [showContestForm, setShowContestForm] = useState(false);
@@ -31,11 +34,10 @@ export function ConfirmationDialog({
 
   const isReasonValid = reason.length >= MIN_REASON_LENGTH && reason.length <= MAX_REASON_LENGTH;
 
+  // The reason is kept until the screen leaves on success, so a failure never loses it.
   const handleContest = () => {
     if (isReasonValid) {
       onContest(reason);
-      setReason('');
-      setShowContestForm(false);
     }
   };
 
@@ -80,6 +82,11 @@ export function ConfirmationDialog({
                 {reason.length}/{MAX_REASON_LENGTH} (min {MIN_REASON_LENGTH})
               </HelperText>
             </View>
+          )}
+          {error && (
+            <HelperText type="error" testID="confirmation-dialog-error">
+              {error}
+            </HelperText>
           )}
         </Dialog.Content>
         <Dialog.Actions>

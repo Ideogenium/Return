@@ -44,7 +44,7 @@ const ABANDONABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 export function LoanDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const { selectedLoan, isLoading, error, fetchLoan } = useLoanStore();
+  const { selectedLoan, error, fetchLoan } = useLoanStore();
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [abandonDialogVisible, setAbandonDialogVisible] = useState(false);
@@ -155,15 +155,16 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     setEditDialogVisible(true);
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
-      </View>
-    );
-  }
-
-  if (!selectedLoan) {
+  // Full-screen states only while nothing is displayable for this id: actions and
+  // refreshes keep the screen (and its open dialogs) mounted.
+  if (!selectedLoan || selectedLoan.id !== id) {
+    if (!error) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
+        </View>
+      );
+    }
     return (
       <View style={styles.centerContainer} testID="loan-error">
         <Text variant="titleMedium" style={styles.errorText}>

@@ -15,14 +15,8 @@ type Props = NativeStackScreenProps<BorrowerStackParamList, 'BorrowerDetail'>;
 export function BorrowerDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const {
-    selectedBorrower,
-    selectedBorrowerStats,
-    isLoading,
-    error,
-    fetchBorrower,
-    fetchBorrowerStats,
-  } = useBorrowerStore();
+  const { selectedBorrower, selectedBorrowerStats, error, fetchBorrower, fetchBorrowerStats } =
+    useBorrowerStore();
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
 
@@ -43,19 +37,22 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
-      </View>
-    );
-  }
-
-  if (!selectedBorrower) {
+  // Full-screen states only while nothing is displayable for this id: actions and
+  // refreshes keep the screen (and its open dialogs) mounted.
+  if (!selectedBorrower || selectedBorrower.id !== id) {
+    if (!error) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
+        </View>
+      );
+    }
     return (
       <View style={styles.centerContainer} testID="borrower-error">
         <Text variant="titleMedium" style={styles.errorText}>
-          {error ? t('errors.borrowerNotFound') : t('errors.unknownError')}
+          {error.type?.includes('borrower-not-found')
+            ? t('errors.borrowerNotFound')
+            : t('errors.unknownError')}
         </Text>
         <Button mode="outlined" onPress={() => navigation.goBack()} style={styles.backButton}>
           {t('common.back')}
