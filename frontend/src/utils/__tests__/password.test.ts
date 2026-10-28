@@ -39,6 +39,10 @@ describe('validatePasswordRules', () => {
     expect(message).toContain('@ $ ! % * ? &');
   });
 
+  it('quotes the refused character with the typography of the current language', () => {
+    expect(validatePasswordRules('Retour2026#', t)).not.toContain('«');
+  });
+
   it('names a refused space explicitly', () => {
     expect(validatePasswordRules('Retour 2026!', t)).toContain('space');
   });

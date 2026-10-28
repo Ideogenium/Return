@@ -4,6 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
 import type { CreateBorrowerDto } from '../../types/api.types';
+import { EMAIL_PATTERN, normalizeEmail } from '../../utils/email';
 
 interface BorrowerFormProps {
   mode?: 'create' | 'edit';
@@ -103,7 +104,8 @@ export function BorrowerForm({
         rules={{
           ...(isCreate && { required: t('auth.emailRequired') }),
           ...(isCreate && {
-            pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t('auth.emailInvalid') },
+            validate: (value: string) =>
+              EMAIL_PATTERN.test(normalizeEmail(value)) || t('auth.emailInvalid'),
           }),
         }}
         render={({ field: { onChange, onBlur, value } }) => (
@@ -163,7 +165,9 @@ export function BorrowerForm({
       <Button
         mode="contained"
         icon="content-save-outline"
-        onPress={handleSubmit(onSubmit)}
+        onPress={handleSubmit((data) =>
+          onSubmit({ ...data, ...(data.email && { email: normalizeEmail(data.email) }) }),
+        )}
         loading={isLoading}
         disabled={isLoading}
         testID="borrower-submit-btn"

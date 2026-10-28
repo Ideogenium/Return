@@ -59,4 +59,34 @@ describe('ChangePasswordScreen', () => {
     });
     expect(screen.queryByTestId('form-error')).toBeNull();
   });
+
+  it('still shows a message when the API validation error concerns no displayed field', async () => {
+    server.use(
+      http.patch('http://localhost:3000/v1/users/me/password', () =>
+        HttpResponse.json(
+          {
+            type: 'https://api.return.app/errors/validation-failed',
+            title: 'Validation Failed',
+            status: 400,
+            detail: 'The request contains invalid data.',
+            instance: '/v1/users/me/password',
+            timestamp: '2026-10-28T10:00:00Z',
+            requestId: 'req-mock',
+            errors: [{ field: 'id', code: 'INVALID_UUID', message: 'x' }],
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    renderScreen();
+    fireEvent.changeText(screen.getByTestId('currentPassword-input'), 'Current2026!');
+    fireEvent.changeText(screen.getByTestId('newPassword-input'), 'Retour2026!');
+    fireEvent.changeText(screen.getByTestId('confirmNewPassword-input'), 'Retour2026!');
+    fireEvent.press(screen.getByTestId('changePassword-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('form-error')).toBeTruthy();
+    });
+  });
 });

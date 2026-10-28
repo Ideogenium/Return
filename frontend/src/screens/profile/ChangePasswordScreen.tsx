@@ -11,6 +11,9 @@ import type { ChangePasswordDto } from '../../types/api.types';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'ChangePassword'>;
 
+/** Fields displayed by ChangePasswordForm: API errors on any other field fall back to the banner. */
+const CHANGE_PASSWORD_FIELDS = ['currentPassword', 'newPassword'] as const;
+
 export function ChangePasswordScreen({ navigation }: Props) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +29,7 @@ export function ChangePasswordScreen({ navigation }: Props) {
       navigation.goBack();
     } catch (err) {
       const problem = parseProblemDetails(err as AxiosError);
-      const fields = problem ? getFieldErrors(problem, t) : {};
+      const fields = problem ? getFieldErrors(problem, t, CHANGE_PASSWORD_FIELDS) : {};
       if (Object.keys(fields).length > 0) {
         setFieldErrors(fields);
       } else {

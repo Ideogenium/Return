@@ -23,7 +23,8 @@ export function ProfileScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (!user) {
-      useAuthStore.getState().hydrate();
+      // Not hydrate(): the session restore shows the app-wide splash and unmounts the navigation.
+      useAuthStore.getState().refreshUser();
     }
   }, [user]);
 

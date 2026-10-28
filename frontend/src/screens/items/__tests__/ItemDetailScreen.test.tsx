@@ -129,4 +129,42 @@ describe('ItemDetailScreen', () => {
       expect(screen.getByTestId('api-error')).toBeTruthy();
     });
   });
+
+  describe('actions never unmount the screen', () => {
+    /** A request that stays pending until `release()` is called. */
+    function gate() {
+      let release!: () => void;
+      const opened = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return { opened, release };
+    }
+
+    it('keeps the item on screen while it is being deleted', async () => {
+      const { opened, release } = gate();
+      server.use(
+        http.delete('http://localhost:3000/v1/items/:itemId', async () => {
+          await opened;
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      renderDetailScreen();
+      await waitFor(() => {
+        expect(screen.getByTestId('delete-item-btn')).toBeTruthy();
+      });
+      fireEvent.press(screen.getByTestId('delete-item-btn'));
+      await waitFor(() => {
+        expect(screen.getByTestId('confirm-delete-btn')).toBeTruthy();
+      });
+
+      fireEvent.press(screen.getByTestId('confirm-delete-btn'));
+
+      await waitFor(() => {
+        expect(useItemStore.getState().isLoading).toBe(true);
+      });
+      expect(screen.queryByTestId('loading')).toBeNull();
+      expect(screen.getByTestId('item-detail')).toBeTruthy();
+      release();
+    });
+  });
 });

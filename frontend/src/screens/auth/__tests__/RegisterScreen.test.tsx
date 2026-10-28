@@ -82,6 +82,28 @@ describe('RegisterScreen', () => {
     expect(screen.queryByTestId('form-error')).toBeNull();
   });
 
+  it('still shows a message when the API validation error concerns no displayed field', async () => {
+    server.use(
+      http.post('http://localhost:3000/v1/auth/register', () =>
+        HttpResponse.json(
+          problem('validation-failed', 400, {
+            errors: [
+              { field: 'role', code: 'UNKNOWN_FIELD', message: 'property role should not exist' },
+            ],
+          }),
+          { status: 400 },
+        ),
+      ),
+    );
+
+    renderRegisterScreen();
+    fillAndSubmit();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('form-error')).toBeTruthy();
+    });
+  });
+
   it('keeps showing non-field errors (email already used) as a form message', async () => {
     server.use(
       http.post('http://localhost:3000/v1/auth/register', () =>

@@ -1,6 +1,7 @@
 import type { AxiosError } from 'axios';
 import type { TFunction } from 'i18next';
 import type { ProblemDetails } from '../types/api.types';
+import { PASSWORD_SPECIAL_CHARACTERS } from './password';
 
 // Extrait un ProblemDetails depuis une erreur Axios (retourne null si non-RFC 7807)
 export function parseProblemDetails(error: AxiosError): ProblemDetails | null {
@@ -51,6 +52,13 @@ const ERROR_TYPE_MAP: Record<string, string> = {
   'https://api.return.app/errors/forbidden': 'errors.forbidden',
   'https://api.return.app/errors/rate-limit-exceeded': 'errors.rateLimitExceeded',
   'https://api.return.app/errors/internal-server-error': 'errors.internalServerError',
+  'https://api.return.app/errors/not-found': 'errors.notFound',
+  'https://api.return.app/errors/http-error': 'errors.unknownError',
+  'https://api.return.app/errors/invalid-refresh-token': 'errors.unauthorized',
+  'https://api.return.app/errors/notification-access-forbidden': 'errors.forbidden',
+  'https://api.return.app/errors/reminder-already-sent': 'errors.reminderAlreadySent',
+  'https://api.return.app/errors/reminder-not-found': 'errors.reminderNotFound',
+  'https://api.return.app/errors/notification-not-found': 'errors.notificationNotFound',
   'https://api.return.app/errors/loan-not-found': 'errors.loanNotFound',
   'https://api.return.app/errors/daily-loan-limit-exceeded': 'errors.dailyLoanLimitExceeded',
   'https://api.return.app/errors/loan-already-returned': 'errors.loanAlreadyReturned',
@@ -79,35 +87,56 @@ export function getErrorMessage(error: ProblemDetails, t: TFunction): string {
 }
 
 /** i18n key per (field, API error code) — codes come from the API ValidationPipe (main.ts). */
+const PASSWORD_FIELD_KEYS: Record<string, string> = {
+  INVALID_FORMAT: 'auth.passwordRules',
+  TOO_SHORT: 'auth.passwordMinLength',
+  TOO_LONG: 'auth.passwordMaxLength',
+  REQUIRED: 'auth.passwordRequired',
+  INVALID_TYPE: 'auth.passwordRequired',
+};
+
 const FIELD_ERROR_KEYS: Record<string, Record<string, string>> = {
-  password: {
-    INVALID_FORMAT: 'auth.passwordRules',
-    TOO_SHORT: 'auth.passwordMinLength',
-    TOO_LONG: 'auth.passwordMaxLength',
-    REQUIRED: 'auth.passwordRequired',
+  password: PASSWORD_FIELD_KEYS,
+  newPassword: PASSWORD_FIELD_KEYS,
+  currentPassword: { REQUIRED: 'auth.passwordRequired', INVALID_TYPE: 'auth.passwordRequired' },
+  email: {
+    INVALID_EMAIL: 'auth.emailInvalid',
+    REQUIRED: 'auth.emailRequired',
+    INVALID_TYPE: 'auth.emailRequired',
   },
-  newPassword: {
-    INVALID_FORMAT: 'auth.passwordRules',
-    TOO_SHORT: 'auth.passwordMinLength',
-    TOO_LONG: 'auth.passwordMaxLength',
-    REQUIRED: 'auth.passwordRequired',
+  firstName: {
+    TOO_LONG: 'auth.nameMaxLength',
+    TOO_SHORT: 'auth.firstNameRequired',
+    REQUIRED: 'auth.firstNameRequired',
+    INVALID_TYPE: 'auth.firstNameRequired',
   },
-  currentPassword: { REQUIRED: 'auth.passwordRequired' },
-  email: { INVALID_EMAIL: 'auth.emailInvalid', REQUIRED: 'auth.emailRequired' },
-  firstName: { TOO_LONG: 'auth.nameMaxLength', REQUIRED: 'auth.firstNameRequired' },
-  lastName: { TOO_LONG: 'auth.nameMaxLength', REQUIRED: 'auth.lastNameRequired' },
+  lastName: {
+    TOO_LONG: 'auth.nameMaxLength',
+    TOO_SHORT: 'auth.lastNameRequired',
+    REQUIRED: 'auth.lastNameRequired',
+    INVALID_TYPE: 'auth.lastNameRequired',
+  },
 };
 
 /**
  * Field-level messages for an API `validation-failed` problem, so a form can show
  * each error under its own field instead of a generic banner. Empty for any other problem.
+ *
+ * @param fields the fields the form displays: errors on other fields are left out, so the
+ *               caller can fall back to its banner when nothing can be shown under a field.
  */
-export function getFieldErrors(error: ProblemDetails, t: TFunction): Record<string, string> {
+export function getFieldErrors(
+  error: ProblemDetails,
+  t: TFunction,
+  fields?: readonly string[],
+): Record<string, string> {
   if (!error.type.endsWith('/validation-failed') || !error.errors) return {};
-  return Object.fromEntries(
-    error.errors.map(({ field, code }) => [
-      field,
-      t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid'),
-    ]),
-  );
+  const messages: Record<string, string> = {};
+  for (const { field, code } of error.errors) {
+    if (field in messages || (fields && !fields.includes(field))) continue;
+    messages[field] = t(FIELD_ERROR_KEYS[field]?.[code] ?? 'errors.fieldInvalid', {
+      allowed: PASSWORD_SPECIAL_CHARACTERS,
+    });
+  }
+  return messages;
 }

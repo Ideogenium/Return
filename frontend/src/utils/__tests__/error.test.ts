@@ -89,6 +89,30 @@ describe('extractProblemDetails', () => {
   });
 });
 
+describe('getErrorMessage — every type the API can emit is localized', () => {
+  const problemOf = (slug: string): ProblemDetails => ({
+    type: `https://api.return.app/errors/${slug}`,
+    title: 'Error',
+    status: 400,
+    detail: 'English detail that must never reach a French user',
+    instance: '/v1/x',
+    timestamp: '2026-10-28T10:00:00Z',
+    requestId: 'req-1',
+  });
+
+  it.each([
+    ['not-found', 'errors.notFound'],
+    ['http-error', 'errors.unknownError'],
+    ['invalid-refresh-token', 'errors.unauthorized'],
+    ['notification-access-forbidden', 'errors.forbidden'],
+    ['reminder-already-sent', 'errors.reminderAlreadySent'],
+    ['reminder-not-found', 'errors.reminderNotFound'],
+    ['notification-not-found', 'errors.notificationNotFound'],
+  ])('maps %s to %s', (slug, key) => {
+    expect(getErrorMessage(problemOf(slug), mockT)).toBe(key);
+  });
+});
+
 describe('getFieldErrors', () => {
   const validationProblem = (errors: Array<{ field: string; code: string; message: string }>) =>
     ({
@@ -130,6 +154,62 @@ describe('getFieldErrors', () => {
         mockT,
       ),
     ).toEqual({ email: 'auth.emailInvalid', firstName: 'auth.nameMaxLength' });
+  });
+
+  it('maps every code the API produces for the registration names (empty name = TOO_SHORT)', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'firstName', code: 'TOO_SHORT', message: 'x' },
+          { field: 'lastName', code: 'INVALID_TYPE', message: 'x' },
+        ]),
+        mockT,
+      ),
+    ).toEqual({ firstName: 'auth.firstNameRequired', lastName: 'auth.lastNameRequired' });
+  });
+
+  it('maps a missing field (INVALID_TYPE) to its "required" message', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'email', code: 'INVALID_TYPE', message: 'x' },
+          { field: 'password', code: 'INVALID_TYPE', message: 'x' },
+          { field: 'currentPassword', code: 'INVALID_TYPE', message: 'x' },
+          { field: 'newPassword', code: 'INVALID_TYPE', message: 'x' },
+        ]),
+        mockT,
+      ),
+    ).toEqual({
+      email: 'auth.emailRequired',
+      password: 'auth.passwordRequired',
+      currentPassword: 'auth.passwordRequired',
+      newPassword: 'auth.passwordRequired',
+    });
+  });
+
+  it('keeps the first error of a field when the API reports several', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'password', code: 'TOO_SHORT', message: 'x' },
+          { field: 'password', code: 'INVALID_FORMAT', message: 'x' },
+        ]),
+        mockT,
+      ),
+    ).toEqual({ password: 'auth.passwordMinLength' });
+  });
+
+  it('only returns the fields the form actually displays', () => {
+    expect(
+      getFieldErrors(
+        validationProblem([
+          { field: 'password', code: 'INVALID_FORMAT', message: 'x' },
+          { field: 'foo', code: 'UNKNOWN_FIELD', message: 'x' },
+        ]),
+        mockT,
+        ['email', 'password'],
+      ),
+    ).toEqual({ password: 'auth.passwordRules' });
   });
 
   it('falls back to a generic field message for an unknown code', () => {

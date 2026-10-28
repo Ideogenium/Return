@@ -29,7 +29,11 @@ export function validatePasswordRules(password: string, t: TFunction): true | st
   const forbidden = forbiddenPasswordCharacters(password);
   if (forbidden.length > 0) {
     const chars = forbidden
-      .map((char) => (char === ' ' ? t('auth.passwordSpaceCharacter') : `« ${char} »`))
+      .map((char) =>
+        char === ' '
+          ? t('auth.passwordSpaceCharacter')
+          : t('auth.passwordQuotedCharacter', { char }),
+      )
       .join(', ');
     return t('auth.passwordForbiddenChars', { chars, allowed: PASSWORD_SPECIAL_CHARACTERS });
   }

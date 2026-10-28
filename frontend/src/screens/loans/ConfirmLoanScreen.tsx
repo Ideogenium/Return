@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { ActivityIndicator, Text, Button, HelperText } from 'react-native-paper';
+import { ActivityIndicator, Text, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ConfirmationDialog } from '../../components/loans/ConfirmationDialog';
@@ -14,7 +14,7 @@ type Props = NativeStackScreenProps<LoanStackParamList, 'ConfirmLoan'>;
 export function ConfirmLoanScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const { selectedLoan, isLoading, error, fetchLoan } = useLoanStore();
+  const { selectedLoan, error, fetchLoan } = useLoanStore();
   const [actionLoading, setActionLoading] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
@@ -53,15 +53,16 @@ export function ConfirmLoanScreen({ route, navigation }: Props) {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
-      </View>
-    );
-  }
-
-  if (!selectedLoan) {
+  // Full-screen states only while nothing is displayable for this id: actions and
+  // refreshes keep the screen (and its open dialogs) mounted.
+  if (!selectedLoan || selectedLoan.id !== id) {
+    if (!error) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
+        </View>
+      );
+    }
     return (
       <View style={styles.centerContainer} testID="loan-error">
         <Text variant="titleMedium" style={styles.errorText}>
@@ -78,11 +79,6 @@ export function ConfirmLoanScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container} testID="confirm-loan-screen">
-      {apiError && (
-        <HelperText type="error" testID="api-error" style={styles.apiError}>
-          {apiError}
-        </HelperText>
-      )}
       <ConfirmationDialog
         loan={selectedLoan}
         visible={dialogVisible}
@@ -93,6 +89,7 @@ export function ConfirmLoanScreen({ route, navigation }: Props) {
         onConfirm={handleConfirm}
         onContest={handleContest}
         isLoading={actionLoading}
+        error={apiError}
       />
     </View>
   );
@@ -103,5 +100,4 @@ const styles = StyleSheet.create({
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
   errorText: { color: '#6B7A8D', textAlign: 'center', marginBottom: 16 },
   backButton: { borderRadius: 12 },
-  apiError: { marginHorizontal: 16 },
 });

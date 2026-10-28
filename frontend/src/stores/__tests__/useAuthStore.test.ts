@@ -180,6 +180,33 @@ describe('useAuthStore', () => {
     });
   });
 
+  describe('app start and profile refresh', () => {
+    it('starts on the splash screen (hydrating) until the stored session is restored', () => {
+      jest.isolateModules(() => {
+        const { useAuthStore: freshStore } = require('../useAuthStore');
+        expect(freshStore.getState().isHydrating).toBe(true);
+      });
+    });
+
+    it('never stays on the splash screen after a logout reset', () => {
+      useAuthStore.setState({ isHydrating: true });
+
+      useAuthStore.getState().reset();
+
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+
+    it('refreshes the profile without flagging the session restore', async () => {
+      await setAccessToken('stored-access-token');
+      const pending = useAuthStore.getState().refreshUser();
+
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+      await pending;
+      expect(useAuthStore.getState().user?.email).toBe('test@example.com');
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+  });
+
   describe('clearError', () => {
     it('clears the last auth error, so it does not follow the user to another screen', async () => {
       useAuthStore.setState({
