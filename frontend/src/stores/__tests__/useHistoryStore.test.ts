@@ -314,4 +314,28 @@ describe('useHistoryStore', () => {
       expect(state.error).toBeNull();
     });
   });
+
+  describe('removeArchivedLoan', () => {
+    it('should remove the loan from the list and decrement the total', async () => {
+      await useHistoryStore.getState().fetchArchivedLoans();
+      const before = useHistoryStore.getState();
+
+      useHistoryStore.getState().removeArchivedLoan('history-loan-2');
+
+      const after = useHistoryStore.getState();
+      expect(after.loans.map((loan) => loan.id)).not.toContain('history-loan-2');
+      expect(after.loans).toHaveLength(before.loans.length - 1);
+      expect(after.pagination?.totalItems).toBe(before.pagination!.totalItems - 1);
+    });
+
+    it('should leave the state untouched when the loan is not listed', async () => {
+      await useHistoryStore.getState().fetchArchivedLoans();
+      const before = useHistoryStore.getState();
+
+      useHistoryStore.getState().removeArchivedLoan('unknown');
+
+      expect(useHistoryStore.getState().loans).toEqual(before.loans);
+      expect(useHistoryStore.getState().pagination).toEqual(before.pagination);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { PaperProvider } from 'react-native-paper';
@@ -167,6 +167,30 @@ describe('HistoryScreen', () => {
 
     await waitFor(() => expect(useHistoryStore.getState().loans).toHaveLength(25));
     expect(screen.queryByTestId('history-more-error')).toBeNull();
+  });
+
+  it('should not paginate automatically after a next-page failure, only through the retry button', async () => {
+    renderHistoryScreen();
+    await waitFor(() => expect(screen.getByTestId('history-list')).toBeTruthy());
+    let requests = 0;
+    server.use(
+      http.get(`${API_BASE}/history/loans`, () => {
+        requests += 1;
+        return serverError();
+      }),
+    );
+    fireEvent(screen.getByTestId('history-list'), 'endReached');
+    await waitFor(() => expect(screen.getByTestId('history-more-error')).toBeTruthy());
+    expect(requests).toBe(1);
+
+    // The footer height changes (spinner <-> error) and re-triggers onEndReached: no request
+    fireEvent(screen.getByTestId('history-list'), 'endReached');
+    fireEvent(screen.getByTestId('history-list'), 'endReached');
+    await act(async () => {});
+    expect(requests).toBe(1);
+
+    fireEvent.press(screen.getByTestId('history-more-retry'));
+    await waitFor(() => expect(requests).toBe(2));
   });
 
   it('should navigate to the loan detail when a loan is pressed', async () => {

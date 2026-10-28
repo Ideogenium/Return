@@ -20,6 +20,7 @@ import { useLoanStore } from '../../stores/useLoanStore';
 import { RefreshError } from '../../components/common/RefreshError';
 import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useHistoryStore } from '../../stores/useHistoryStore';
 import { useReminderStore } from '../../stores/useReminderStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { formatDate, toLocalIsoDate } from '../../utils/date';
@@ -105,6 +106,8 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     setApiError(undefined);
     try {
       await useLoanStore.getState().deleteLoan(id);
+      // The history list is kept across navigation: drop the deleted loan from it
+      useHistoryStore.getState().removeArchivedLoan(id);
       navigation.goBack();
     } catch (err) {
       const problem = parseProblemDetails(err as AxiosError);

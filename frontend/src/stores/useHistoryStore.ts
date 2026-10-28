@@ -29,6 +29,7 @@ interface HistoryState {
   fetchArchivedLoans: () => Promise<void>;
   fetchNextArchivedLoans: () => Promise<void>;
   setStatusFilter: (status: HistoryLoanStatus | null) => Promise<void>;
+  removeArchivedLoan: (id: string) => void;
   reset: () => void;
 }
 
@@ -122,6 +123,20 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({ statusFilter: status });
     await get().fetchArchivedLoans();
   },
+
+  // Keeps the loaded list (and its scroll position) in sync after a deletion
+  // without reloading it.
+  removeArchivedLoan: (id) =>
+    set((state) => {
+      if (!state.loans.some((loan) => loan.id === id)) return state;
+      return {
+        loans: state.loans.filter((loan) => loan.id !== id),
+        pagination: state.pagination && {
+          ...state.pagination,
+          totalItems: Math.max(0, state.pagination.totalItems - 1),
+        },
+      };
+    }),
 
   reset: () => {
     loansRequestToken++;

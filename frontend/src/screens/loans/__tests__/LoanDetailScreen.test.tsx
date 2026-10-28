@@ -9,6 +9,7 @@ import { LoanListScreen } from '../LoanListScreen';
 import { useLoanStore } from '../../../stores/useLoanStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useReminderStore } from '../../../stores/useReminderStore';
+import { useHistoryStore } from '../../../stores/useHistoryStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { LoanStackParamList } from '../../../navigation/types';
 
@@ -77,6 +78,7 @@ afterEach(() => {
   server.resetHandlers();
   useLoanStore.getState().reset();
   useReminderStore.getState().reset();
+  useHistoryStore.getState().reset();
   useAuthStore.setState({ user: null, accessToken: null });
 });
 afterAll(() => server.close());
@@ -259,6 +261,40 @@ describe('LoanDetailScreen', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('loan-detail')).toBeNull();
     });
+  });
+
+  it('should remove the deleted loan from the history list', async () => {
+    await useHistoryStore.getState().fetchArchivedLoans();
+    const archivedId = useHistoryStore.getState().loans[0]!.id;
+    renderDetailScreen(archivedId);
+
+    await waitFor(() => expect(screen.getByTestId('delete-loan-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('delete-loan-btn'));
+    await waitFor(() => expect(screen.getByTestId('confirm-delete-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('confirm-delete-btn'));
+
+    await waitFor(() => {
+      expect(useHistoryStore.getState().loans.map((loan) => loan.id)).not.toContain(archivedId);
+    });
+  });
+
+  it('should keep the history list when the deletion fails', async () => {
+    await useHistoryStore.getState().fetchArchivedLoans();
+    const archivedId = useHistoryStore.getState().loans[0]!.id;
+    server.use(
+      http.delete('http://localhost:3000/v1/loans/:id', () =>
+        HttpResponse.json({ status: 500, title: 'Boom' }, { status: 500 }),
+      ),
+    );
+    renderDetailScreen(archivedId);
+
+    await waitFor(() => expect(screen.getByTestId('delete-loan-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('delete-loan-btn'));
+    await waitFor(() => expect(screen.getByTestId('confirm-delete-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('confirm-delete-btn'));
+
+    await waitFor(() => expect(screen.getByTestId('api-error')).toBeTruthy());
+    expect(useHistoryStore.getState().loans.map((loan) => loan.id)).toContain(archivedId);
   });
 
   describe('reminders in timeline', () => {

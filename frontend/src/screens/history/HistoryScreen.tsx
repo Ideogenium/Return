@@ -102,7 +102,12 @@ export function HistoryScreen({ navigation }: Props) {
         renderItem={({ item }) => (
           <LoanCard loan={item} onPress={(id) => navigation.navigate('LoanDetail', { id })} />
         )}
-        onEndReached={() => useHistoryStore.getState().fetchNextArchivedLoans()}
+        onEndReached={() => {
+          // After a failure the footer swaps spinner/error, which changes the list height and
+          // would re-trigger this callback in a loop: only the retry button may relaunch.
+          if (useHistoryStore.getState().loansError) return;
+          useHistoryStore.getState().fetchNextArchivedLoans();
+        }}
         onEndReachedThreshold={0.5}
         contentContainerStyle={loans.length === 0 ? styles.emptyContainer : styles.listContent}
         ListEmptyComponent={
