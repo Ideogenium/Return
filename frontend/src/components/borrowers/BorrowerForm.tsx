@@ -161,9 +161,7 @@ export function BorrowerForm({
       <Button
         mode="contained"
         icon="content-save-outline"
-        onPress={handleSubmit((data) =>
-          onSubmit(withNormalizedEmail(data)),
-        )}
+        onPress={handleSubmit((data) => onSubmit(withNormalizedEmail(data)))}
         loading={isLoading}
         disabled={isLoading}
         testID="borrower-submit-btn"

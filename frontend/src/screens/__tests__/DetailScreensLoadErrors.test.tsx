@@ -244,4 +244,3 @@ describe.each([
     expect(screen.getByTestId(input).props.value).toBe('Typed by the user');
   });
 });
-

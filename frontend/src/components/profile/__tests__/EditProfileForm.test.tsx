@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { EditProfileForm } from '../EditProfileForm';
-import i18n from '../../../config/i18n.config';
 import type { User } from '../../../types/api.types';
 
 const mockUser: User = {

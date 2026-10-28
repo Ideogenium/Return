@@ -242,4 +242,3 @@ describe('getFieldErrors', () => {
     ).toEqual({ toString: 'errors.fieldInvalid', constructor: 'errors.fieldInvalid' });
   });
 });
-

@@ -88,4 +88,3 @@ describe('ProfileScreen', () => {
     expect(screen.queryByTestId('profile-error')).toBeNull();
   });
 });
-

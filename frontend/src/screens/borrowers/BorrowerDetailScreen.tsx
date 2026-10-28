@@ -17,7 +17,7 @@ type Props = NativeStackScreenProps<BorrowerStackParamList, 'BorrowerDetail'>;
 export function BorrowerDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const { selectedBorrower, selectedBorrowerStats, error, fetchBorrower, fetchBorrowerStats } =
+  const { selectedBorrower, selectedBorrowerStats, fetchBorrower, fetchBorrowerStats } =
     useBorrowerStore();
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
