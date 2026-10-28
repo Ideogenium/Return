@@ -130,6 +130,7 @@
     "loanNotFound": "Prêt introuvable",
     "dailyLoanLimitExceeded": "Limite quotidienne de prêts atteinte",
     "loanAlreadyReturned": "Ce prêt a déjà été rendu",
+    "loanReturnDateLocked": "La date de retour ne peut plus être modifiée pour ce prêt.",
     "forbiddenStatusTransition": "Vous n'êtes pas autorisé à effectuer cette transition de statut",
     "invalidStatusTransition": "Transition de statut invalide",
     "invalidReturnDate": "La date de retour doit être dans le futur",
@@ -241,7 +242,8 @@
     "emptyBorrowings": "Aucun emprunt",
     "emptyBorrowingsSubtitle": "Les prêts qui vous sont adressés apparaîtront ici",
     "filterLoans": "Filtrer les prêts",
-    "returnDateTooSoon": "La date de retour doit être au minimum dans 2 jours"
+    "returnDateTooSoon": "La date de retour doit être au minimum dans 2 jours",
+    "returnDateLocked": "La date de retour n'est plus modifiable : le prêt est en retard ou clos."
   },
   "invitations": {
     "searchPlaceholder": "Rechercher un utilisateur par nom ou email...",

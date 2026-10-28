@@ -243,3 +243,147 @@ describe('LoanDetailScreen', () => {
     });
   });
 });
+
+describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', () => {
+  let servedStatus = 'ACTIVE';
+
+  const loanFixture = (id: string, status: string) => ({
+    id,
+    item: {
+      id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+      name: 'Perceuse Bosch',
+      category: 'TOOLS',
+      createdAt: '2026-02-10T10:00:00Z',
+    },
+    lender: {
+      id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+      firstName: 'John',
+      lastName: 'Doe',
+      profilePicture: null,
+    },
+    borrower: {
+      id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+      firstName: 'Marie',
+      lastName: 'Dupont',
+      email: 'marie@example.com',
+    },
+    status,
+    returnDate: '2026-04-15',
+    confirmationDate: '2026-02-02T10:00:00Z',
+    returnedDate: null,
+    notes: 'old notes',
+    contestReason: null,
+    createdAt: '2026-02-01T10:00:00Z',
+    updatedAt: '2026-02-02T10:00:00Z',
+  });
+
+  function serveLoanWithStatus(status: string) {
+    servedStatus = status;
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+        HttpResponse.json(loanFixture(String(params.id), status), { status: 200 }),
+      ),
+    );
+  }
+
+  function capturePatchBody(): { body?: Record<string, unknown> } {
+    const captured: { body?: Record<string, unknown> } = {};
+    server.use(
+      http.patch('http://localhost:3000/v1/loans/:id', async ({ params, request }) => {
+        captured.body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { ...loanFixture(String(params.id), servedStatus), ...captured.body },
+          { status: 200 },
+        );
+      }),
+    );
+    return captured;
+  }
+
+  async function openEditDialog() {
+    renderDetailScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-loan-btn')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByTestId('edit-loan-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    });
+  }
+
+  it('lets the lender change the return date of an open loan', async () => {
+    serveLoanWithStatus('ACTIVE');
+
+    await openEditDialog();
+
+    expect(screen.getByTestId('edit-return-date-input')).toBeTruthy();
+    expect(screen.queryByTestId('return-date-locked-hint')).toBeNull();
+  });
+
+  it('hides the return date and explains why for an overdue loan', async () => {
+    serveLoanWithStatus('AWAITING_RETURN');
+
+    await openEditDialog();
+
+    expect(screen.queryByTestId('edit-return-date-input')).toBeNull();
+    expect(screen.getByTestId('return-date-locked-hint')).toBeTruthy();
+  });
+
+  it('saves only the notes of an overdue loan, without sending a return date', async () => {
+    serveLoanWithStatus('AWAITING_RETURN');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toBeDefined();
+    });
+    expect(captured.body).toEqual({ notes: 'new notes' });
+  });
+
+  it('does not send an unchanged return date when only the notes of an open loan change', async () => {
+    serveLoanWithStatus('ACTIVE');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toBeDefined();
+    });
+    expect(captured.body).not.toHaveProperty('returnDate');
+  });
+
+  it('shows a localized message when the API answers 409 loan-return-date-locked', async () => {
+    serveLoanWithStatus('ACTIVE');
+    server.use(
+      http.patch('http://localhost:3000/v1/loans/:id', ({ params }) =>
+        HttpResponse.json(
+          {
+            type: 'https://api.return.app/errors/loan-return-date-locked',
+            title: 'Return Date Locked',
+            status: 409,
+            detail: 'The return date can only be changed while the loan is pending or active.',
+            instance: `/v1/loans/${params.id}`,
+            timestamp: '2026-10-28T10:00:00Z',
+            requestId: 'req-mock',
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    await openEditDialog();
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('The return date can no longer be changed for this loan.'),
+      ).toBeTruthy();
+    });
+  });
+});
