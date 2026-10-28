@@ -107,7 +107,12 @@ describe('LenderStats (unified)', () => {
     it('should display the overdue loans card with its count (FEAT-04)', async () => {
       // 7 is distinct from every other value on screen (MSW borrower defaults: 87%, 40, 31, 8)
       useHistoryStore.setState({
-        statistics: makeStats({ totalLoans: 10, activeLoans: 3, returnedLoans: 6, overdueLoans: 7 }),
+        statistics: makeStats({
+          totalLoans: 10,
+          activeLoans: 3,
+          returnedLoans: 6,
+          overdueLoans: 7,
+        }),
       });
 
       renderStats();
