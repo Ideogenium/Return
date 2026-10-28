@@ -510,6 +510,8 @@ statistiques emprunteur en profil, MSW handlers perspective-aware), couverte par
 
 ## Sprint 4.6 : Contact Invitation System (5 jours)
 
+> **Statut (resync 28/10/2026)** : ✅ **LIVRÉ** (mergé ; le système d'invitation est branché sur l'API réelle).
+
 ### Objectif
 
 Implémenter le système d'invitation de contacts côté frontend : un prêteur peut chercher des utilisateurs inscrits,
@@ -572,6 +574,10 @@ couvert par 10+ tests RNTL.
 ---
 
 ## Sprint 5 : Conteneurisation + Validation J+2 + Notifications (5 jours)
+
+> **Statut (resync 28/10/2026)** : ✅ **LIVRÉ** (Docker dev, validation J+2, notifications). Écart avec le texte
+> ci-dessous : le push ne passe **pas** par FCM natif (NOTIF-001/010) mais par l'**Expo Push Service**
+> (`getExpoPushTokenAsync` côté front, `expo-server-sdk` côté back — cf. CORR-13, doc 11).
 
 ### Objectif
 
@@ -648,6 +654,13 @@ couvert par 10+ tests RNTL.
 
 ## Sprint 6 : Module History + Dashboard (4 jours)
 
+> **Statut (resync 28/10/2026)** : ◐ **PARTIEL — périmètre réduit acté** (CORR-14, doc 11). Les écrans prévus ci-dessous
+> (`DashboardScreen`, `StatisticsScreen`, onglet « Historique », `PieChart`, `TopBorrowersList`) ont été retirés
+> (commit `e4e1358`) et **ne sont pas livrés** ; le Dashboard dédié est post-échéance. Livré à la place : un écran
+> `HistoryScreen` (liste paginée des prêts archivés, filtre par statut) accessible depuis le **Profil** (FEAT-07, doc 16),
+> et les statistiques de base dans `LenderStats` (profil). Les filtres par date et par emprunteur (HIST-007) ne sont pas
+> livrés.
+
 ### Objectif
 
 Statistiques + Historique archivé + Écran Dashboard avec overview.
@@ -688,6 +701,10 @@ Statistiques + Historique archivé + Écran Dashboard avec overview.
 ---
 
 ## Basculement Mock → Backend Réel
+
+> **⚠️ SECTION OBSOLÈTE (resync 28/10/2026)** : tous les modules sont déjà basculés sur l'API réelle
+> (`frontend/src/config/api-modules.config.ts`, backend `return-api.fly.dev`). Le mécanisme `MOCK_MODULES` /
+> `apiClient.ts` et l'URL `api.return.app` décrits ci-dessous ne reflètent plus le code. Conservée pour l'historique.
 
 ### Stratégie de Basculement Progressif
 
@@ -760,7 +777,7 @@ export const API_BASE_URL = (endpoint: string): string => {
 | **Sprint 4.5** | 3 jours      | Corrections intégration + UX | 0 (refactoring LoanListScreen + LoanDetailScreen adaptatif + LoanCard perspective + BorrowerStats + renommage onglet + MSW handlers) | 8 tests       |
 | **Sprint 4.6** | 5 jours      | Contact Invitation System    | 2 (SearchBorrowerScreen + BorrowerInvitationsScreen) + navigation adaptée                                                            | 8+ tests      |
 | **Sprint 5**   | 5 jours      | Docker Dev + Validation J+2 + Notifications | 1 (NotificationList) + header badge + Dockerfiles dev + validation calendrier J+2                                      | 3 tests       |
-| **Sprint 6**   | 4 jours      | Dashboard + History          | 3 (Dashboard, History, Statistics)                                                                                                   | 1 test        |
+| **Sprint 6**   | 4 jours      | Dashboard + History          | 3 prévus (Dashboard, History, Statistics) — **réalisé : 1 (History, via le Profil)**, cf. note du Sprint 6                           | 1 test        |
 | **TOTAL**      | **41-45 j.** | **7 modules + 1 correctif**  | **24 écrans**                                                                                                                        | **22+ tests** |
 
 ---
