@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, ActivityIndicator, Snackbar } from 'react-native-paper';
+import { Button, ActivityIndicator, Snackbar, Text } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,6 +11,8 @@ import { buildPhotoFormData } from '../../utils/photo';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useHistoryStore } from '../../stores/useHistoryStore';
 import type { AppStackParamList } from '../../navigation/types';
+import type { ProblemDetails } from '../../types/api.types';
+import { extractProblemDetails, getErrorMessage } from '../../utils/error';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Profile'>;
 
@@ -21,12 +23,21 @@ export function ProfileScreen({ navigation }: Props) {
     null,
   );
 
-  useEffect(() => {
-    if (!user) {
-      // Not hydrate(): the session restore shows the app-wide splash and unmounts the navigation.
-      useAuthStore.getState().refreshUser();
+  const [loadError, setLoadError] = useState<ProblemDetails | null>(null);
+
+  // Not hydrate(): the session restore shows the app-wide splash and unmounts the navigation.
+  const loadProfile = useCallback(async () => {
+    setLoadError(null);
+    try {
+      await useAuthStore.getState().refreshUser();
+    } catch (err) {
+      setLoadError(extractProblemDetails(err));
     }
-  }, [user]);
+  }, []);
+
+  useEffect(() => {
+    if (!user) void loadProfile();
+  }, [user, loadProfile]);
 
   // Refresh statistics each time the screen comes into focus (covers FIX-07 / FIX-08)
   useFocusEffect(
@@ -55,6 +66,18 @@ export function ProfileScreen({ navigation }: Props) {
   };
 
   if (!user) {
+    if (loadError) {
+      return (
+        <View style={styles.loaderContainer} testID="profile-error">
+          <Text variant="titleMedium" style={styles.errorText}>
+            {getErrorMessage(loadError, t)}
+          </Text>
+          <Button mode="outlined" onPress={loadProfile} testID="profile-retry-btn">
+            {t('common.retry')}
+          </Button>
+        </View>
+      );
+    }
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
@@ -164,6 +187,7 @@ export function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingBottom: 32, backgroundColor: '#F7F4EF' },
   loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { color: '#6B7A8D', textAlign: 'center', marginBottom: 16, paddingHorizontal: 32 },
   actions: { paddingHorizontal: 16, gap: 10 },
   primaryButton: { borderRadius: 12 },
   buttonLabel: { fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
