@@ -9,6 +9,7 @@ import {
   toPhotoResponse,
   type LoanWithRelations,
 } from '../common/mappers/loan-response.mapper.js';
+import { startOfUtcDay } from '../common/utils/date.util.js';
 import { LoanStatus } from '@prisma/client';
 
 /** Active statuses used for overview counting */
@@ -25,11 +26,6 @@ const OVERDUE_CANDIDATE_STATUSES: LoanStatus[] = [
   LoanStatus.ACTIVE_BY_DEFAULT,
   LoanStatus.AWAITING_RETURN,
 ];
-
-/** Start of the current UTC day: returnDate is a @db.Date, so the due day itself is on time. */
-function startOfUtcDay(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
 
 // =========================================================================
 // Response interfaces for statistics
