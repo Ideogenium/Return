@@ -399,7 +399,9 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
     await waitFor(() => {
       expect(screen.getByTestId('edit-api-error')).toBeTruthy();
     });
-    expect(screen.getByText('The return date can no longer be changed for this loan.')).toBeTruthy();
+    expect(
+      screen.getByText('The return date can no longer be changed for this loan.'),
+    ).toBeTruthy();
     expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
     expect(screen.getByTestId('edit-notes-input').props.value).toBe('new notes');
     await waitFor(() => {
