@@ -25,6 +25,8 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   hydrate: () => Promise<void>;
+  /** Reloads the signed-in user's profile without the app-wide splash screen. */
+  refreshUser: () => Promise<void>;
   updateAvatar: (formData: FormData) => Promise<void>;
   deleteAvatar: () => Promise<void>;
   clearError: () => void;
@@ -42,6 +44,9 @@ const initialState = {
 
 export const useAuthStore = create<AuthState>((set) => ({
   ...initialState,
+  // The app starts on the splash screen until hydrate() restores the stored session;
+  // reset() (logout) goes back to initialState, which is not hydrating.
+  isHydrating: true,
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });
@@ -116,6 +121,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch {
       await clearTokens();
       set({ ...initialState });
+    }
+  },
+
+  refreshUser: async () => {
+    try {
+      const { data: user } = await apiClient.get<User>('/users/me');
+      set({ user });
+    } catch (err) {
+      set({ error: extractProblemDetails(err) });
     }
   },
 
