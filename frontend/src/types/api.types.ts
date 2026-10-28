@@ -374,6 +374,18 @@ export interface HistoryStatistics {
   mostLoanedItems: HistoryMostLoanedItem[];
 }
 
+// Statuts terminaux acceptés par GET /history/loans (enum du DTO backend)
+export type HistoryLoanStatus = Extract<
+  LoanStatus,
+  'RETURNED' | 'NOT_RETURNED' | 'CONTESTED' | 'ABANDONED'
+>;
+
+export interface HistoryLoansParams {
+  status?: HistoryLoanStatus;
+  page?: number;
+  limit?: number;
+}
+
 // --- Erreurs RFC 7807 ---
 
 export type ValidationErrorCode =

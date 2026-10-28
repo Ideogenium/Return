@@ -728,6 +728,42 @@ export const handlers = [
     );
   }),
 
+  // GET /history/loans — 25 archived loans (newest first), paginated like the real backend
+  http.get(`${API_REAL}/history/loans`, ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const limit = Number(url.searchParams.get('limit') ?? 20);
+    const statusFilter = url.searchParams.get('status')?.split(',');
+
+    const terminalStatuses = ['RETURNED', 'NOT_RETURNED', 'CONTESTED', 'ABANDONED'] as const;
+    const archived = Array.from({ length: 25 }, (_, index) => ({
+      ...mockLoan,
+      id: `history-loan-${index + 1}`,
+      item: { ...mockItem, id: `history-item-${index + 1}`, name: `Archived item ${index + 1}` },
+      status: terminalStatuses[index % terminalStatuses.length]!,
+      // Index 0 is the most recent, as returned by the backend (createdAt desc)
+      createdAt: new Date(Date.UTC(2026, 5, 30 - index, 10)).toISOString(),
+    })).filter((loan) => !statusFilter || statusFilter.includes(loan.status));
+
+    const totalItems = archived.length;
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
+
+    return HttpResponse.json(
+      {
+        data: archived.slice((page - 1) * limit, page * limit),
+        pagination: {
+          currentPage: page,
+          itemsPerPage: limit,
+          totalItems,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      },
+      { status: 200 },
+    );
+  }),
+
   // =========================================================================
   // NOTIFICATIONS
   // =========================================================================
