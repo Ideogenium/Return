@@ -169,7 +169,9 @@ describe('R2PhotoStorageService', () => {
       ];
       let listCall = 0;
       send.mockImplementation((command: unknown) =>
-        Promise.resolve(command instanceof ListObjectsV2Command ? pages[listCall++] : { Errors: [] }),
+        Promise.resolve(
+          command instanceof ListObjectsV2Command ? pages[listCall++] : { Errors: [] },
+        ),
       );
 
       await expect(service.deleteByPrefix('users/user-1/')).resolves.toBe(1250);
@@ -198,10 +200,14 @@ describe('R2PhotoStorageService', () => {
     });
 
     it('propagates and logs a storage failure', async () => {
-      send.mockRejectedValue(Object.assign(new Error('R2 unavailable'), { name: 'ServiceUnavailable' }));
+      send.mockRejectedValue(
+        Object.assign(new Error('R2 unavailable'), { name: 'ServiceUnavailable' }),
+      );
 
       await expect(service.deleteByPrefix('users/user-1/')).rejects.toThrow('R2 unavailable');
-      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/purge.*users\/user-1\/.*ServiceUnavailable/));
+      expect(errorLog).toHaveBeenCalledWith(
+        expect.stringMatching(/purge.*users\/user-1\/.*ServiceUnavailable/),
+      );
     });
 
     it.each(['', '/', 'users', 'users/../', 'users/user-1'])(
