@@ -99,7 +99,8 @@ export class UsersService {
    * 2. Vérifie le texte de confirmation ("DELETE MY ACCOUNT")
    *    → La validation @Equals est dans le DTO, mais on double-check ici
    *
-   * La suppression cascade sur les refresh tokens (Prisma onDelete: Cascade).
+   * La suppression cascade sur les refresh tokens (Prisma onDelete: Cascade), puis les
+   * photos stockées (avatar et objets) sont purgées.
    *
    * @throws NotFoundException (404) si l'utilisateur n'existe plus
    * @throws UnauthorizedException (401) si le mot de passe est incorrect
@@ -137,10 +138,29 @@ export class UsersService {
       );
     }
 
-    // Suppression (cascade → refresh tokens supprimés automatiquement)
+    // Suppression (cascade → refresh tokens, objets et lignes Photo supprimés automatiquement)
     await this.prisma.user.delete({ where: { id: userId } });
 
     this.logger.log(`Account deleted: ${userId}`);
+
+    await this.purgeStoredPhotos(userId);
+  }
+
+  /**
+   * Droit à l'effacement (RGPD) : avatar et photos de tous les objets, y compris supprimés
+   * logiquement, vivent sous `users/<userId>/`. Best-effort après la suppression en base :
+   * le compte n'existe déjà plus, un échec du stockage est journalisé, jamais remonté.
+   * Les anciennes URL `fly.dev/uploads` (avant R2) ne sont pas concernées : ces fichiers
+   * ont déjà disparu avec les conteneurs éphémères.
+   */
+  private async purgeStoredPhotos(userId: string): Promise<void> {
+    try {
+      await this.photoStorage.deleteByPrefix(`users/${userId}/`);
+    } catch (error) {
+      this.logger.warn(
+        `Stored photos of deleted account ${userId} could not be purged: ${(error as Error).message}`,
+      );
+    }
   }
 
   // ===========================================================================
