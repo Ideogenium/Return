@@ -89,6 +89,30 @@ describe('extractProblemDetails', () => {
   });
 });
 
+describe('getErrorMessage — every type the API can emit is localized', () => {
+  const problemOf = (slug: string): ProblemDetails => ({
+    type: `https://api.return.app/errors/${slug}`,
+    title: 'Error',
+    status: 400,
+    detail: 'English detail that must never reach a French user',
+    instance: '/v1/x',
+    timestamp: '2026-10-28T10:00:00Z',
+    requestId: 'req-1',
+  });
+
+  it.each([
+    ['not-found', 'errors.notFound'],
+    ['http-error', 'errors.unknownError'],
+    ['invalid-refresh-token', 'errors.unauthorized'],
+    ['notification-access-forbidden', 'errors.forbidden'],
+    ['reminder-already-sent', 'errors.reminderAlreadySent'],
+    ['reminder-not-found', 'errors.reminderNotFound'],
+    ['notification-not-found', 'errors.notificationNotFound'],
+  ])('maps %s to %s', (slug, key) => {
+    expect(getErrorMessage(problemOf(slug), mockT)).toBe(key);
+  });
+});
+
 describe('getFieldErrors', () => {
   const validationProblem = (errors: Array<{ field: string; code: string; message: string }>) =>
     ({
