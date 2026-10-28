@@ -149,6 +149,80 @@ describe('LoansService', () => {
   // CREATE
   // ===========================================================================
 
+  describe('J+2 minimum return date is counted on the UTC calendar day (startOfUtcDay)', () => {
+    // A server in Europe/Paris must apply the same day boundary as one in UTC:
+    // at 23:30Z on Oct 28 it is already Oct 29 in Paris, but still Oct 28 in UTC.
+    const originalTz = process.env.TZ;
+
+    beforeAll(() => {
+      process.env.TZ = 'Europe/Paris';
+    });
+
+    afterAll(() => {
+      process.env.TZ = originalTz;
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const at = (iso: string) =>
+      jest.useFakeTimers({
+        now: new Date(iso),
+        doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'],
+      });
+
+    const createDto = (returnDate: string) => ({
+      item: ITEM_ID,
+      borrowerId: BORROWER_ID,
+      returnDate,
+      notes: 'Test loan',
+    });
+
+    it('accepts J+2 at creation late in the UTC day (2026-10-28T23:30Z → 2026-10-30)', async () => {
+      at('2026-10-28T23:30:00Z');
+      prisma.item.findUnique.mockResolvedValue(MOCK_ITEM);
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      prisma.loan.create.mockResolvedValue(MOCK_LOAN);
+
+      await expect(service.create(LENDER_USER_ID, createDto('2026-10-30'))).resolves.toBeDefined();
+    });
+
+    it('refuses J+1 at creation once the UTC day has changed (2026-10-29T00:30Z → 2026-10-30)', async () => {
+      at('2026-10-29T00:30:00Z');
+
+      await expect(service.create(LENDER_USER_ID, createDto('2026-10-30'))).rejects.toMatchObject({
+        response: expect.objectContaining({
+          type: expect.stringContaining('return-date-too-soon'),
+        }),
+      });
+    });
+
+    it('accepts J+2 on update late in the UTC day (2026-10-28T23:30Z → 2026-10-30)', async () => {
+      at('2026-10-28T23:30:00Z');
+      const loan = { ...MOCK_LOAN, status: LoanStatus.ACTIVE };
+      prisma.loan.findUnique.mockResolvedValue(loan);
+      prisma.loan.update.mockResolvedValue({ ...loan, returnDate: new Date('2026-10-30') });
+
+      await expect(
+        service.update(LOAN_ID, LENDER_USER_ID, { returnDate: '2026-10-30' }),
+      ).resolves.toBeDefined();
+    });
+
+    it('refuses J+1 on update once the UTC day has changed (2026-10-29T00:30Z → 2026-10-30)', async () => {
+      at('2026-10-29T00:30:00Z');
+      prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+
+      await expect(
+        service.update(LOAN_ID, LENDER_USER_ID, { returnDate: '2026-10-30' }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          type: expect.stringContaining('return-date-too-soon'),
+        }),
+      });
+    });
+  });
+
   describe('create', () => {
     const CREATE_DTO = {
       item: ITEM_ID,

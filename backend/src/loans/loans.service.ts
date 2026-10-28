@@ -30,9 +30,17 @@ import type {
   LoanReturnDateChangedEvent,
 } from '../common/events/loan.events.js';
 import { isPrismaRecordNotFoundError } from '../common/utils/prisma-errors.util.js';
+import { startOfUtcDay } from '../common/utils/date.util.js';
 import { LoanStatus, Prisma } from '@prisma/client';
 
 const MAX_LOANS_PER_DAY = 15;
+
+/** Earliest accepted return date: J+2 counted on UTC calendar days (returnDate is a @db.Date). */
+function minimumReturnDate(startOfToday: Date): Date {
+  const minimum = new Date(startOfToday);
+  minimum.setUTCDate(minimum.getUTCDate() + 2);
+  return minimum;
+}
 
 function sameDay(a: Date | null, b: Date | null): boolean {
   if (a === null || b === null) return a === b;
@@ -62,8 +70,7 @@ export class LoansService {
     // Validate returnDate if provided
     if (dto.returnDate) {
       const returnDate = new Date(dto.returnDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const today = startOfUtcDay(new Date());
       if (returnDate < today) {
         throw new BadRequestException(
           'invalid-return-date',
@@ -72,9 +79,7 @@ export class LoansService {
           '/v1/loans',
         );
       }
-      const minReturnDate = new Date(today);
-      minReturnDate.setDate(minReturnDate.getDate() + 2);
-      if (returnDate < minReturnDate) {
+      if (returnDate < minimumReturnDate(today)) {
         throw new BadRequestException(
           'return-date-too-soon',
           'Return Date Too Soon',
@@ -297,11 +302,7 @@ export class LoansService {
       }
       if (dto.returnDate) {
         const returnDate = new Date(dto.returnDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const minReturnDate = new Date(today);
-        minReturnDate.setDate(minReturnDate.getDate() + 2);
-        if (returnDate < minReturnDate) {
+        if (returnDate < minimumReturnDate(startOfUtcDay(new Date()))) {
           throw new BadRequestException(
             'return-date-too-soon',
             'Return Date Too Soon',
