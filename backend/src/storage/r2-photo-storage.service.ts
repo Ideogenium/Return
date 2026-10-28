@@ -7,6 +7,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 
+import { PurgeIncompleteError } from './interfaces/photo-storage.interface.js';
 import type { PhotoStorage, PhotoUploadResult } from './interfaces/photo-storage.interface.js';
 import type { R2Settings } from '../config/r2-settings.js';
 import { assertPurgePrefix } from './purge-prefix.js';
@@ -97,10 +98,12 @@ export class R2PhotoStorageService implements PhotoStorage {
     assertPurgePrefix(prefix);
 
     let deleted = 0;
+    let failed = 0;
     await this.logFailure('purge', prefix, async () => {
       let continuationToken: string | undefined;
       do {
         // A listing page holds at most 1000 keys, which is also the DeleteObjects limit.
+        // A listing failure stops the purge: there is no way to reach the next pages.
         const page = await this.s3.send(
           new ListObjectsV2Command({
             Bucket: this.bucket.bucketName,
@@ -110,26 +113,40 @@ export class R2PhotoStorageService implements PhotoStorage {
         );
         const objects = (page.Contents ?? []).map(({ Key }) => ({ Key }));
         if (objects.length > 0) {
-          const result = await this.s3.send(
-            new DeleteObjectsCommand({
-              Bucket: this.bucket.bucketName,
-              Delete: { Objects: objects, Quiet: true },
-            }),
-          );
-          if (result.Errors && result.Errors.length > 0) {
-            throw Object.assign(
-              new Error(`${result.Errors.length} object(s) could not be deleted`),
-              { name: 'PartialDeleteError' },
-            );
-          }
-          deleted += objects.length;
+          // A failed page is counted and the purge goes on, so one outage does not
+          // leave every later page of the account behind.
+          const pageFailures = await this.deletePage(objects);
+          failed += pageFailures;
+          deleted += objects.length - pageFailures;
         }
         continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
       } while (continuationToken);
+
+      if (failed > 0) {
+        throw new PurgeIncompleteError(prefix, deleted, failed);
+      }
     });
 
     this.logger.log(`Purged ${deleted} photo(s) from R2 under ${prefix}`);
     return deleted;
+  }
+
+  /** Deletes one listing page; returns how many objects of it could not be deleted. */
+  private async deletePage(objects: { Key: string | undefined }[]): Promise<number> {
+    try {
+      const result = await this.s3.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket.bucketName,
+          Delete: { Objects: objects, Quiet: true },
+        }),
+      );
+      return result.Errors?.length ?? 0;
+    } catch (error) {
+      this.logger.warn(
+        `R2 delete request failed for ${objects.length} object(s): ${(error as Error).name}`,
+      );
+      return objects.length;
+    }
   }
 
   /** Logs the failed operation with its key or prefix (never credentials), then rethrows. */

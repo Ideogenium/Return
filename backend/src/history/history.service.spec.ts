@@ -189,6 +189,22 @@ describe('HistoryService', () => {
       );
     });
 
+    it('ends the date range at the last millisecond of the UTC end day, like its start (suite in Europe/Paris)', async () => {
+      prisma.loan.findMany.mockResolvedValue([]);
+      prisma.loan.count.mockResolvedValue(0);
+
+      await service.getArchivedLoans(LENDER_USER_ID, {
+        startDate: '2025-01-01',
+        endDate: '2025-06-30',
+      });
+
+      const where = prisma.loan.findMany.mock.calls[0][0]!.where as {
+        createdAt: { gte: Date; lte: Date };
+      };
+      expect(where.createdAt.gte.toISOString()).toBe('2025-01-01T00:00:00.000Z');
+      expect(where.createdAt.lte.toISOString()).toBe('2025-06-30T23:59:59.999Z');
+    });
+
     it('should filter by borrowerId', async () => {
       prisma.loan.findMany.mockResolvedValue([]);
       prisma.loan.count.mockResolvedValue(0);

@@ -44,8 +44,22 @@ export interface PhotoStorage {
   /**
    * Supprime tous les fichiers dont la clé commence par `prefix` (ex: "users/<userId>/")
    * et retourne leur nombre. Idempotent (0 si rien). Refuse un préfixe vide ou partiel.
+   * Lève `PurgeIncompleteError` si des fichiers n'ont pas pu être supprimés.
    */
   deleteByPrefix(prefix: string): Promise<number>;
+}
+
+/** Raised when a prefix purge ends with objects left behind (counts kept for a manual retry). */
+export class PurgeIncompleteError extends Error {
+  override readonly name = 'PurgeIncompleteError';
+
+  constructor(
+    readonly prefix: string,
+    readonly deleted: number,
+    readonly failed: number,
+  ) {
+    super(`${failed} object(s) under ${prefix} could not be deleted (${deleted} deleted)`);
+  }
 }
 
 /** Token d'injection NestJS pour le provider PhotoStorage */

@@ -15,7 +15,10 @@ import {
 import { toSafeUser } from '../common/mappers/user.mapper.js';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { isPrismaUniqueConstraintError } from '../common/utils/prisma-errors.util.js';
-import { PHOTO_STORAGE } from '../storage/interfaces/photo-storage.interface.js';
+import {
+  PHOTO_STORAGE,
+  PurgeIncompleteError,
+} from '../storage/interfaces/photo-storage.interface.js';
 import type { PhotoStorage } from '../storage/interfaces/photo-storage.interface.js';
 import type {
   UserSettings,
@@ -37,6 +40,8 @@ import type { User } from '@prisma/client';
 //   - Suppression et changement de mot de passe requièrent le mot de passe actuel
 //   - Suppression de compte = Prisma onDelete: Cascade (supprime aussi les refresh tokens)
 // =============================================================================
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class UsersService {
@@ -154,11 +159,21 @@ export class UsersService {
    * ont déjà disparu avec les conteneurs éphémères.
    */
   private async purgeStoredPhotos(userId: string): Promise<void> {
+    // Defense in depth: the prefix is built from the id, so it must be an id and nothing else.
+    if (!UUID_PATTERN.test(userId)) {
+      this.logger.warn(`Photo purge skipped: account id is not a UUID (${JSON.stringify(userId)})`);
+      return;
+    }
     try {
       await this.photoStorage.deleteByPrefix(`users/${userId}/`);
     } catch (error) {
+      // No automatic retry: the log carries what a manual purge of users/<id>/ needs.
+      const left =
+        error instanceof PurgeIncompleteError
+          ? `${error.failed} photo(s) left`
+          : 'unknown count left';
       this.logger.warn(
-        `Stored photos of deleted account ${userId} could not be purged: ${(error as Error).message}`,
+        `Stored photos of deleted account ${userId} could not be fully purged, ${left}: ${(error as Error).message}`,
       );
     }
   }

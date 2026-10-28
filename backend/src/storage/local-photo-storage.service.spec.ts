@@ -134,6 +134,13 @@ describe('LocalPhotoStorageService', () => {
       await expect(service.deleteByPrefix('users/never-existed/')).resolves.toBe(0);
     });
 
+    it('reports a storage failure other than an absent folder instead of pretending nothing was there', async () => {
+      // A file where the folder should be makes readdir fail with ENOTDIR, not ENOENT.
+      await write('users/not-a-folder');
+
+      await expect(service.deleteByPrefix('users/not-a-folder/')).rejects.toThrow();
+    });
+
     it.each(['', 'users', '../', 'users/../../', 'users/x/../../'])(
       'refuses a prefix that could reach beyond one folder of the upload directory (%p)',
       async (prefix) => {

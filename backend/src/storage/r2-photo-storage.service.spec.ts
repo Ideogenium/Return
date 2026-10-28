@@ -199,6 +199,55 @@ describe('R2PhotoStorageService', () => {
       expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/users\/user-1\//));
     });
 
+    it('keeps purging the next pages when a page has per-object errors, then reports what is left', async () => {
+      const pages = [
+        { Contents: keysPage(3), IsTruncated: true, NextContinuationToken: 'next-1' },
+        { Contents: keysPage(2, 3), IsTruncated: false },
+      ];
+      let listCall = 0;
+      let deleteCall = 0;
+      send.mockImplementation((command: unknown) => {
+        if (command instanceof ListObjectsV2Command) return Promise.resolve(pages[listCall++]);
+        deleteCall += 1;
+        return Promise.resolve(
+          deleteCall === 1
+            ? { Errors: [{ Key: 'users/user-1/items/i/0.jpg', Code: 'InternalError' }] }
+            : { Errors: [] },
+        );
+      });
+
+      await expect(service.deleteByPrefix('users/user-1/')).rejects.toMatchObject({
+        name: 'PurgeIncompleteError',
+        deleted: 4,
+        failed: 1,
+      });
+      expect(deleteCall).toBe(2);
+      expect(errorLog).toHaveBeenCalledWith(expect.stringMatching(/users\/user-1\//));
+    });
+
+    it('keeps purging the next pages when a whole delete request fails', async () => {
+      const pages = [
+        { Contents: keysPage(3), IsTruncated: true, NextContinuationToken: 'next-1' },
+        { Contents: keysPage(2, 3), IsTruncated: false },
+      ];
+      let listCall = 0;
+      let deleteCall = 0;
+      send.mockImplementation((command: unknown) => {
+        if (command instanceof ListObjectsV2Command) return Promise.resolve(pages[listCall++]);
+        deleteCall += 1;
+        return deleteCall === 1
+          ? Promise.reject(Object.assign(new Error('timeout'), { name: 'TimeoutError' }))
+          : Promise.resolve({ Errors: [] });
+      });
+
+      await expect(service.deleteByPrefix('users/user-1/')).rejects.toMatchObject({
+        name: 'PurgeIncompleteError',
+        deleted: 2,
+        failed: 3,
+      });
+      expect(deleteCall).toBe(2);
+    });
+
     it('propagates and logs a storage failure', async () => {
       send.mockRejectedValue(
         Object.assign(new Error('R2 unavailable'), { name: 'ServiceUnavailable' }),
