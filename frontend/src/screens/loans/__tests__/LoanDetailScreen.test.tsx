@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { PaperProvider } from 'react-native-paper';
+import { MD3LightTheme, PaperProvider, Dialog } from 'react-native-paper';
 import { server } from '../../../../__mocks__/server';
 import { http, HttpResponse } from 'msw';
 import { Text } from 'react-native';
@@ -33,9 +33,13 @@ function DummyConfirmLoan() {
   return <Text>ConfirmLoanScreen</Text>;
 }
 
+// Paper scales every animation duration by theme.animation.scale: 0 opens dialogs
+// instantly, keeping these tests fast on a loaded machine.
+const instantTheme = { ...MD3LightTheme, animation: { ...MD3LightTheme.animation, scale: 0 } };
+
 function renderDetailScreen(loanId = '7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d') {
   return render(
-    <PaperProvider>
+    <PaperProvider theme={instantTheme}>
       <NavigationContainer>
         <Stack.Navigator>
           <Stack.Screen
@@ -312,6 +316,9 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
     return captured;
   }
 
+  const editDialog = () =>
+    screen.UNSAFE_getAllByType(Dialog).find((d) => d.props.testID === 'edit-loan-dialog');
+
   async function openEditDialog() {
     renderDetailScreen();
     await waitFor(() => {
@@ -412,18 +419,18 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
 
   it('closes the edit dialog once the changes are saved', async () => {
     serveLoanWithStatus('ACTIVE');
-    capturePatchBody();
+    const captured = capturePatchBody();
 
     await openEditDialog();
     fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
     fireEvent.press(screen.getByTestId('confirm-edit-btn'));
 
-    await waitFor(
-      () => {
-        expect(screen.queryByTestId('edit-loan-dialog')).toBeNull();
-      },
-      { timeout: 3000 },
-    );
+    // Asserts our screen's decision (the dialog is asked to hide once the save resolved),
+    // not Paper's hide animation, which does not advance while RNTL waits inside act().
+    await waitFor(() => {
+      expect(captured.body).toEqual({ notes: 'new notes' });
+      expect(editDialog()?.props.visible).toBe(false);
+    });
   });
 });
 
