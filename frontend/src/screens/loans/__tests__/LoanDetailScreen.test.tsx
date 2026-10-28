@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { MD3LightTheme, PaperProvider, Dialog } from 'react-native-paper';
 import { server } from '../../../../__mocks__/server';
@@ -6,6 +6,7 @@ import { http, HttpResponse } from 'msw';
 import { Text } from 'react-native';
 import { LoanDetailScreen } from '../LoanDetailScreen';
 import { LoanListScreen } from '../LoanListScreen';
+import apiClient from '../../../api/apiClient';
 import { useLoanStore } from '../../../stores/useLoanStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { useReminderStore } from '../../../stores/useReminderStore';
@@ -310,7 +311,7 @@ describe('LoanDetailScreen', () => {
     });
 
     it('should not call the reminders endpoint for the borrower', async () => {
-      let remindersCalls = 0;
+      const getSpy = jest.spyOn(apiClient, 'get');
       server.use(
         http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
           HttpResponse.json(
@@ -336,10 +337,7 @@ describe('LoanDetailScreen', () => {
             { status: 200 },
           ),
         ),
-        http.get(REMINDERS_URL, () => {
-          remindersCalls += 1;
-          return HttpResponse.json([], { status: 200 });
-        }),
+        http.get(REMINDERS_URL, () => HttpResponse.json([], { status: 200 })),
       );
 
       renderDetailScreen();
@@ -347,19 +345,36 @@ describe('LoanDetailScreen', () => {
       await waitFor(() => {
         expect(screen.getByTestId('loan-timeline')).toBeTruthy();
       });
-      expect(remindersCalls).toBe(0);
+      // The reminders effect runs once the loan is loaded: let it settle before asserting
+      await act(async () => {});
+      const requestedUrls = getSpy.mock.calls.map(([url]) => url);
+      expect(requestedUrls).toContain('/loans/7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+      expect(requestedUrls.some((url) => String(url).includes('/reminders'))).toBe(false);
       expect(screen.queryByText(/reminder/i)).toBeNull();
+      getSpy.mockRestore();
     });
 
     it('should still render the timeline when the reminders request fails', async () => {
+      const getSpy = jest.spyOn(apiClient, 'get');
       server.use(http.get(REMINDERS_URL, () => HttpResponse.error()));
 
       renderDetailScreen();
 
       await waitFor(() => {
-        expect(screen.getByTestId('loan-timeline')).toBeTruthy();
+        expect(getSpy.mock.calls.some(([url]) => String(url).includes('/reminders'))).toBe(true);
       });
+      // Wait for the failed request to actually settle before checking the outcome
+      const remindersCallIndex = getSpy.mock.calls.findIndex(([url]) =>
+        String(url).includes('/reminders'),
+      );
+      await getSpy.mock.results[remindersCallIndex]!.value.catch(() => {});
+      await act(async () => {});
+
+      expect(screen.getByTestId('loan-timeline')).toBeTruthy();
+      expect(useReminderStore.getState().reminders).toEqual([]);
       expect(screen.queryByText(/reminder/i)).toBeNull();
+      expect(screen.queryByTestId('api-error')).toBeNull();
+      getSpy.mockRestore();
     });
   });
 });

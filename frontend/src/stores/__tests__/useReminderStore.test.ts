@@ -1,3 +1,4 @@
+import { waitFor } from '@testing-library/react-native';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../__mocks__/server';
 import { useReminderStore } from '../useReminderStore';
@@ -63,5 +64,63 @@ describe('useReminderStore', () => {
 
     expect(useReminderStore.getState().reminders).toEqual([]);
     expect(useReminderStore.getState().loanId).toBeNull();
+  });
+
+  describe('concurrent requests', () => {
+    // Handler whose response for each loan is released manually
+    function holdReminders() {
+      const gates = new Map<string, () => void>();
+      server.use(
+        http.get(`${API_BASE}/loans/:id/reminders`, async ({ params }) => {
+          const loanId = String(params.id);
+          await new Promise<void>((resolve) => gates.set(loanId, resolve));
+          return HttpResponse.json(
+            [
+              {
+                id: `reminder-${loanId}`,
+                loanId,
+                type: 'ON_DUE_DATE',
+                status: 'SCHEDULED',
+                scheduledFor: '2026-04-15T08:00:00Z',
+                sentAt: null,
+                channel: 'PUSH',
+              },
+            ],
+            { status: 200 },
+          );
+        }),
+      );
+      return gates;
+    }
+
+    it('should keep the state of the latest fetch when responses arrive out of order', async () => {
+      const gates = holdReminders();
+      const fetchA = useReminderStore.getState().fetchLoanReminders('loan-a');
+      const fetchB = useReminderStore.getState().fetchLoanReminders('loan-b');
+      await waitFor(() => expect(gates.size).toBe(2));
+
+      gates.get('loan-b')!();
+      await fetchB;
+      gates.get('loan-a')!(); // A answers last
+      await fetchA;
+
+      const state = useReminderStore.getState();
+      expect(state.loanId).toBe('loan-b');
+      expect(state.reminders.map((r) => r.loanId)).toEqual(['loan-b']);
+    });
+
+    it('should ignore a late response after a reset', async () => {
+      const gates = holdReminders();
+      const pending = useReminderStore.getState().fetchLoanReminders('loan-a');
+      await waitFor(() => expect(gates.size).toBe(1));
+
+      useReminderStore.getState().reset();
+      gates.get('loan-a')!();
+      await pending;
+
+      const state = useReminderStore.getState();
+      expect(state.loanId).toBeNull();
+      expect(state.reminders).toEqual([]);
+    });
   });
 });
