@@ -607,6 +607,10 @@ describe('ContactInvitations ↔ Loans inter-module (e2e)', () => {
     jest.clearAllMocks();
   });
 
+  /** returnDate is mandatory and must be at least J+2: use J+10 (date-only, UTC). */
+  const futureReturnDate = (): string =>
+    new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
   it('should return 403 when loan created without ACCEPTED contact', async () => {
     loansService.create.mockRejectedValue(
       new ForbiddenException(
@@ -622,6 +626,7 @@ describe('ContactInvitations ↔ Loans inter-module (e2e)', () => {
       .send({
         borrowerId: RECIPIENT_USER_ID,
         item: { name: 'Test Item', category: 'TOOLS' },
+        returnDate: futureReturnDate(),
       })
       .expect(HttpStatus.FORBIDDEN);
 
@@ -658,6 +663,7 @@ describe('ContactInvitations ↔ Loans inter-module (e2e)', () => {
       .send({
         borrowerId: RECIPIENT_USER_ID,
         item: { name: 'Test Item', category: 'TOOLS' },
+        returnDate: futureReturnDate(),
       })
       .expect(HttpStatus.CREATED);
 
