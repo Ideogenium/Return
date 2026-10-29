@@ -10,7 +10,6 @@ import {
   Portal,
   Dialog,
 } from 'react-native-paper';
-import { Calendar } from 'react-native-paper-dates';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import i18n from '../../config/i18n.config';
@@ -18,7 +17,8 @@ import { ui } from '../../config/theme.config';
 import { useItemStore } from '../../stores/useItemStore';
 import { useBorrowerStore } from '../../stores/useBorrowerStore';
 import { ItemForm } from '../items/ItemForm';
-import { getMinReturnDate, formatDate } from '../../utils/date';
+import { formatDate, toLocalIsoDate } from '../../utils/date';
+import { ReturnDateCalendar } from './ReturnDateCalendar';
 import type { CreateLoanDto, CreateItemDto } from '../../types/api.types';
 
 type LoanType = 'OBJECT' | 'MONEY';
@@ -314,20 +314,17 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
           </HelperText>
         )}
         {calendarExpanded && (
-          <Calendar
+          <ReturnDateCalendar
             locale={i18n.language}
-            mode="single"
             date={returnDateObj}
-            onChange={({ date }) => {
+            onChange={(date) => {
               if (date) {
                 setReturnDateObj(date);
-                setReturnDate(
-                  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
-                );
+                setReturnDate(toLocalIsoDate(date));
               }
               setCalendarExpanded(false);
             }}
-            validRange={{ startDate: getMinReturnDate() }}
+            testID="return-date-calendar"
           />
         )}
         {calendarExpanded && <HelperText type="info">{t('loans.returnDateTooSoon')}</HelperText>}

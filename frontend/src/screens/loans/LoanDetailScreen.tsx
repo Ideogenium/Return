@@ -11,7 +11,6 @@ import {
   Icon,
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { Calendar } from 'react-native-paper-dates';
 import i18n from '../../config/i18n.config';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LoanTimeline } from '../../components/loans/LoanTimeline';
@@ -21,7 +20,8 @@ import { RefreshError } from '../../components/common/RefreshError';
 import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
-import { getMinReturnDate, formatDate } from '../../utils/date';
+import { formatDate, toLocalIsoDate } from '../../utils/date';
+import { ReturnDateCalendar } from '../../components/loans/ReturnDateCalendar';
 import { getContactForUser } from '../../utils/loan';
 import { ui } from '../../config/theme.config';
 import type { LoanStackParamList } from '../../navigation/types';
@@ -506,20 +506,17 @@ export function LoanDetailScreen({ route, navigation }: Props) {
                   </HelperText>
                 )}
                 {canEditReturnDate && calendarExpanded && (
-                  <Calendar
+                  <ReturnDateCalendar
                     locale={i18n.language}
-                    mode="single"
                     date={editReturnDateObj}
-                    onChange={({ date }) => {
+                    onChange={(date) => {
                       if (date) {
                         setEditReturnDateObj(date);
-                        setEditReturnDate(
-                          `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
-                        );
+                        setEditReturnDate(toLocalIsoDate(date));
                       }
                       setCalendarExpanded(false);
                     }}
-                    validRange={{ startDate: getMinReturnDate() }}
+                    testID="edit-return-date-calendar"
                   />
                 )}
                 {canEditReturnDate && calendarExpanded && (
