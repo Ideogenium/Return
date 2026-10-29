@@ -33,7 +33,7 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
 | ACC-E1 | Profil de distribution EAS dans `eas.json` (Android AAB / iOS store) | Ismael | — | — | ✅ (Android ✅ — iOS ✅) |
 | ACC-E2 | Uploader credentials APNs + FCM dans EAS (`eas credentials`) (= PUSH-P1/P2) | Ismael + binôme | — | ACC-A2, ACC-G1 | ✅ |
 | ACC-E3 | Builds EAS iOS + Android (= PUSH-F5) | Ismael | — | ACC-E1, ACC-E2 | ✅ (Android ✅ AAB v1.0.0, versionCode 1 — iOS ✅ builds 1→3) |
-| ACC-E4 | `eas submit` → TestFlight + Play test interne | Ismael | — | ACC-E3, ACC-A3, ACC-G3 | ✅ (Android ✅ piste interne : import manuel du 1er AAB, `eas submit` auto à valider au prochain build — iOS ✅) |
+| ACC-E4 | `eas submit` → TestFlight + Play test interne | Ismael | — | ACC-E3, ACC-A3, ACC-G3 | ✅ (Android ✅ piste interne : 1er AAB importé manuellement, `eas submit` auto validé avec versionCode 2 le 29/10 — iOS ✅) |
 | ACC-E5 | Test e2e : push reçu sur device iOS + Android (cf. `docs/14` § E) | Binôme | — | ACC-E4 | ◑ iOS ✅ (31/10) — Android ☐ (push reçu sur le build production Play le 28/10, cf. PUSH-P2) |
 
 ---
@@ -249,7 +249,7 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
 - **Critères d'acceptation** :
     - [x] Build iOS soumis et visible dans l'onglet TestFlight d'App Store Connect
     - [x] Build Android soumis et visible dans la piste "Test interne" du Play Console (1er AAB **importé
-      manuellement**, comme Google l'exige ; `eas submit` automatique à valider au prochain build, versionCode 2)
+      manuellement**, comme Google l'exige ; `eas submit` automatique validé avec le build versionCode 2 le 29/10)
     - [ ] Testeurs notifiés (invitation TestFlight + lien opt-in Android) — Android ✅ ; iOS : Ozias seul testeur
 
 ---

@@ -71,7 +71,7 @@ frontend + tests + intégration + mise à jour de la doc. Conséquences :
 | FEAT-02 | Durcissement prod (CORS, secrets, 1 seule machine, Expo token)   | Ozias                               | Must     | 2 h                | —                                  | CORR-05, PUSH-B5, CORR-01              | ☐      |
 | FEAT-03 | Distribution iOS (EAS prod iOS, APNs, TestFlight, push e2e iOS)  | Ozias                               | Must     | 7 h                | accès EAS (ACC-A1 ✅)              | PUSH-P1, PUSH-F5, ACC-A2/A3, ACC-E1→E5 | ☐      |
 | FEAT-04 | Stats prêts en retard : `overdueLoans` back + carte front        | Ozias                               | Should   | 1,5 h              | —                                  | FIX-14 (reste)                         | ☐      |
-| FEAT-05 | Distribution Android (Play internal via `eas submit`)            | Ismael                              | Must     | 3 h                | Play Console OK (fait)             | PUSH-P2, ACC-G*, ACC-E3/E4             | ✅ (28/10) — `eas submit` auto à valider |
+| FEAT-05 | Distribution Android (Play internal via `eas submit`)            | Ismael                              | Must     | 3 h                | Play Console OK (fait)             | PUSH-P2, ACC-G*, ACC-E3/E4             | ✅ (28/10) — `eas submit` auto validé (versionCode 2, 29/10) |
 | FEAT-06 | Rappels visibles dans la timeline du prêt                        | Ismael                              | Should   | 3,5 h              | —                                  | CORR-07                                | ✅ (28/10) |
 | FEAT-07 | Historique des prêts (écran dédié, périmètre réduit)             | Ismael                              | Should   | 8 h                | —                                  | CORR-14 (partiel), CORR-08             | ✅ (28/10) — version complète ; vérif device à faire |
 | FEAT-08 | Mise à jour de la documentation                                  | Ismael (porteur) + Ozias (sous-lot) | Must     | 4,5 h (2,5 + 2)    | features terminées (en continu)    | CORR-11, doc 12 §A                     | ☐      |
@@ -320,7 +320,7 @@ distincts).
     - [x] AAB production construit et soumis sur la piste « Test interne » (1er AAB **importé manuellement**, comme
       Google l'exige pour la première release)
     - [x] App installée depuis le lien Play interne sur au moins un device, push reçu
-    - [ ] `eas submit` automatique validé (à faire au prochain build, versionCode 2)
+    - [x] `eas submit` automatique validé (build versionCode 2 soumis sur la piste interne le 29/10)
     - [x] Doc : PUSH-P2, ACC-G1→G3, ACC-E1/E3/E4 (volet Android) cochés (docs 14, 15)
 
 > **Livré le 28/10/2026.** Compte de service `eas-submit@return-642c7.iam.gserviceaccount.com` (projet GCP
