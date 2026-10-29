@@ -1,6 +1,6 @@
 import type { AxiosError } from 'axios';
 import type { TFunction } from 'i18next';
-import type { ProblemDetails } from '../types/api.types';
+import type { ProblemDetails, ValidationErrorCode } from '../types/api.types';
 import { PASSWORD_SPECIAL_CHARACTERS } from './password';
 
 // Extrait un ProblemDetails depuis une erreur Axios (retourne null si non-RFC 7807)
@@ -87,7 +87,9 @@ export function getErrorMessage(error: ProblemDetails, t: TFunction): string {
 }
 
 /** i18n key per (field, API error code) — codes come from the API ValidationPipe (main.ts). */
-const PASSWORD_FIELD_KEYS: Record<string, string> = {
+type FieldErrorKeys = Partial<Record<ValidationErrorCode, string>>;
+
+const PASSWORD_FIELD_KEYS: FieldErrorKeys = {
   INVALID_FORMAT: 'auth.passwordRules',
   TOO_SHORT: 'auth.passwordMinLength',
   TOO_LONG: 'auth.passwordMaxLength',
@@ -95,7 +97,7 @@ const PASSWORD_FIELD_KEYS: Record<string, string> = {
   INVALID_TYPE: 'auth.passwordRequired',
 };
 
-const FIELD_ERROR_KEYS: Record<string, Record<string, string>> = {
+const FIELD_ERROR_KEYS: Record<string, FieldErrorKeys> = {
   password: PASSWORD_FIELD_KEYS,
   newPassword: PASSWORD_FIELD_KEYS,
   currentPassword: { REQUIRED: 'auth.passwordRequired', INVALID_TYPE: 'auth.passwordRequired' },
