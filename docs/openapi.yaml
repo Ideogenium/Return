@@ -562,7 +562,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/Loan'
         '400':
-          $ref: '#/components/responses/ValidationError'
+          description: Données invalides ou date de retour trop proche
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                validationError:
+                  summary: Erreur de validation
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/loans/loan-123
+                    timestamp: '2026-10-29T10:00:00Z'
+                    requestId: req-3c4d5e6f
+                    errors:
+                      - field: notes
+                        code: TOO_LONG
+                        message: notes must be shorter than or equal to 500 characters
+                returnDateTooSoon:
+                  summary: Date de retour trop proche (< J+2)
+                  value:
+                    type: https://api.return.app/errors/return-date-too-soon
+                    title: Return Date Too Soon
+                    status: 400
+                    detail: Return date must be at least 2 days from now.
+                    instance: /v1/loans/loan-123
+                    timestamp: '2026-10-29T10:00:00Z'
+                    requestId: req-3c4d5e6f
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2181,7 +2210,7 @@ paths:
                   profilePicture:
                     type: string
                     format: uri
-                    example: https://photos.return.app/users/user-123/avatar.jpg
+                    example: https://photos.return.app/users/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d/avatar-7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f.jpg
         '400':
           description: Format invalide ou fichier trop volumineux
           content:
@@ -2234,6 +2263,7 @@ paths:
                   type: string
                   format: password
                   minLength: 8
+                  maxLength: 100
                   pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$'
                   example: NewSecureP@ssw0rd!
       responses:
@@ -2694,13 +2724,13 @@ components:
         url:
           type: string
           format: uri
-          example: https://photos.return.app/loans/loan-123/photo-1.jpg
-          description: URL publique de la photo (signée, expire après 7 jours)
+          example: https://photos.return.app/users/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d/items/9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d.jpg
+          description: URL publique et permanente de la photo
         thumbnailUrl:
           type: [string, 'null']
           format: uri
-          example: https://photos.return.app/loans/loan-123/photo-1-thumb.jpg
-          description: URL de la vignette optimisée (150x150px)
+          example: null
+          description: URL de la vignette optimisée (150x150px). Toujours `null` en V1 (pas de génération de vignettes).
         uploadedAt:
           type: string
           format: date-time
@@ -2945,7 +2975,7 @@ components:
         profilePicture:
           type: [string, 'null']
           format: uri
-          example: https://photos.return.app/users/user-123/avatar.jpg
+          example: https://photos.return.app/users/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d/avatar-7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f.jpg
         settings:
           $ref: '#/components/schemas/UserSettings'
         createdAt:
@@ -3093,7 +3123,7 @@ components:
         profilePicture:
           type: [string, 'null']
           format: uri
-          example: https://photos.return.app/users/user-456/avatar.jpg
+          example: https://photos.return.app/users/b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e/avatar-4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b.jpg
 
     # =========================================================================
     # DATA TRANSFER OBJECTS (DTOs)
@@ -3506,12 +3536,40 @@ components:
           description: Nom du champ en erreur
         code:
           type: string
-          example: INVALID_DATE
-          description: Code d'erreur (utilisable pour i18n)
+          enum:
+            - REQUIRED
+            - INVALID_TYPE
+            - INVALID_EMAIL
+            - INVALID_ENUM
+            - INVALID_UUID
+            - INVALID_FORMAT
+            - INVALID_VALUE
+            - TOO_SHORT
+            - TOO_LONG
+            - TOO_SMALL
+            - TOO_LARGE
+            - UNKNOWN_FIELD
+            - FILE_REQUIRED
+            - VALIDATION_ERROR
+          example: INVALID_EMAIL
+          description: |
+            Code d'erreur stable, à utiliser pour l'i18n (le `message` est en anglais et peut changer).
+            - `REQUIRED` : champ obligatoire vide
+            - `INVALID_TYPE` : type inattendu (ex. nombre au lieu d'une chaîne)
+            - `INVALID_EMAIL` : adresse e-mail mal formée
+            - `INVALID_ENUM` : valeur hors de la liste autorisée
+            - `INVALID_UUID` : identifiant qui n'est pas un UUID (corps ou chemin)
+            - `INVALID_FORMAT` : valeur qui ne respecte pas le motif (`pattern`) du champ
+            - `INVALID_VALUE` : valeur différente de celle attendue (ex. confirmation)
+            - `TOO_SHORT` / `TOO_LONG` : longueur hors de `minLength` / `maxLength`
+            - `TOO_SMALL` / `TOO_LARGE` : nombre hors de `minimum` / `maximum`
+            - `UNKNOWN_FIELD` : champ non prévu par le contrat
+            - `FILE_REQUIRED` : fichier absent ou de type refusé (upload)
+            - `VALIDATION_ERROR` : toute autre règle (ex. date mal formée)
         message:
           type: string
-          example: Return date must be in the future
-          description: Message d'erreur lisible
+          example: email must be an email
+          description: Message d'erreur lisible (anglais, non destiné à l'affichage direct)
 
   # ===========================================================================
   # REUSABLE RESPONSES
