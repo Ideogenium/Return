@@ -3,15 +3,17 @@ import { StyleSheet } from 'react-native';
 import { Button, HelperText, Portal, Dialog } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
-import { convertPhotoToJpeg, MAX_PHOTO_DIMENSION } from '../../utils/photo';
+import { convertPhotoForUpload, MAX_PHOTO_BYTES, MAX_PHOTO_DIMENSION } from '../../utils/photo';
 
 interface PhotoPickerProps {
-  /** Receives the URI of the photo converted to JPEG, ready to upload. */
+  /** Receives the URI of the converted photo (JPEG, or PNG for a PNG source), ready to upload. */
   onPhotoPicked: (uri: string) => void;
   currentPhotoCount: number;
   disabled?: boolean;
   /** Longest side of the converted photo, in pixels (an avatar needs less than an item photo). */
   maxDimension?: number;
+  /** Upload limit of the target, in bytes (an avatar has a lower limit than an item photo). */
+  maxBytes?: number;
 }
 
 export function PhotoPicker({
@@ -19,6 +21,7 @@ export function PhotoPicker({
   currentPhotoCount,
   disabled,
   maxDimension = MAX_PHOTO_DIMENSION,
+  maxBytes = MAX_PHOTO_BYTES,
 }: PhotoPickerProps) {
   const { t } = useTranslation();
   const [dialogVisible, setDialogVisible] = useState(false);
@@ -27,7 +30,7 @@ export function PhotoPicker({
   const isMaxReached = currentPhotoCount >= 5;
 
   /**
-   * Every picked photo is converted to JPEG before it leaves the picker (see convertPhotoToJpeg):
+   * Every picked photo is converted before it leaves the picker (see convertPhotoForUpload):
    * no format or weight check is needed here, the converted file always meets the contract.
    */
   const handleResult = async (result: ImagePicker.ImagePickerResult) => {
@@ -37,8 +40,8 @@ export function PhotoPicker({
     setValidationError(undefined);
     setIsConverting(true);
     try {
-      const jpegUri = await convertPhotoToJpeg(asset, maxDimension);
-      onPhotoPicked(jpegUri);
+      const uri = await convertPhotoForUpload(asset, { maxDimension, maxBytes });
+      onPhotoPicked(uri);
     } catch {
       setValidationError(t('items.photoConversionFailed'));
     } finally {

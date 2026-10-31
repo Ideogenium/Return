@@ -4,6 +4,11 @@ import { PhotoPicker } from '../PhotoPicker';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { normalizedUri } from '../../../../__mocks__/expo-image-manipulator';
+import {
+  deletedFiles,
+  resetFileSizes,
+  setFileSize,
+} from '../../../../__mocks__/expoFileSystemMock';
 
 const manipulate = ImageManipulator.manipulate as unknown as jest.Mock;
 
@@ -51,6 +56,7 @@ function mockGalleryAsset(asset: Partial<ImagePicker.ImagePickerAsset>) {
 describe('PhotoPicker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetFileSizes();
   });
 
   it('should render add photo button', () => {
@@ -247,5 +253,89 @@ describe('PhotoPicker', () => {
     });
 
     expect(screen.queryByTestId('photo-validation-error')).toBeNull();
+  });
+
+  describe('PNG photos (transparency, e.g. an iPhone subject cut-out)', () => {
+    const MB = 1024 * 1024;
+
+    it('should keep a PNG as PNG, so its transparent background does not turn black', async () => {
+      mockGalleryAsset({ uri: 'file:///tmp/cutout.png', mimeType: 'image/png' });
+      const { onPhotoPicked } = renderPicker();
+
+      await pickFrom('gallery');
+
+      await waitFor(() => {
+        expect(onPhotoPicked).toHaveBeenCalledWith(normalizedUri('file:///tmp/cutout.png', 'png'));
+      });
+      expect(contextAt().image.saveAsync).toHaveBeenCalledTimes(1);
+      expect(contextAt().image.saveAsync).toHaveBeenCalledWith({ format: SaveFormat.PNG });
+    });
+
+    it('should recognise a PNG from its extension when the picker gives no MIME type', async () => {
+      mockGalleryAsset({ uri: 'file:///tmp/screenshot.PNG', mimeType: undefined });
+      const { onPhotoPicked } = renderPicker();
+
+      await pickFrom('gallery');
+
+      await waitFor(() => {
+        expect(onPhotoPicked).toHaveBeenCalledWith(
+          normalizedUri('file:///tmp/screenshot.PNG', 'png'),
+        );
+      });
+    });
+
+    it('should still scale a large PNG down to the maximum dimension', async () => {
+      mockGalleryAsset({ uri: 'file:///tmp/cutout.png', mimeType: 'image/png', width: 4000 });
+      const { onPhotoPicked } = renderPicker();
+
+      await pickFrom('gallery');
+
+      await waitFor(() => {
+        expect(onPhotoPicked).toHaveBeenCalled();
+      });
+      expect(contextAt().resize).toHaveBeenCalledWith({ width: 2048 });
+    });
+
+    it('should fall back to JPEG when the PNG is over the 5 MB item photo limit, and delete the PNG', async () => {
+      const pngUri = normalizedUri('file:///tmp/cutout.png', 'png');
+      setFileSize(pngUri, 6 * MB);
+      mockGalleryAsset({ uri: 'file:///tmp/cutout.png', mimeType: 'image/png' });
+      const { onPhotoPicked } = renderPicker();
+
+      await pickFrom('gallery');
+
+      await waitFor(() => {
+        expect(onPhotoPicked).toHaveBeenCalledWith(normalizedUri('file:///tmp/cutout.png', 'jpg'));
+      });
+      expect(contextAt().image.saveAsync).toHaveBeenLastCalledWith({
+        format: SaveFormat.JPEG,
+        compress: 0.8,
+      });
+      expect(deletedFiles).toHaveBeenCalledWith(pngUri);
+    });
+
+    it('should use the maxBytes prop as the PNG limit', async () => {
+      setFileSize(normalizedUri('file:///tmp/cutout.png', 'png'), 3 * MB);
+      mockGalleryAsset({ uri: 'file:///tmp/cutout.png', mimeType: 'image/png' });
+      const { onPhotoPicked } = renderPicker({ maxBytes: 2 * MB });
+
+      await pickFrom('gallery');
+
+      await waitFor(() => {
+        expect(onPhotoPicked).toHaveBeenCalledWith(normalizedUri('file:///tmp/cutout.png', 'jpg'));
+      });
+    });
+
+    it('should fall back to JPEG when the PNG size cannot be read', async () => {
+      setFileSize(normalizedUri('file:///tmp/cutout.png', 'png'), 0);
+      mockGalleryAsset({ uri: 'file:///tmp/cutout.png', mimeType: 'image/png' });
+      const { onPhotoPicked } = renderPicker();
+
+      await pickFrom('gallery');
+
+      await waitFor(() => {
+        expect(onPhotoPicked).toHaveBeenCalledWith(normalizedUri('file:///tmp/cutout.png', 'jpg'));
+      });
+    });
   });
 });

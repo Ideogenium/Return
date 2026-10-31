@@ -8,3 +8,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 // Initialisation i18n pour tous les tests
 import './src/config/i18n.config';
+
+// expo-file-system : jest-expo ne simule que l'ancienne API (getInfoAsync…). Ce mock simule
+// la classe File du SDK 54, dont la taille est réglable par test (__mocks__/expoFileSystemMock.ts).
+jest.mock('expo-file-system', () => require('./__mocks__/expoFileSystemMock'));

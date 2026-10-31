@@ -4,21 +4,28 @@ export const SaveFormat = {
   WEBP: 'webp',
 };
 
-/** URI of the JPEG the mock "renders" for a picked image: same base name, .jpg, in a cache folder. */
-export function normalizedUri(uri: string): string {
+/**
+ * URI of the file the mock "renders" for a picked image: same base name, in a cache folder,
+ * with the extension of the saved format (.jpg by default, .png for SaveFormat.PNG).
+ */
+export function normalizedUri(uri: string, extension: 'jpg' | 'png' = 'jpg'): string {
   const baseName =
     uri
       .split('/')
       .pop()
       ?.replace(/\.[^.]+$/, '') ?? 'photo';
-  return `file:///tmp/manipulated/${baseName}.jpg`;
+  return `file:///tmp/manipulated/${baseName}.${extension}`;
 }
 
 function createContext(uri: string) {
   const image = {
     width: 0,
     height: 0,
-    saveAsync: jest.fn().mockResolvedValue({ uri: normalizedUri(uri), width: 0, height: 0 }),
+    saveAsync: jest.fn(async (options?: { format?: string }) => ({
+      uri: normalizedUri(uri, options?.format === SaveFormat.PNG ? 'png' : 'jpg'),
+      width: 0,
+      height: 0,
+    })),
     release: jest.fn(),
   };
   const context = {
