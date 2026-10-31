@@ -3,6 +3,13 @@ import { Dimensions, Keyboard, Platform, StyleSheet, Text, type KeyboardEvent } 
 import { Button, PaperProvider, Portal } from 'react-native-paper';
 import { FormDialog } from '../FormDialog';
 
+// Bottom safe-area inset seen by the dialog (and by Paper): 0 unless a test sets it.
+let mockBottomInset = 0;
+jest.mock('react-native-safe-area-context', () => ({
+  ...jest.requireActual('react-native-safe-area-context'),
+  useSafeAreaInsets: () => ({ top: 0, bottom: mockBottomInset, left: 0, right: 0 }),
+}));
+
 type KeyboardHandler = (event: KeyboardEvent) => void;
 
 /** Captures the Keyboard listeners the component registers, to fire them by hand. */
@@ -137,6 +144,42 @@ describe('FormDialog', () => {
 
       expect(registered).toBeGreaterThanOrEqual(2);
       expect(remove).toHaveBeenCalledTimes(registered);
+    });
+  });
+
+  describe('with a bottom safe-area inset (home indicator, gesture bar)', () => {
+    const BOTTOM_INSET = 34;
+
+    beforeEach(() => {
+      mockBottomInset = BOTTOM_INSET;
+    });
+    afterEach(() => {
+      mockBottomInset = 0;
+    });
+
+    it('on iOS, does not count the inset twice: the keyboard height includes it', () => {
+      jest.replaceProperty(Platform, 'OS', 'ios');
+      const { fire } = captureKeyboardListeners();
+      renderDialog();
+      const windowHeight = Dimensions.get('window').height;
+
+      fire('keyboardWillShow', 300);
+
+      const covered = 300 - BOTTOM_INSET;
+      expect(surfaceStyle().marginBottom).toBe(covered + 16);
+      expect(surfaceStyle().maxHeight).toBe(windowHeight - BOTTOM_INSET - covered - 2 * 16);
+    });
+
+    it('on Android, uses the keyboard height as is: React Native already removed the inset', () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      const { fire } = captureKeyboardListeners();
+      renderDialog();
+      const windowHeight = Dimensions.get('window').height;
+
+      fire('keyboardDidShow', 300);
+
+      expect(surfaceStyle().marginBottom).toBe(300 + 16);
+      expect(surfaceStyle().maxHeight).toBe(windowHeight - BOTTOM_INSET - 300 - 2 * 16);
     });
   });
 });

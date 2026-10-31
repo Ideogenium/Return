@@ -67,9 +67,10 @@ export function FormDialog({
   const { height: windowHeight } = useWindowDimensions();
   const { top, bottom } = useSafeAreaInsets();
 
-  // The dialog is centered in a wrapper inset by the safe area: the keyboard covers the
-  // wrapper from its bottom, minus the bottom inset it already spans.
-  const covered = Math.max(0, keyboardHeight - bottom);
+  // The dialog is centered in a wrapper inset by the safe area. On iOS the keyboard height
+  // includes the bottom inset, which the wrapper already leaves out; on Android React Native
+  // reports the keyboard height without the system bars (ReactRootView), so it is used as is.
+  const covered = Platform.OS === 'ios' ? Math.max(0, keyboardHeight - bottom) : keyboardHeight;
   const aboveKeyboard =
     covered > 0
       ? {
