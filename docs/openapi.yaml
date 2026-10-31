@@ -29,6 +29,18 @@ info:
       l'invitation, reçoit le 404.
     - Les statistiques de fiabilité d'un emprunteur (`Borrower.statistics`) ne sont visibles que du prêteur.
 
+    **Corps de requête refusés avant toute route** (règle transversale, valable pour toutes les routes) :
+    - Un corps JSON de plus de **100 Ko** (102 400 octets) reçoit un **413**
+      (`#/components/responses/PayloadTooLarge`, `type` `payload-too-large`).
+    - Un corps dont le jeu de caractères ou l'encodage n'est pas pris en charge reçoit un **415**
+      (`#/components/responses/UnsupportedMediaType`, `type` générique `http-error`).
+    - Ces deux réponses ne sont pas répétées sur chaque route : elles sont produites par le lecteur du corps,
+      avant la route, et sont identiques partout.
+    - Les fichiers envoyés en `multipart/form-data` (photos d'objet, avatar) ont leurs propres limites et
+      reçoivent un **400** avec une erreur sur le champ du fichier (`photo` ou `avatar`) : `TOO_LARGE` au-delà
+      de la taille autorisée, `FILE_REQUIRED` s'il est absent ou d'un type refusé, `VALIDATION_ERROR` si le
+      corps multipart est refusé (fichier en trop, trop de champs, champ trop long, corps mal formé).
+
   contact:
     name: Return Support
     email: support@return.app
@@ -1117,19 +1129,81 @@ paths:
               schema:
                 $ref: '#/components/schemas/Photo'
         '400':
-          description: Format invalide ou limite de photos atteinte
+          description: |
+            Limite de photos atteinte, ou fichier refusé. Les erreurs sur le fichier portent sur le champ `photo`
+            (nom de la partie multipart) : `TOO_LARGE` au-delà de 5 Mo, `FILE_REQUIRED` s'il est absent ou ni
+            JPEG ni PNG, `VALIDATION_ERROR` si le corps multipart est refusé.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-              example:
-                type: https://api.return.app/errors/max-photos-exceeded
-                title: Maximum Photos Exceeded
-                status: 400
-                detail: An item can have a maximum of 5 photos.
-                instance: /v1/items/item-123/photos
-                timestamp: 2026-02-08T18:40:00Z
-                requestId: req-1e2f3a4b
+              examples:
+                maxPhotosExceeded:
+                  summary: Limite de 5 photos atteinte
+                  value:
+                    type: https://api.return.app/errors/max-photos-exceeded
+                    title: Maximum Photos Exceeded
+                    status: 400
+                    detail: An item can have a maximum of 5 photos.
+                    instance: /v1/items/item-123/photos
+                    timestamp: 2026-02-08T18:40:00Z
+                    requestId: req-1e2f3a4b
+                fileTooLarge:
+                  summary: Fichier plus lourd que 5 Mo
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-2a3b4c5d
+                    errors:
+                      - field: photo
+                        code: TOO_LARGE
+                        message: File too large
+                fileTypeRefused:
+                  summary: Type de fichier refusé (ni JPEG ni PNG)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-3b4c5d6e
+                    errors:
+                      - field: photo
+                        code: FILE_REQUIRED
+                        message: Validation failed (current file type is image/gif, expected type is /(jpeg|jpg|png)$/)
+                fileMissing:
+                  summary: Aucun fichier dans la partie `photo`
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-4c5d6e7f
+                    errors:
+                      - field: photo
+                        code: FILE_REQUIRED
+                        message: File is required
+                multipartRejected:
+                  summary: Corps multipart refusé (fichier en trop, trop de champs, champ trop long)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-5d6e7f8a
+                    errors:
+                      - field: photo
+                        code: VALIDATION_ERROR
+                        message: Too many files
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -2301,11 +2375,71 @@ paths:
                     format: uri
                     example: https://photos.return.app/users/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d/avatar-7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f.jpg
         '400':
-          description: Format invalide ou fichier trop volumineux
+          description: |
+            Fichier refusé. Les erreurs portent sur le champ `avatar` (nom de la partie multipart) : `TOO_LARGE`
+            au-delà de 2 Mo, `FILE_REQUIRED` s'il est absent ou ni JPEG ni PNG, `VALIDATION_ERROR` si le corps
+            multipart est refusé.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                fileTooLarge:
+                  summary: Fichier plus lourd que 2 Mo
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-2a3b4c5d
+                    errors:
+                      - field: avatar
+                        code: TOO_LARGE
+                        message: File too large
+                fileTypeRefused:
+                  summary: Type de fichier refusé (ni JPEG ni PNG)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-3b4c5d6e
+                    errors:
+                      - field: avatar
+                        code: FILE_REQUIRED
+                        message: Validation failed (current file type is image/gif, expected type is /(jpeg|jpg|png)$/)
+                fileMissing:
+                  summary: Aucun fichier dans la partie `avatar`
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-4c5d6e7f
+                    errors:
+                      - field: avatar
+                        code: FILE_REQUIRED
+                        message: File is required
+                multipartRejected:
+                  summary: Corps multipart refusé (fichier en trop, trop de champs, champ trop long)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-5d6e7f8a
+                    errors:
+                      - field: avatar
+                        code: VALIDATION_ERROR
+                        message: Too many files
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -3765,10 +3899,12 @@ components:
             - `INVALID_FORMAT` : valeur qui ne respecte pas le motif (`pattern`) du champ
             - `INVALID_VALUE` : valeur différente de celle attendue (ex. confirmation)
             - `TOO_SHORT` / `TOO_LONG` : longueur hors de `minLength` / `maxLength`
-            - `TOO_SMALL` / `TOO_LARGE` : nombre hors de `minimum` / `maximum`
+            - `TOO_SMALL` / `TOO_LARGE` : nombre hors de `minimum` / `maximum` ; `TOO_LARGE` signale aussi un
+              fichier envoyé plus lourd que la limite de la route (erreur sur le champ du fichier, comme
+              `TOO_LONG` pour une chaîne)
             - `UNKNOWN_FIELD` : champ non prévu par le contrat
             - `FILE_REQUIRED` : fichier absent ou de type refusé (upload)
-            - `VALIDATION_ERROR` : toute autre règle (ex. date mal formée)
+            - `VALIDATION_ERROR` : toute autre règle (ex. date mal formée, corps multipart refusé)
         message:
           type: string
           example: email must be an email
@@ -3956,6 +4092,46 @@ components:
           schema:
             type: integer
             example: 1675869600
+
+    PayloadTooLarge:
+      description: |
+        Corps JSON plus lourd que la limite du serveur (100 Ko). Réponse produite avant la route, commune à
+        toutes les routes à corps JSON (voir la règle transversale dans `info.description`). Ne concerne pas
+        les fichiers `multipart/form-data`, qui reçoivent un 400 `TOO_LARGE`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            jsonBodyTooLarge:
+              value:
+                type: https://api.return.app/errors/payload-too-large
+                title: Payload Too Large
+                status: 413
+                detail: The request body is larger than the 102400-byte limit.
+                instance: /v1/loans
+                timestamp: 2026-10-31T19:00:00Z
+                requestId: req-7d8e9f0a
+
+    UnsupportedMediaType:
+      description: |
+        Jeu de caractères ou encodage du corps non pris en charge. Réponse produite avant la route, commune à
+        toutes les routes à corps (voir `info.description`). Le `type` est le type générique `http-error` ;
+        `title` et `detail` reprennent le message du lecteur du corps.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            unsupportedCharset:
+              value:
+                type: https://api.return.app/errors/http-error
+                title: unsupported charset "KLINGON"
+                status: 415
+                detail: unsupported charset "KLINGON"
+                instance: /v1/loans
+                timestamp: 2026-10-31T19:00:00Z
+                requestId: req-8e9f0a1b
 
     InternalServerError:
       description: Erreur interne du serveur
