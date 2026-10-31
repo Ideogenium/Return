@@ -264,14 +264,42 @@ describe('LoansCronService', () => {
 
       await cronService.handleOverdueLoans();
 
+      const today = new Date('2026-03-10T00:00:00.000Z');
       expect(prisma.loan.updateMany).toHaveBeenCalledWith({
-        where: { id: LOAN_ID_1, status: LoanStatus.ACTIVE },
+        where: {
+          id: LOAN_ID_1,
+          status: LoanStatus.ACTIVE,
+          deletedAt: null,
+          returnDate: { lt: today },
+        },
         data: { status: LoanStatus.AWAITING_RETURN },
       });
       expect(prisma.loan.updateMany).toHaveBeenCalledWith({
-        where: { id: LOAN_ID_2, status: LoanStatus.ACTIVE_BY_DEFAULT },
+        where: {
+          id: LOAN_ID_2,
+          status: LoanStatus.ACTIVE_BY_DEFAULT,
+          deletedAt: null,
+          returnDate: { lt: today },
+        },
         data: { status: LoanStatus.AWAITING_RETURN },
       });
+    });
+
+    it('re-checks the due date and deletion in the update, so a date postponed (PATCH) after the read is not marked overdue', async () => {
+      mockQueries([{ id: LOAN_ID_1, status: LoanStatus.ACTIVE }]);
+      // The row no longer matches (returnDate pushed to the future between findMany and updateMany)
+      prisma.loan.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      await cronService.handleOverdueLoans();
+
+      expect(prisma.loan.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          returnDate: { lt: new Date('2026-03-10T00:00:00.000Z') },
+          deletedAt: null,
+        }),
+        data: { status: LoanStatus.AWAITING_RETURN },
+      });
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
 
     it('emits one STATUS_CHANGED event per transitioned loan', async () => {

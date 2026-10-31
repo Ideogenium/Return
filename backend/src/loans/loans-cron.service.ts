@@ -152,7 +152,14 @@ export class LoansCronService {
 
       try {
         const { count } = await this.prisma.loan.updateMany({
-          where: { id: loan.id, status: loan.status },
+          // Re-check the due date and deletion: a PATCH (FEAT-11) postponing the date, or a
+          // delete, between the findMany and this update must not be overridden.
+          where: {
+            id: loan.id,
+            status: loan.status,
+            deletedAt: null,
+            returnDate: { lt: startOfTodayUtc },
+          },
           data: { status: LoanStatus.AWAITING_RETURN },
         });
         if (count === 0) continue; // already moved (concurrent tick / lender action)
