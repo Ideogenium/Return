@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ProfileCard } from '../../components/profile/ProfileCard';
 import { LenderStats } from '../../components/profile/LenderStats';
 import { PhotoPicker } from '../../components/items/PhotoPicker';
-import { buildPhotoFormData } from '../../utils/photo';
+import { AVATAR_MAX_BYTES, AVATAR_MAX_DIMENSION, buildPhotoFormData } from '../../utils/photo';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useHistoryStore } from '../../stores/useHistoryStore';
 import type { AppStackParamList } from '../../navigation/types';
@@ -90,7 +90,12 @@ export function ProfileScreen({ navigation }: Props) {
       <View style={styles.avatarSection}>
         <ProfileCard user={user} />
         <View style={styles.photoPickerWrapper}>
-          <PhotoPicker onPhotoPicked={handleAvatarPicked} currentPhotoCount={0} />
+          <PhotoPicker
+            onPhotoPicked={handleAvatarPicked}
+            currentPhotoCount={0}
+            maxDimension={AVATAR_MAX_DIMENSION}
+            maxBytes={AVATAR_MAX_BYTES}
+          />
           {user.profilePicture && (
             <Button
               mode="text"
