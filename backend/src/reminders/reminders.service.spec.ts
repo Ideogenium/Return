@@ -125,6 +125,22 @@ describe('RemindersService', () => {
       expect(prisma.$transaction.mock.calls[0][0]).toBeInstanceOf(Function);
     });
 
+    // Two concurrent PATCH of the return date: without a lock, each transaction cancels only
+    // the reminders it can see, then both create theirs — the loan ends up with duplicates.
+    it('locks the loan row before reading it, so concurrent reschedules run one after the other', async () => {
+      loanInDb({ returnDate: new Date('2026-11-20'), status: LoanStatus.ACTIVE });
+
+      await service.reschedule(LOAN_ID, NOW);
+
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      const [sql, id] = prisma.$queryRaw.mock.calls[0] as unknown as [TemplateStringsArray, string];
+      expect(sql.join('?')).toMatch(/SELECT .* FROM "loans" WHERE "id" = \?::uuid FOR UPDATE/s);
+      expect(id).toBe(LOAN_ID);
+      const lockOrder = prisma.$queryRaw.mock.invocationCallOrder[0];
+      expect(lockOrder).toBeLessThan(prisma.loan.findUnique.mock.invocationCallOrder[0]);
+      expect(lockOrder).toBeLessThan(prisma.reminder.updateMany.mock.invocationCallOrder[0]);
+    });
+
     it('only cancels when the loan no longer has a return date', async () => {
       loanInDb({ returnDate: null, status: LoanStatus.ACTIVE });
 
