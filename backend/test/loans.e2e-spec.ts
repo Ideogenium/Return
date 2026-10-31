@@ -236,6 +236,9 @@ describe('Loans Integration (e2e)', () => {
       // Assert — loan data returned
       expect(response.body.id).toBe(LOAN_ID);
       expect(response.body.borrower.userId).toBe(BORROWER_USER_ID);
+      // FIX-24: the lender's private statistics and contact phone must not reach the borrower
+      expect(response.body.borrower).not.toHaveProperty('statistics');
+      expect(response.body.borrower).not.toHaveProperty('phoneNumber');
     });
   });
 

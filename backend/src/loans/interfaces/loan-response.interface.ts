@@ -19,14 +19,16 @@ export interface LoanLenderResponse {
   profilePicture: string | null;
 }
 
+/** Lender view: the contact as the lender saved it, with the private statistics. */
 export interface LoanBorrowerResponse {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  phoneNumber: string | null;
+  phoneNumber?: string | null;
   userId: string | null;
-  statistics: BorrowerStatistics;
+  /** Omitted (not null) unless the caller is the lender of the loan. */
+  statistics?: BorrowerStatistics;
 }
 
 export interface LoanResponse {
