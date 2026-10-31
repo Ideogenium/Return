@@ -1482,7 +1482,7 @@ paths:
       summary: Rechercher des utilisateurs inscrits
       description: |
         Recherche des utilisateurs inscrits sur Return par email, prénom ou nom.
-        Exclut l'utilisateur courant et les contacts déjà acceptés.
+        Exclut l'utilisateur courant, les contacts déjà acceptés et les comptes supprimés (FIX-22).
         Indique le statut de la relation (nouveau / invitation en attente / déjà contact).
       operationId: searchUsersForInvitation
       requestBody:
@@ -2159,9 +2159,28 @@ paths:
         - Users
       summary: Supprimer définitivement le compte
       description: |
-        Suppression irréversible du compte et de toutes les données associées
-        (prêts, objets, emprunteurs). Conforme RGPD (droit à l'effacement).
-        **Attention** : Impossible si des prêts actifs existent.
+        Suppression irréversible du compte. Conforme au RGPD (droit à l'effacement) et à la règle
+        App Store 5.1.1(v) (suppression du compte depuis l'app). Décision : FIX-22, ADR 0010.
+
+        **Refus** : `409 active-loans-exist` tant que l'utilisateur est le prêteur d'un prêt en cours
+        (`PENDING_CONFIRMATION`, `ACTIVE`, `ACTIVE_BY_DEFAULT`, `AWAITING_RETURN`).
+
+        **Effacé** :
+        - le compte : reconnexion impossible (`POST /auth/login` répond comme pour un compte inexistant),
+          adresse email libérée (une nouvelle inscription avec la même adresse crée un nouveau compte),
+          mot de passe, téléphone, photo de profil et préférences effacés ;
+        - les sessions (refresh tokens) et les téléphones enregistrés pour les notifications push ;
+        - ses notifications et ses invitations de contact, envoyées et reçues ;
+        - toutes ses photos stockées (photo de profil et photos de ses objets) ;
+        - ses objets et ses contacts qui ne figurent dans aucun prêt.
+
+        **Conservé, anonymisé** : les prêts clos dont il était le prêteur restent dans l'historique de
+        l'emprunteur. Le prêteur y apparaît comme un `UserSummary` avec `accountDeleted: true`, des noms
+        fixes et `profilePicture: null`. L'objet de ces prêts garde son nom, sa catégorie et sa valeur,
+        sans photo. Le contact de l'emprunteur lié à ces prêts est conservé.
+
+        **Ses emprunts** : s'il était emprunteur chez d'autres prêteurs, leurs contacts et leurs prêts
+        restent inchangés pour eux, mais ne sont plus reliés à un compte (`Borrower.userId: null`).
       operationId: deleteUserAccount
       requestBody:
         required: true
@@ -3327,6 +3346,14 @@ components:
           type: [string, 'null']
           format: uri
           example: https://photos.return.app/users/b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e/avatar-4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b.jpg
+        accountDeleted:
+          type: boolean
+          example: true
+          description: |
+            Présent et `true` uniquement quand ce compte a été supprimé (FIX-22, voir `DELETE /users/me`) ;
+            **omis** sinon. `firstName` et `lastName` portent alors des valeurs fixes (`Compte` / `supprimé`)
+            et `profilePicture` vaut `null`. Les builds qui ignorent cette propriété affichent ces valeurs
+            telles quelles ; les suivants affichent un libellé traduit.
 
     # =========================================================================
     # DATA TRANSFER OBJECTS (DTOs)
