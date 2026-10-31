@@ -464,6 +464,10 @@ paths:
           description: |
             L'objet ou l'emprunteur référencé par UUID n'existe pas **ou n'appartient pas au prêteur**
             (réponse identique dans les deux cas). Pour un contact : `borrower-not-found`.
+
+            **Ordre des contrôles** : ces 404 (objet, puis contact appartenant à un autre utilisateur) sont décidés
+            **avant** le 403 `contact-not-accepted`, de sorte que ce 403 ne révèle jamais l'existence du contact
+            d'un autre utilisateur.
           content:
             application/json:
               schema:
@@ -518,7 +522,7 @@ paths:
         inexistant (pas de 403 : il n'existe aucun cas de partie au prêt sans droit de lecture).
 
         **Contenu de `borrower`** : `borrower.statistics` n'est présent que pour le prêteur ; voir la description
-        de `Loan.borrower` (dont la proposition, à valider en revue, sur le profil renvoyé à l'emprunteur).
+        de `Loan.borrower` (dont la décision, validée en revue de #40, sur le profil renvoyé à l'emprunteur).
       operationId: getLoanById
       responses:
         '200':
@@ -1646,7 +1650,8 @@ paths:
         L'auteur de l'invitation reçoit une notification `CONTACT_INVITATION_ACCEPTED`.
 
         **Accès** : tout utilisateur autre que le destinataire (l'auteur de l'invitation compris) reçoit un 404
-        identique à celui d'une invitation inexistante (pas de 403).
+        identique à celui d'une invitation inexistante (pas de 403). Ce 404 est décidé **avant** tout 409
+        (`invitation-not-pending`) : un non-destinataire ne peut donc pas sonder l'état de l'invitation.
       operationId: acceptContactInvitation
       parameters:
         - name: invitationId
@@ -1702,7 +1707,8 @@ paths:
         Le refus ne génère aucune notification.
 
         **Accès** : tout utilisateur autre que le destinataire (l'auteur de l'invitation compris) reçoit un 404
-        identique à celui d'une invitation inexistante (pas de 403).
+        identique à celui d'une invitation inexistante (pas de 403). Ce 404 est décidé **avant** tout 409
+        (`invitation-not-pending`) : un non-destinataire ne peut donc pas sonder l'état de l'invitation.
       operationId: rejectContactInvitation
       parameters:
         - name: invitationId
@@ -1753,7 +1759,9 @@ paths:
         Impossible d'annuler une invitation déjà acceptée.
 
         **Accès** : tout utilisateur autre que l'émetteur (le destinataire compris) reçoit un 404
-        identique à celui d'une invitation inexistante (pas de 403). Si l'invitation est annulée, la notification
+        identique à celui d'une invitation inexistante (pas de 403). Ce 404 est décidé **avant** tout 409
+        (`invitation-already-accepted`) : un non-émetteur ne peut donc pas sonder l'état de l'invitation.
+        Si l'invitation est annulée, la notification
         `CONTACT_INVITATION_RECEIVED` déjà envoyée au destinataire reste dans sa liste et ouvre simplement
         la liste des invitations.
       operationId: cancelContactInvitation
@@ -2674,7 +2682,8 @@ components:
         lender:
           $ref: '#/components/schemas/UserSummary'
         borrower:
-          $ref: '#/components/schemas/Borrower'
+          allOf:
+            - $ref: '#/components/schemas/Borrower'
           description: |
             Emprunteur du prêt. Le contenu dépend de l'appelant :
             - **Appelant = prêteur** : le contact tel que le prêteur l'a saisi (prénom, nom, email, `phoneNumber`)
@@ -2682,7 +2691,7 @@ components:
             - **Appelant = emprunteur** : `statistics` est **omis** (les statistiques de fiabilité sont réservées
               au prêteur).
 
-            **Proposition — à valider en revue** (Ozias) : quand l'appelant est l'emprunteur, `borrower` contient
+            **Décision validée en revue de #40** : quand l'appelant est l'emprunteur, `borrower` contient
             son **propre profil** (`firstName`, `lastName` et `email` de son compte utilisateur), sans `phoneNumber`
             (numéro noté par le prêteur) ni `statistics` ; `id` (identifiant du contact) et `userId` (son propre
             identifiant) restent présents. Le nom donné par le prêteur dans ses contacts reste réservé au prêteur.
@@ -2881,7 +2890,8 @@ components:
           example: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
           description: ID utilisateur Return (null si invitation en attente)
         statistics:
-          $ref: '#/components/schemas/BorrowerStatistics'
+          allOf:
+            - $ref: '#/components/schemas/BorrowerStatistics'
           description: |
             Statistiques de fiabilité de l'emprunteur, **privées au prêteur** : le champ est présent
             uniquement quand l'appelant est le prêteur du prêt (ou propriétaire du contact). Il est **omis**
@@ -3216,8 +3226,10 @@ components:
 
         **Comportement au tap dans l'application** :
         - présence de `loanId` : ouverture du détail du prêt (seule donnée lue par les builds actuels) ;
-        - `CONTACT_INVITATION_RECEIVED` : écran Contacts, onglet des invitations reçues ;
-        - `CONTACT_INVITATION_ACCEPTED` : écran Contacts, onglet des invitations envoyées ;
+        - `CONTACT_INVITATION_RECEIVED` : écran Contacts, onglet des invitations reçues (**cible de FIX-27**, à
+          implémenter par FIX-27 ; les builds installés ignorent ce type : tap sans effet) ;
+        - `CONTACT_INVITATION_ACCEPTED` : écran Contacts, onglet des invitations envoyées (**cible de FIX-27**,
+          même remarque) ;
         - aucune donnée exploitable (ancien build qui ne connaît pas le type) : le tap n'a aucun effet.
 
         **Cas limite** : si l'invitation a été annulée ou a expiré avant le tap, la notification
@@ -3228,6 +3240,10 @@ components:
       properties:
         type:
           type: string
+          description: |
+            Type du push. **N'est pas toujours une valeur de `Notification.type`** : les pushs de rappel
+            envoient `REMINDER`, valeur propre au push qui n'existe pas dans l'enum `Notification.type`
+            (celui-ci porte `REMINDER_SENT` / `REMINDER_RECEIVED`).
           enum:
             - LOAN_CREATED
             - LOAN_CONFIRMED
@@ -3813,15 +3829,62 @@ components:
 
     NotFound:
       description: |
-        Ressource introuvable **ou qui n'appartient pas à l'appelant** (tiers).
-        Les deux cas renvoient une réponse strictement identique (même `type`, même `title`, même `detail`),
-        afin qu'il soit impossible de deviner l'existence d'une ressource en testant des identifiants.
+        Ressource introuvable **ou qui n'appartient pas à l'appelant** (tiers). Réponse partagée par les prêts,
+        objets, contacts, rappels, notifications, photos et invitations.
+        Pour une même ressource, les deux cas renvoient une réponse strictement identique (même `type`, même `title`,
+        même `detail`), afin qu'il soit impossible de deviner l'existence d'une ressource en testant des identifiants.
         Seuls `instance`, `timestamp` et `requestId` varient d'une requête à l'autre.
+
+        `type` et `title` dépendent de la ressource : `NotFoundException('Item', id)` produit
+        `https://api.return.app/errors/item-not-found`, `title` « Item Not Found » et `detail`
+        `The item with ID '<id>' does not exist.` (format `The <ressource> with ID '<id>' does not exist.`).
+        Exception : pour les invitations, le `detail` est
+        `The invitation does not exist or does not belong to you.` (sans identifiant).
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
           examples:
+            itemNotFound:
+              summary: Objet introuvable ou appartenant à un autre utilisateur
+              value:
+                type: https://api.return.app/errors/item-not-found
+                title: Item Not Found
+                status: 404
+                detail: "The item with ID '8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d' does not exist."
+                instance: /v1/items/8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d
+                timestamp: 2026-02-08T14:45:00Z
+                requestId: req-9c8d7e6f
+            borrowerNotFound:
+              summary: Contact introuvable ou appartenant à un autre utilisateur
+              value:
+                type: https://api.return.app/errors/borrower-not-found
+                title: Borrower Not Found
+                status: 404
+                detail: "The borrower with ID 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e' does not exist."
+                instance: /v1/borrowers/b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e
+                timestamp: 2026-02-08T14:45:00Z
+                requestId: req-9c8d7e6f
+            reminderNotFound:
+              summary: Rappel introuvable ou appartenant à un autre utilisateur
+              value:
+                type: https://api.return.app/errors/reminder-not-found
+                title: Reminder Not Found
+                status: 404
+                detail: "The reminder with ID '3b2a1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d' does not exist."
+                instance: /v1/reminders/3b2a1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                timestamp: 2026-02-08T14:45:00Z
+                requestId: req-9c8d7e6f
+            invitationNotFound:
+              summary: Invitation introuvable ou dont l'appelant n'est pas la personne autorisée
+              value:
+                type: https://api.return.app/errors/invitation-not-found
+                title: Invitation Not Found
+                status: 404
+                detail: The invitation does not exist or does not belong to you.
+                instance: /v1/contact-invitations/6e5d4c3b-2a19-4f8e-9d7c-6b5a4f3e2d1c/accept
+                timestamp: 2026-02-08T14:45:00Z
+                requestId: req-9c8d7e6f
             loanNotFound:
               value:
                 type: https://api.return.app/errors/loan-not-found
