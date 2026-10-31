@@ -56,7 +56,7 @@ Identique au doc 13 :
 | FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | ☐      |
 | FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
 | FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —         | ☐      |
-| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
+| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —         | 🟡      |
 
 ### Répartition
 
@@ -272,3 +272,4 @@ Identique au doc 13 :
 - **Cause** : les refresh tokens sont opaques et stockés hachés ; aucun code ne lit ce secret.
 - **Correctif** : `fly secrets unset JWT_REFRESH_SECRET --stage -a return-api`, appliqué au prochain déploiement ;
   retirer la variable de `.env.example` et des docs.
+- **Statut** : 🟡 secret mis en attente de suppression sur Fly le 31/10 (`--stage`), effectif au prochain déploiement ; variable retirée de `.env.example`, `backend/.env.example`, `docker-compose.yml` et du doc 07. Aucun code ne la lit (`git grep`). Les docs 08, 09 et 11 sont des traces datées, laissées telles quelles.
