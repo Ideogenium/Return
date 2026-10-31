@@ -15,7 +15,7 @@ interface TimelineStep {
 
 interface LoanTimelineProps {
   loan: Loan;
-  // Fourni uniquement au prêteur ; absent côté emprunteur
+  // Only provided to the lender; absent on the borrower side
   reminders?: Reminder[];
 }
 
@@ -27,7 +27,7 @@ const REMINDER_LABEL_KEYS: Record<ReminderType, string> = {
   FINAL_OVERDUE: 'loans.reminderFinalOverdue',
 };
 
-// Rappels émis jusqu'à l'échéance ; les autres (J+7, J+14, J+21) suivent l'étape « retour attendu »
+// Reminders sent up to the due date; the others (D+7, D+14, D+21) follow the "return expected" step
 const PRE_DUE_REMINDER_TYPES: ReminderType[] = ['PREVENTIVE', 'ON_DUE_DATE'];
 
 export const REMINDER_LOAN_STATUSES: Loan['status'][] = [
@@ -42,7 +42,7 @@ function toReminderStep(reminder: Reminder, t: (key: string) => string): Timelin
   if (reminder.status === 'SCHEDULED') {
     return { label, date: reminder.scheduledFor, reached: false };
   }
-  // CANCELLED / FAILED : pas d'étape affichée
+  // CANCELLED / FAILED: no step displayed
   return null;
 }
 
@@ -123,7 +123,7 @@ function getBaseTimelineSteps(
     case 'ACTIVE_BY_DEFAULT':
       return [
         { label: t('loans.statusPendingConfirmation'), date: loan.createdAt, reached: true },
-        // Prêt en cours : pas de date à l'étape active (période non terminée)
+        // Ongoing loan: no date on the active step (period not over)
         { label: activeLabel, reached: true },
         { label: t('loans.statusAwaitingReturn'), date: loan.returnDate, reached: false },
         { label: t('loans.statusReturned'), reached: false },

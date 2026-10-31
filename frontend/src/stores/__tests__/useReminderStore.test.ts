@@ -22,6 +22,27 @@ describe('useReminderStore', () => {
     expect(state.reminders[0]!.loanId).toBe('loan-1');
   });
 
+  it('never exposes the reminders of another loan while a new one is loading', async () => {
+    await useReminderStore.getState().fetchLoanReminders('loan-1');
+    expect(useReminderStore.getState().reminders.length).toBeGreaterThan(0);
+
+    const pending = useReminderStore.getState().fetchLoanReminders('loan-2');
+
+    expect(useReminderStore.getState().loanId).toBe('loan-2');
+    expect(useReminderStore.getState().reminders).toEqual([]);
+    await pending;
+  });
+
+  it('keeps the current list while the same loan is refreshed', async () => {
+    await useReminderStore.getState().fetchLoanReminders('loan-1');
+    const before = useReminderStore.getState().reminders;
+
+    const pending = useReminderStore.getState().fetchLoanReminders('loan-1');
+
+    expect(useReminderStore.getState().reminders).toBe(before);
+    await pending;
+  });
+
   it('should call the loan reminders endpoint', async () => {
     let calledUrl = '';
     server.use(

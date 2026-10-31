@@ -44,6 +44,8 @@ const EDITABLE_STATUSES = [
 const RETURN_DATE_EDITABLE_STATUSES = ['PENDING_CONFIRMATION', 'ACTIVE', 'ACTIVE_BY_DEFAULT'];
 const isReturnDateEditable = (status: string | undefined): boolean =>
   status !== undefined && RETURN_DATE_EDITABLE_STATUSES.includes(status);
+// Time left to the backend listener to reschedule the reminders after a return date change.
+const REMINDERS_RELOAD_DELAY_MS = 1500;
 const RETURNABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 const ABANDONABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 
@@ -95,10 +97,22 @@ export function LoanDetailScreen({ route, navigation }: Props) {
         if (useReminderStore.getState().loanId === id) useReminderStore.getState().reset();
         return;
       }
-      if (useReminderStore.getState().loanId !== id) {
-        void useReminderStore.getState().fetchLoanReminders(id);
-      }
+      // Reload on every focus: a reminder may have been sent since the last visit, and the store
+      // keeps its previous list (same loan) until the response, so nothing flickers.
+      void useReminderStore.getState().fetchLoanReminders(id);
     }, [id, shouldLoadReminders]),
+  );
+
+  // Pending post-date-change reminders reload; cancelled on blur/unmount so it never fires off-screen.
+  const reminderReloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        if (reminderReloadTimer.current) clearTimeout(reminderReloadTimer.current);
+        reminderReloadTimer.current = null;
+      },
+      [],
+    ),
   );
 
   const handleDelete = async () => {
@@ -172,9 +186,17 @@ export function LoanDetailScreen({ route, navigation }: Props) {
         notes: editNotes || null,
         ...(sendReturnDate ? { returnDate: editReturnDate || null } : {}),
       });
-      // The backend reschedules the reminders asynchronously after a date change: drop the cached
-      // ones rather than show outdated dates; the next focus reloads them.
-      if (sendReturnDate) useReminderStore.getState().reset();
+      if (sendReturnDate) {
+        // Hide the outdated dates right away. The backend reschedules through an async @OnEvent
+        // listener that PATCH /loans/:id does not await (EventEmitter2 emit()), so the reminders
+        // may not be rewritten yet when the response arrives: reload them after a short delay.
+        useReminderStore.getState().reset();
+        if (reminderReloadTimer.current) clearTimeout(reminderReloadTimer.current);
+        reminderReloadTimer.current = setTimeout(() => {
+          reminderReloadTimer.current = null;
+          void useReminderStore.getState().fetchLoanReminders(id);
+        }, REMINDERS_RELOAD_DELAY_MS);
+      }
       setEditDialogVisible(false);
     } catch (err) {
       // Keep the dialog (and the typed notes) open so the lender can retry.

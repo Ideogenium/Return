@@ -6,7 +6,7 @@ interface ReminderState {
   loanId: string | null;
   reminders: Reminder[];
 
-  // Ne rejette jamais : les rappels sont un complément d'affichage (dégradation silencieuse)
+  // Never rejects: reminders only complement the display (silent degradation)
   fetchLoanReminders: (loanId: string) => Promise<void>;
   reset: () => void;
 }
@@ -20,8 +20,9 @@ export const useReminderStore = create<ReminderState>((set) => ({
   ...initialState,
 
   fetchLoanReminders: async (loanId) => {
-    // Vide immédiatement pour ne jamais afficher les rappels d'un autre prêt
-    set({ loanId, reminders: [] });
+    // Clear only when the loan changes (never show another loan's reminders); on a refresh of the
+    // same loan keep the current list until the response to avoid a flicker.
+    set((state) => (state.loanId === loanId ? state : { loanId, reminders: [] }));
     try {
       const { data } = await apiClient.get<Reminder[]>(`/loans/${loanId}/reminders`);
       set((state) => (state.loanId === loanId ? { reminders: data } : state));

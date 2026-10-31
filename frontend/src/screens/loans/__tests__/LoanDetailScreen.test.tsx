@@ -555,6 +555,62 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
     expect(useReminderStore.getState().reminders).toEqual([]);
   });
 
+  it('brings the reminders back after a return date change, once the backend had time to reschedule', async () => {
+    serveLoanWithStatus('ACTIVE');
+    capturePatchBody();
+    let remindersRequests = 0;
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id/reminders', () => {
+        remindersRequests += 1;
+        return HttpResponse.json([
+          {
+            id: 'reminder-new',
+            loanId: '7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d',
+            type: 'PREVENTIVE',
+            status: 'SCHEDULED',
+            scheduledFor: '2026-03-10T09:00:00Z',
+            sentAt: null,
+          },
+        ]);
+      }),
+    );
+
+    await openEditDialog();
+    await waitFor(() => expect(remindersRequests).toBe(1));
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => expect(useReminderStore.getState().loanId).toBeNull());
+    await waitFor(
+      () => {
+        expect(remindersRequests).toBe(2);
+        expect(useReminderStore.getState().reminders).toHaveLength(1);
+      },
+      { timeout: 4000 },
+    );
+  });
+
+  it('reloads the reminders when the same loan is opened again', async () => {
+    serveLoanWithStatus('ACTIVE');
+    let remindersRequests = 0;
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id/reminders', () => {
+        remindersRequests += 1;
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const first = renderDetailScreen();
+    await waitFor(() => expect(remindersRequests).toBe(1));
+    first.unmount();
+    // The store still holds this loan's reminders: reopening must not trust them
+    expect(useReminderStore.getState().loanId).toBe('7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+
+    renderDetailScreen();
+    await waitFor(() => expect(remindersRequests).toBe(2));
+  });
+
   it('keeps the cached reminders when only the notes change', async () => {
     serveLoanWithStatus('ACTIVE');
     const captured = capturePatchBody();
