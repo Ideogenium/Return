@@ -3,6 +3,10 @@ import apiClient from '../api/apiClient';
 import { extractProblemDetails } from '../utils/error';
 import type { Notification, PaginatedResponse, ProblemDetails } from '../types/api.types';
 
+// The unregistration runs before the logout request: with no network it must not leave the
+// user stuck on a frozen app. At worst the backend reattaches the token to the next signed-in account.
+const UNREGISTER_TIMEOUT_MS = 5000;
+
 interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
@@ -128,7 +132,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   unregisterDeviceToken: async (token) => {
     set({ isLoading: true, error: null });
     try {
-      await apiClient.delete('/notifications/device-token', { data: { token } });
+      await apiClient.delete('/notifications/device-token', {
+        data: { token },
+        timeout: UNREGISTER_TIMEOUT_MS,
+      });
       set({ isLoading: false, deviceToken: null });
     } catch (err) {
       set({ isLoading: false, error: extractProblemDetails(err) });

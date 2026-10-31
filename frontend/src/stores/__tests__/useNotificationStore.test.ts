@@ -5,6 +5,7 @@ jest.mock('../../config/api-modules.config', () => ({
 
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../__mocks__/server';
+import apiClient from '../../api/apiClient';
 import { useNotificationStore } from '../useNotificationStore';
 
 const API_BASE = 'http://localhost:3000/v1';
@@ -180,6 +181,20 @@ describe('useNotificationStore', () => {
       expect(capturedBody).toEqual({ token: 'expo-token-123' });
       expect(useNotificationStore.getState().isLoading).toBe(false);
       expect(useNotificationStore.getState().error).toBeNull();
+    });
+
+    it('sends the unregistration with a short timeout, leaving the client default untouched', async () => {
+      const deleteSpy = jest.spyOn(apiClient, 'delete');
+
+      await useNotificationStore.getState().unregisterDeviceToken('expo-token-123');
+
+      expect(deleteSpy).toHaveBeenCalledWith('/notifications/device-token', {
+        data: { token: 'expo-token-123' },
+        timeout: 5000,
+      });
+      // /auth/logout relies on this default, it must not be shortened
+      expect(apiClient.defaults.timeout).toBe(15000);
+      deleteSpy.mockRestore();
     });
 
     it('clears the device token once the unregistration succeeds', async () => {
