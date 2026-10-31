@@ -29,6 +29,18 @@ info:
       l'invitation, reçoit le 404.
     - Les statistiques de fiabilité d'un emprunteur (`Borrower.statistics`) ne sont visibles que du prêteur.
 
+    **Corps de requête refusés avant toute route** (règle transversale, valable pour toutes les routes) :
+    - Un corps JSON de plus de **100 Ko** (102 400 octets) reçoit un **413**
+      (`#/components/responses/PayloadTooLarge`, `type` `payload-too-large`).
+    - Un corps dont le jeu de caractères ou l'encodage n'est pas pris en charge reçoit un **415**
+      (`#/components/responses/UnsupportedMediaType`, `type` générique `http-error`).
+    - Ces deux réponses ne sont pas répétées sur chaque route : elles sont produites par le lecteur du corps,
+      avant la route, et sont identiques partout.
+    - Les fichiers envoyés en `multipart/form-data` (photos d'objet, avatar) ont leurs propres limites et
+      reçoivent un **400** avec une erreur sur le champ du fichier (`photo` ou `avatar`) : `TOO_LARGE` au-delà
+      de la taille autorisée, `FILE_REQUIRED` s'il est absent ou d'un type refusé, `VALIDATION_ERROR` si le
+      corps multipart est refusé (fichier en trop, trop de champs, champ trop long, corps mal formé).
+
   contact:
     name: Return Support
     email: support@return.app
@@ -1117,19 +1129,81 @@ paths:
               schema:
                 $ref: '#/components/schemas/Photo'
         '400':
-          description: Format invalide ou limite de photos atteinte
+          description: |
+            Limite de photos atteinte, ou fichier refusé. Les erreurs sur le fichier portent sur le champ `photo`
+            (nom de la partie multipart) : `TOO_LARGE` au-delà de 5 Mo, `FILE_REQUIRED` s'il est absent ou ni
+            JPEG ni PNG, `VALIDATION_ERROR` si le corps multipart est refusé.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
-              example:
-                type: https://api.return.app/errors/max-photos-exceeded
-                title: Maximum Photos Exceeded
-                status: 400
-                detail: An item can have a maximum of 5 photos.
-                instance: /v1/items/item-123/photos
-                timestamp: 2026-02-08T18:40:00Z
-                requestId: req-1e2f3a4b
+              examples:
+                maxPhotosExceeded:
+                  summary: Limite de 5 photos atteinte
+                  value:
+                    type: https://api.return.app/errors/max-photos-exceeded
+                    title: Maximum Photos Exceeded
+                    status: 400
+                    detail: An item can have a maximum of 5 photos.
+                    instance: /v1/items/item-123/photos
+                    timestamp: 2026-02-08T18:40:00Z
+                    requestId: req-1e2f3a4b
+                fileTooLarge:
+                  summary: Fichier plus lourd que 5 Mo
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-2a3b4c5d
+                    errors:
+                      - field: photo
+                        code: TOO_LARGE
+                        message: File too large
+                fileTypeRefused:
+                  summary: Type de fichier refusé (ni JPEG ni PNG)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-3b4c5d6e
+                    errors:
+                      - field: photo
+                        code: FILE_REQUIRED
+                        message: Validation failed (current file type is image/gif, expected type is /(jpeg|jpg|png)$/)
+                fileMissing:
+                  summary: Aucun fichier dans la partie `photo`
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-4c5d6e7f
+                    errors:
+                      - field: photo
+                        code: FILE_REQUIRED
+                        message: File is required
+                multipartRejected:
+                  summary: Corps multipart refusé (fichier en trop, trop de champs, champ trop long)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/items/9a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d/photos
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-5d6e7f8a
+                    errors:
+                      - field: photo
+                        code: VALIDATION_ERROR
+                        message: Too many files
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1482,7 +1556,7 @@ paths:
       summary: Rechercher des utilisateurs inscrits
       description: |
         Recherche des utilisateurs inscrits sur Return par email, prénom ou nom.
-        Exclut l'utilisateur courant et les contacts déjà acceptés.
+        Exclut l'utilisateur courant, les contacts déjà acceptés et les comptes supprimés (FIX-22).
         Indique le statut de la relation (nouveau / invitation en attente / déjà contact).
       operationId: searchUsersForInvitation
       requestBody:
@@ -2159,9 +2233,46 @@ paths:
         - Users
       summary: Supprimer définitivement le compte
       description: |
-        Suppression irréversible du compte et de toutes les données associées
-        (prêts, objets, emprunteurs). Conforme RGPD (droit à l'effacement).
-        **Attention** : Impossible si des prêts actifs existent.
+        Suppression irréversible du compte. Conforme au RGPD (droit à l'effacement) et à la règle
+        App Store 5.1.1(v) (suppression du compte depuis l'app). Décision : FIX-22, ADR 0010.
+
+        **Ordre des contrôles** : le mot de passe est vérifié en premier (`401 invalid-current-password`),
+        puis les prêts en cours : `409 active-loans-exist` tant que l'utilisateur est le prêteur d'un prêt
+        en cours (`PENDING_CONFIRMATION`, `ACTIVE`, `ACTIVE_BY_DEFAULT`, `AWAITING_RETURN`). Ses emprunts
+        en cours chez d'autres prêteurs ne bloquent pas la suppression.
+
+        **Effacé** :
+        - le compte : reconnexion impossible (`POST /auth/login` répond comme pour un compte inexistant),
+          adresse email libérée, mot de passe, téléphone, photo de profil, préférences et date de dernière
+          connexion effacés ;
+        - les sessions : refresh tokens supprimés ; un access token encore valable (15 min au plus) reçoit
+          `401 invalid-token` sur toute route ;
+        - les téléphones enregistrés pour les notifications push ;
+        - ses notifications et ses invitations de contact, envoyées et reçues ;
+        - les notifications d'autres utilisateurs qui le nomment ;
+        - toutes ses photos stockées (photo de profil et photos de ses objets) ;
+        - ses prêts supprimés (`deletedAt`) ;
+        - ses prêts clos dont le contact emprunteur n'est relié à aucun compte (personne ne peut plus
+          les voir), avec leurs objets et contacts ;
+        - ses objets et ses contacts qui ne figurent dans aucun prêt conservé ;
+        - les textes libres qu'il a écrits : description de ses objets et notes de ses prêts.
+
+        **Conservé, pseudonymisé** : ses prêts clos (tout statut hors des 4 en cours, `CONTESTED` compris)
+        dont le contact emprunteur est relié à un compte restent dans l'historique de cet emprunteur. Le
+        prêteur y apparaît avec `accountDeleted: true`, les noms fixes `Compte` / `supprimé` et
+        `profilePicture: null`. L'objet garde son nom, sa catégorie et sa valeur, sans photo ni
+        description ; le prêt garde ses dates et son statut, sans notes. Le contact de l'emprunteur garde
+        ses noms et son email, sans téléphone. Si aucun prêt n'est conservé, le compte est entièrement
+        supprimé, sans trace.
+
+        **Ses emprunts** : s'il était emprunteur chez d'autres prêteurs, leurs contacts et leurs prêts
+        restent inchangés pour eux, mais ne sont plus reliés à un compte (`Borrower.userId: null`) : il
+        ne reçoit plus aucun rappel. Le motif de contestation (`contestReason`) qu'il a écrit est conservé,
+        car il explique le statut du prêt au prêteur.
+
+        **Nouvelle inscription avec la même adresse** : elle crée un nouveau compte, et les contacts qui le
+        représentaient chez d'autres prêteurs s'y relient par email, comme pour toute inscription : le
+        nouveau compte retrouve l'historique et le score de confiance d'emprunteur de l'ancien.
       operationId: deleteUserAccount
       requestBody:
         required: true
@@ -2187,13 +2298,23 @@ paths:
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
-          description: Mot de passe incorrect
+          description: |
+            Mot de passe incorrect, vérifié avant les prêts en cours : un mauvais mot de passe reçoit ce 401
+            même si des prêts en cours existent.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://api.return.app/errors/invalid-current-password
+                title: Invalid Current Password
+                status: 401
+                detail: The provided password is incorrect.
+                instance: /v1/users/me
+                timestamp: 2026-02-08T21:30:00Z
+                requestId: req-5c6d7e8f
         '409':
-          description: Des prêts actifs existent
+          description: Des prêts en cours existent (le mot de passe est correct)
           content:
             application/json:
               schema:
@@ -2301,11 +2422,71 @@ paths:
                     format: uri
                     example: https://photos.return.app/users/a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d/avatar-7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f.jpg
         '400':
-          description: Format invalide ou fichier trop volumineux
+          description: |
+            Fichier refusé. Les erreurs portent sur le champ `avatar` (nom de la partie multipart) : `TOO_LARGE`
+            au-delà de 2 Mo, `FILE_REQUIRED` s'il est absent ou ni JPEG ni PNG, `VALIDATION_ERROR` si le corps
+            multipart est refusé.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                fileTooLarge:
+                  summary: Fichier plus lourd que 2 Mo
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-2a3b4c5d
+                    errors:
+                      - field: avatar
+                        code: TOO_LARGE
+                        message: File too large
+                fileTypeRefused:
+                  summary: Type de fichier refusé (ni JPEG ni PNG)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-3b4c5d6e
+                    errors:
+                      - field: avatar
+                        code: FILE_REQUIRED
+                        message: Validation failed (current file type is image/gif, expected type is /(jpeg|jpg|png)$/)
+                fileMissing:
+                  summary: Aucun fichier dans la partie `avatar`
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-4c5d6e7f
+                    errors:
+                      - field: avatar
+                        code: FILE_REQUIRED
+                        message: File is required
+                multipartRejected:
+                  summary: Corps multipart refusé (fichier en trop, trop de champs, champ trop long)
+                  value:
+                    type: https://api.return.app/errors/validation-failed
+                    title: Validation Failed
+                    status: 400
+                    detail: The request contains invalid data.
+                    instance: /v1/users/me/avatar
+                    timestamp: 2026-10-31T19:00:00Z
+                    requestId: req-5d6e7f8a
+                    errors:
+                      - field: avatar
+                        code: VALIDATION_ERROR
+                        message: Too many files
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -2680,7 +2861,11 @@ components:
         item:
           $ref: '#/components/schemas/Item'
         lender:
-          $ref: '#/components/schemas/UserSummary'
+          allOf:
+            - $ref: '#/components/schemas/UserSummary'
+          description: |
+            Prêteur du prêt. S'il a supprimé son compte (FIX-22), `accountDeleted: true`, noms fixes
+            `Compte` / `supprimé` et `profilePicture: null`.
         borrower:
           allOf:
             - $ref: '#/components/schemas/Borrower'
@@ -3327,6 +3512,15 @@ components:
           type: [string, 'null']
           format: uri
           example: https://photos.return.app/users/b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e/avatar-4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b.jpg
+        accountDeleted:
+          type: boolean
+          example: true
+          description: |
+            Utilisé seulement dans `Loan.lender`, jamais ailleurs. Présent et `true` uniquement quand le
+            prêteur a supprimé son compte (FIX-22, voir `DELETE /users/me`) ; **omis** sinon. `firstName` et
+            `lastName` portent alors les valeurs fixes `Compte` / `supprimé`, enregistrées en base, et
+            `profilePicture` vaut `null`. Les builds qui ignorent cette propriété affichent ces valeurs
+            telles quelles ; les suivants affichent un libellé traduit.
 
     # =========================================================================
     # DATA TRANSFER OBJECTS (DTOs)
@@ -3765,10 +3959,12 @@ components:
             - `INVALID_FORMAT` : valeur qui ne respecte pas le motif (`pattern`) du champ
             - `INVALID_VALUE` : valeur différente de celle attendue (ex. confirmation)
             - `TOO_SHORT` / `TOO_LONG` : longueur hors de `minLength` / `maxLength`
-            - `TOO_SMALL` / `TOO_LARGE` : nombre hors de `minimum` / `maximum`
+            - `TOO_SMALL` / `TOO_LARGE` : nombre hors de `minimum` / `maximum` ; `TOO_LARGE` signale aussi un
+              fichier envoyé plus lourd que la limite de la route (erreur sur le champ du fichier, comme
+              `TOO_LONG` pour une chaîne)
             - `UNKNOWN_FIELD` : champ non prévu par le contrat
             - `FILE_REQUIRED` : fichier absent ou de type refusé (upload)
-            - `VALIDATION_ERROR` : toute autre règle (ex. date mal formée)
+            - `VALIDATION_ERROR` : toute autre règle (ex. date mal formée, corps multipart refusé)
         message:
           type: string
           example: email must be an email
@@ -3956,6 +4152,46 @@ components:
           schema:
             type: integer
             example: 1675869600
+
+    PayloadTooLarge:
+      description: |
+        Corps JSON plus lourd que la limite du serveur (100 Ko). Réponse produite avant la route, commune à
+        toutes les routes à corps JSON (voir la règle transversale dans `info.description`). Ne concerne pas
+        les fichiers `multipart/form-data`, qui reçoivent un 400 `TOO_LARGE`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            jsonBodyTooLarge:
+              value:
+                type: https://api.return.app/errors/payload-too-large
+                title: Payload Too Large
+                status: 413
+                detail: The request body is larger than the 102400-byte limit.
+                instance: /v1/loans
+                timestamp: 2026-10-31T19:00:00Z
+                requestId: req-7d8e9f0a
+
+    UnsupportedMediaType:
+      description: |
+        Jeu de caractères ou encodage du corps non pris en charge. Réponse produite avant la route, commune à
+        toutes les routes à corps (voir `info.description`). Le `type` est le type générique `http-error` ;
+        `title` et `detail` reprennent le message du lecteur du corps.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          examples:
+            unsupportedCharset:
+              value:
+                type: https://api.return.app/errors/http-error
+                title: unsupported charset "KLINGON"
+                status: 415
+                detail: unsupported charset "KLINGON"
+                instance: /v1/loans
+                timestamp: 2026-10-31T19:00:00Z
+                requestId: req-8e9f0a1b
 
     InternalServerError:
       description: Erreur interne du serveur

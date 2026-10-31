@@ -10,9 +10,16 @@ import {
 import { ReminderPolicy, type ReminderSchedule } from './reminder-policy.js';
 import type { ReminderResponse } from './interfaces/reminder-response.interface.js';
 
-/** Reminder with its loan relation (includes lenderId for ownership checks) */
+/** The loan parties needed to tell a lender, a borrower (403) and a third party (404) apart */
+export interface ReminderLoanAccess {
+  id: string;
+  lenderId: string;
+  borrowerUserId: string | null;
+}
+
+/** Reminder with its loan relation (includes lender and borrower for ownership checks) */
 export type ReminderWithLoan = Reminder & {
-  loan: { id: string; lenderId: string };
+  loan: ReminderLoanAccess;
 };
 
 @Injectable()
@@ -65,35 +72,45 @@ export class RemindersService {
    * Finds a loan by ID for reminder access. Throws 404 if the loan
    * does not exist or has been soft-deleted.
    */
-  async findLoanForReminders(
-    loanId: string,
-    path: string,
-  ): Promise<{ id: string; lenderId: string }> {
+  async findLoanForReminders(loanId: string, path: string): Promise<ReminderLoanAccess> {
     const loan = await this.prisma.loan.findUnique({
       where: { id: loanId },
-      select: { id: true, lenderId: true, deletedAt: true },
+      select: {
+        id: true,
+        lenderId: true,
+        deletedAt: true,
+        borrower: { select: { userId: true } },
+      },
     });
 
     if (!loan || loan.deletedAt !== null) {
       throw new NotFoundException('Loan', loanId, path);
     }
 
-    return loan;
+    return { id: loan.id, lenderId: loan.lenderId, borrowerUserId: loan.borrower.userId };
   }
 
   /**
    * Asserts the current user is the lender of the loan.
-   * Throws 403 if the userId does not match.
+   * The borrower is a party to the loan, so they get a 403. Anyone else gets the same 404 as
+   * for a missing `notFoundResource`, so that ids cannot be probed (FIX-28).
    */
-  assertLoanOwnership(loan: { lenderId: string }, userId: string, path: string): void {
-    if (loan.lenderId !== userId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'Only the lender can access reminders for this loan.',
-        path,
-      );
+  assertLoanOwnership(
+    loan: ReminderLoanAccess,
+    userId: string,
+    path: string,
+    notFoundResource: { name: 'Loan' | 'Reminder'; id: string },
+  ): void {
+    if (loan.lenderId === userId) return;
+    if (loan.borrowerUserId !== userId) {
+      throw new NotFoundException(notFoundResource.name, notFoundResource.id, path);
     }
+    throw new ForbiddenException(
+      'forbidden',
+      'Forbidden',
+      'Only the lender can access reminders for this loan.',
+      path,
+    );
   }
 
   // ===========================================================================
@@ -119,9 +136,16 @@ export class RemindersService {
   async findById(reminderId: string): Promise<ReminderWithLoan | null> {
     const reminder = await this.prisma.reminder.findUnique({
       where: { id: reminderId },
-      include: { loan: { select: { id: true, lenderId: true } } },
+      include: {
+        loan: { select: { id: true, lenderId: true, borrower: { select: { userId: true } } } },
+      },
     });
-    return reminder as ReminderWithLoan | null;
+    if (!reminder) return null;
+    const { loan, ...rest } = reminder;
+    return {
+      ...rest,
+      loan: { id: loan.id, lenderId: loan.lenderId, borrowerUserId: loan.borrower.userId },
+    };
   }
 
   /**

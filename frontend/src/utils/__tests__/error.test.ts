@@ -104,7 +104,6 @@ describe('getErrorMessage — every type the API can emit is localized', () => {
     ['not-found', 'errors.notFound'],
     ['http-error', 'errors.unknownError'],
     ['invalid-refresh-token', 'errors.unauthorized'],
-    ['notification-access-forbidden', 'errors.forbidden'],
     ['reminder-already-sent', 'errors.reminderAlreadySent'],
     ['reminder-not-found', 'errors.reminderNotFound'],
     ['notification-not-found', 'errors.notificationNotFound'],

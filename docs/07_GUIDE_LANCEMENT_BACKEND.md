@@ -59,7 +59,6 @@ Ouvre `backend/.env` et renseigne les valeurs manquantes :
 ```dotenv
 # Obligatoire — Génère un secret fort (ex: openssl rand -hex 32)
 JWT_ACCESS_SECRET=<ton_secret_jwt_access>
-JWT_REFRESH_SECRET=<ton_secret_jwt_refresh>
 ```
 
 Les autres valeurs ont des défauts fonctionnels pour le développement local.
@@ -74,7 +73,6 @@ Les autres valeurs ont des défauts fonctionnels pour le développement local.
 | `DATABASE_URL`           | Oui     | (dans .env.example)      | URL PostgreSQL                                |
 | `REDIS_URL`              | Non     | `redis://localhost:6379` | URL Redis                                     |
 | `JWT_ACCESS_SECRET`      | **Oui** | —                        | Secret pour les access tokens                 |
-| `JWT_REFRESH_SECRET`     | **Oui** | —                        | Secret pour les refresh tokens                |
 | `JWT_ACCESS_EXPIRATION`  | Non     | `15m`                    | Durée de vie access token                     |
 | `JWT_REFRESH_EXPIRATION` | Non     | `30d`                    | Durée de vie refresh token                    |
 | `LOG_LEVEL`              | Non     | `info`                   | Niveau de log (error, warn, info, debug)      |

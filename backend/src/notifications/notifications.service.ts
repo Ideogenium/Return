@@ -3,10 +3,7 @@ import { NotificationType, type ReminderType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FirebaseService } from '../firebase/firebase.service.js';
-import {
-  NotFoundException,
-  ForbiddenException,
-} from '../common/exceptions/problem-details.exception.js';
+import { NotFoundException } from '../common/exceptions/problem-details.exception.js';
 
 const REMINDER_TITLES: Record<string, string> = {
   PREVENTIVE: 'Rappel préventif',
@@ -149,19 +146,11 @@ export class NotificationsService {
       where: { id: notificationId },
     });
 
-    if (!notification) {
+    // FIX-28: someone else's notification is reported exactly like a missing one.
+    if (!notification || notification.userId !== userId) {
       throw new NotFoundException(
         'Notification',
         notificationId,
-        `/v1/notifications/${notificationId}/read`,
-      );
-    }
-
-    if (notification.userId !== userId) {
-      throw new ForbiddenException(
-        'notification-access-forbidden',
-        'Access forbidden',
-        'You do not have permission to access this notification.',
         `/v1/notifications/${notificationId}/read`,
       );
     }
