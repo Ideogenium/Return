@@ -322,11 +322,19 @@ Identique au doc 13 :
 - **Correctif** :
     - `ClientIpThrottlerGuard` remplace le garde global : il compte par IP réelle du client, lue dans l'en-tête posé
       par le proxy (`CLIENT_IP_HEADER`, sur Fly `fly-client-ip`), sinon `req.ip` ;
-    - `trust proxy` Express réglé par `TRUST_PROXY_HOPS` (1 sur Fly), pour que `req.ip` soit aussi celle du client ;
-    - connexion : compteur par IP **et** email normalisé (`@ThrottleByBodyField('email')`), 10 / 15 min inchangé ;
-    - les deux variables sont dans `fly.toml` (pas de secret) ; en production, l'API refuse de démarrer sans l'une
-      d'elles.
+    - `trust proxy` Express réglé par `TRUST_PROXY_HOPS` : **2** sur Fly, car le proxy ajoute sa propre adresse en
+      dernier dans `X-Forwarded-For` (`<forgée…>, <client>, <Fly>`). Avec 1, `req.ip` serait l'adresse de Fly ;
+    - connexion : compteur par IP **et** email normalisé (`@ThrottleByBodyField('email')`), 10 / 15 min, plus un
+      plafond par IP seule (`clientIpCeiling`, 50 / 15 min) contre le « password spraying » (une IP qui essaie
+      beaucoup d'emails) ;
+    - les deux variables sont dans `fly.toml` (pas de secret) ; en production, l'API refuse de démarrer sans
+      `CLIENT_IP_HEADER` (`TRUST_PROXY_HOPS` seul ne suffit pas).
 - **Hypothèse** : sur Fly, tout le trafic passe par le proxy, qui pose `Fly-Client-IP` sur chaque requête. Hors Fly,
   l'en-tête n'est lu que s'il est configuré, sinon un client pourrait choisir son compteur.
+- **Suivis (lot 3)** :
+    - force brute distribuée sur un seul compte (beaucoup d'IP, un email) : limite par email seul ou verrouillage
+      temporaire du compte, avec un message qui ne révèle pas l'existence du compte ;
+    - les compteurs sont en mémoire, par machine, et repartent à zéro à chaque redémarrage : passer au stockage
+      Redis du throttler avant d'avoir plus d'une machine.
 - **Statut** : 🟡 PR ; effectif au déploiement D3. À vérifier après le D3 : deux téléphones sur des réseaux différents
   ne se bloquent plus l'un l'autre.
