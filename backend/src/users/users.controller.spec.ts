@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
+import { TrustScoreService } from '../trust-score/trust-score.service.js';
 import { UserRole } from '@prisma/client';
 import type { SafeUser, UserSettings } from '../auth/interfaces/auth-response.interface.js';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy.js';
@@ -58,6 +59,7 @@ describe('UsersController', () => {
     updateSettings: jest.Mock;
     updateAvatar: jest.Mock;
   };
+  let trustScoreService: { computeGlobalTrustScore: jest.Mock };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -71,10 +73,14 @@ describe('UsersController', () => {
       updateSettings: jest.fn().mockResolvedValue(MOCK_SETTINGS),
       updateAvatar: jest.fn(),
     };
+    trustScoreService = { computeGlobalTrustScore: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [{ provide: UsersService, useValue: usersService }],
+      providers: [
+        { provide: UsersService, useValue: usersService },
+        { provide: TrustScoreService, useValue: trustScoreService },
+      ],
     }).compile();
 
     controller = module.get<UsersController>(UsersController);
@@ -90,6 +96,24 @@ describe('UsersController', () => {
 
       expect(usersService.getProfile).toHaveBeenCalledWith(MOCK_AUTH_USER.userId);
       expect(result).toEqual(MOCK_SAFE_USER);
+    });
+  });
+
+  describe('getMyTrustScore', () => {
+    it('should delegate to TrustScoreService with userId from JWT (FIX-15)', async () => {
+      const score = {
+        trustScore: 80,
+        totalLoans: 10,
+        returnedOnTime: 7,
+        returnedLate: 2,
+        notReturned: 1,
+      };
+      trustScoreService.computeGlobalTrustScore.mockResolvedValue(score);
+
+      const result = await controller.getMyTrustScore(mockRequest);
+
+      expect(trustScoreService.computeGlobalTrustScore).toHaveBeenCalledWith(MOCK_AUTH_USER.userId);
+      expect(result).toEqual(score);
     });
   });
 

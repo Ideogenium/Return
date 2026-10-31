@@ -1,29 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, ActivityIndicator, Snackbar } from 'react-native-paper';
+import { Button, ActivityIndicator, Snackbar, Text } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ProfileCard } from '../../components/profile/ProfileCard';
 import { LenderStats } from '../../components/profile/LenderStats';
 import { PhotoPicker } from '../../components/items/PhotoPicker';
 import { buildPhotoFormData } from '../../utils/photo';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useHistoryStore } from '../../stores/useHistoryStore';
 import type { AppStackParamList } from '../../navigation/types';
+import type { ProblemDetails } from '../../types/api.types';
+import { extractProblemDetails, getErrorMessage } from '../../utils/error';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Profile'>;
 
 export function ProfileScreen({ navigation }: Props) {
   const { t } = useTranslation();
-  const { user, isLoading, logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [snackbar, setSnackbar] = useState<{ message: string; type: 'success' | 'error' } | null>(
     null,
   );
 
-  useEffect(() => {
-    if (!user) {
-      useAuthStore.getState().hydrate();
+  const [loadError, setLoadError] = useState<ProblemDetails | null>(null);
+
+  // Not hydrate(): the session restore shows the app-wide splash and unmounts the navigation.
+  const loadProfile = useCallback(async () => {
+    setLoadError(null);
+    try {
+      await useAuthStore.getState().refreshUser();
+    } catch (err) {
+      setLoadError(extractProblemDetails(err));
     }
-  }, [user]);
+  }, []);
+
+  useEffect(() => {
+    if (!user) void loadProfile();
+  }, [user, loadProfile]);
+
+  // Refresh statistics each time the screen comes into focus (covers FIX-07 / FIX-08)
+  useFocusEffect(
+    useCallback(() => {
+      useHistoryStore.getState().fetchStatistics();
+    }, []),
+  );
 
   const handleAvatarPicked = async (uri: string) => {
     try {
@@ -44,7 +65,19 @@ export function ProfileScreen({ navigation }: Props) {
     }
   };
 
-  if (isLoading || !user) {
+  if (!user) {
+    if (loadError) {
+      return (
+        <View style={styles.loaderContainer} testID="profile-error">
+          <Text variant="titleMedium" style={styles.errorText}>
+            {getErrorMessage(loadError, t)}
+          </Text>
+          <Button mode="outlined" onPress={loadProfile} testID="profile-retry-btn">
+            {t('common.retry')}
+          </Button>
+        </View>
+      );
+    }
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
@@ -103,6 +136,18 @@ export function ProfileScreen({ navigation }: Props) {
 
         <Button
           mode="outlined"
+          icon="history"
+          onPress={() => navigation.navigate('LoanHistory')}
+          style={styles.outlinedButton}
+          labelStyle={styles.outlinedLabel}
+          contentStyle={styles.buttonContent}
+          testID="history-btn"
+        >
+          {t('profile.history')}
+        </Button>
+
+        <Button
+          mode="outlined"
           icon="cog-outline"
           onPress={() => navigation.navigate('Settings')}
           style={styles.outlinedButton}
@@ -154,6 +199,7 @@ export function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingBottom: 32, backgroundColor: '#F7F4EF' },
   loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { color: '#6B7A8D', textAlign: 'center', marginBottom: 16, paddingHorizontal: 32 },
   actions: { paddingHorizontal: 16, gap: 10 },
   primaryButton: { borderRadius: 12 },
   buttonLabel: { fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },

@@ -3,10 +3,11 @@ import { FlatList, View, StyleSheet } from 'react-native';
 import { Text, Button, ActivityIndicator, Icon } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
+import { formatDate } from '../../utils/date';
 import { useContactInvitationStore } from '../../stores/useContactInvitationStore';
 
 export function BorrowerInvitationsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     receivedInvitations,
     isLoading,
@@ -39,7 +40,7 @@ export function BorrowerInvitationsScreen() {
                 {item.senderUser.firstName} {item.senderUser.lastName}
               </Text>
               <Text variant="bodySmall" style={styles.date}>
-                {new Date(item.createdAt).toLocaleDateString()}
+                {formatDate(item.createdAt, i18n.language)}
               </Text>
             </View>
             <View style={styles.actions}>

@@ -101,10 +101,7 @@ describe('ContactInvitationsController', () => {
     it('should delegate to service.searchUsers and return results', async () => {
       service.searchUsers.mockResolvedValue(MOCK_SEARCH_RESULTS);
 
-      const result = await controller.searchUsers(
-        { user: MOCK_AUTH_USER },
-        { query: 'marie' },
-      );
+      const result = await controller.searchUsers({ user: MOCK_AUTH_USER }, { query: 'marie' });
 
       expect(service.searchUsers).toHaveBeenCalledWith(SENDER_USER_ID, {
         query: 'marie',
@@ -155,10 +152,7 @@ describe('ContactInvitationsController', () => {
     it('should list received invitations by default', async () => {
       service.listInvitations.mockResolvedValue(MOCK_PAGINATED_INVITATIONS);
 
-      const result = await controller.listInvitations(
-        { user: MOCK_AUTH_USER },
-        {},
-      );
+      const result = await controller.listInvitations({ user: MOCK_AUTH_USER }, {});
 
       expect(service.listInvitations).toHaveBeenCalledWith(SENDER_USER_ID, {
         direction: 'received',
@@ -172,10 +166,7 @@ describe('ContactInvitationsController', () => {
     it('should pass direction=sent when provided', async () => {
       service.listInvitations.mockResolvedValue(MOCK_PAGINATED_INVITATIONS);
 
-      await controller.listInvitations(
-        { user: MOCK_AUTH_USER },
-        { direction: 'sent' },
-      );
+      await controller.listInvitations({ user: MOCK_AUTH_USER }, { direction: 'sent' });
 
       expect(service.listInvitations).toHaveBeenCalledWith(SENDER_USER_ID, {
         direction: 'sent',
@@ -195,10 +186,7 @@ describe('ContactInvitationsController', () => {
       const acceptedResponse = { ...MOCK_INVITATION_RESPONSE, status: 'ACCEPTED' };
       service.acceptInvitation.mockResolvedValue(acceptedResponse);
 
-      const result = await controller.acceptInvitation(
-        { user: MOCK_AUTH_USER },
-        INVITATION_ID,
-      );
+      const result = await controller.acceptInvitation({ user: MOCK_AUTH_USER }, INVITATION_ID);
 
       expect(service.acceptInvitation).toHaveBeenCalledWith(INVITATION_ID, SENDER_USER_ID);
       expect(result.status).toBe('ACCEPTED');

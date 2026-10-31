@@ -8,6 +8,25 @@
 
 ---
 
+## État au 31/10/2026
+
+> Resynchronisation (doc 12 §A). Les sprints 0 à 6 sont **livrés** ; les tableaux ci-dessous restent le plan d'origine.
+> Écarts entre ce plan et le code réel :
+>
+> - **Tâches planifiées** : `@nestjs/schedule` dans le process (pas de BullMQ — CORR-09). Conséquence d'exploitation :
+>   une seule machine Fly (voir `08_ROADMAP_PREPROD.md` § « Exploitation Fly »).
+> - **Push** : Expo Push Service via `expo-server-sdk` (pas de Firebase Admin / FCM direct — CORR-13,
+>   `14_ROADMAP_PUSH_EXPO.md`).
+> - **Photos** : Cloudflare R2 livré en fin de chantier preprod (FEAT-01) et non au Sprint 3 / Phase 6.5 ; la
+>   référence unique est `10_ROADMAP_CLOUDFLARE_R2.md` § « État au 31/10/2026 ».
+> - **Sprint 6** : pas de Swagger UI (contrat manuel `docs/openapi.yaml`, contract-first), pas de seed, seuils de couverture en place
+>   (`coverageThreshold` back 88/74/82/89, front 76/76/71/77 en statements/branches/functions/lines ; CORR-10 / FEAT-09) ; e2e : 3 suites, dont 2 tests rouges connus dans
+>   `contact-invitations.e2e-spec.ts`. Déploiement sur `return-api.fly.dev` (pas de domaine `api.return.app`),
+>   Postgres Fly non managé.
+> - **Rappels (FEAT-11)** : voir la note en fin de Sprint 5.
+
+---
+
 ## Stratégie de Développement (2 Développeurs)
 
 **Approche** : Développement itératif par **Sprints verticaux** (1 sprint = 1 module fonctionnel complet).
@@ -373,7 +392,7 @@ Cyclé TDD par comportement.
 
 | ID           | Titre                                                                                       | Dépendance | Critère de Fin                    | Temps |
 | ------------ | ------------------------------------------------------------------------------------------- | ---------- | --------------------------------- | ----- |
-| **LOAN-017** | RED : Test ACTIVE -> AWAITING_RETURN si returnDate dépassée                                 | LOAN-016   | Test écrit, échoue                | 20min |
+| **LOAN-017** | RED : Test ACTIVE -> AWAITING_RETURN si returnDate dépassée                                 | LOAN-016   | ✅ Fait (FEAT-10, 28/10/2026)     | 20min |
 | **LOAN-018** | RED : Test AWAITING_RETURN -> RETURNED                                                      | LOAN-017   | Test écrit, échoue                | 20min |
 | **LOAN-019** | RED : Test AWAITING_RETURN -> NOT_RETURNED après 5 rappels (via AllRemindersExhaustedEvent) | LOAN-018   | Test écrit, échoue                | 25min |
 | **LOAN-020** | RED : Test transition invalide retourne 409 Conflict (ex: RETURNED -> ACTIVE)               | LOAN-019   | Test écrit, échoue                | 20min |
@@ -624,6 +643,14 @@ Cyclé TDD par comportement.
 | **REM-027** | Créer `NotificationsController.registerDeviceToken()` (POST /notifications/device-token)          | REM-024    | Test REM-023 passe | 30min |
 | **REM-028** | Créer `NotificationsController.unregisterDeviceToken()` (DELETE /notifications/device-token)      | REM-026    | Test REM-025 passe | 30min |
 
+> **Note FEAT-11 (31/10/2026, PR #30)** — les rappels suivent le cycle de vie du prêt : les rappels `SCHEDULED`
+> sont annulés (`CANCELLED`) quand le prêt passe `RETURNED`, `ABANDONED`, `CONTESTED`, `NOT_RETURNED` ou est
+> supprimé, **jamais** sur `AWAITING_RETURN` (les relances de retard mènent à `NOT_RETURNED`). Un changement de
+> `returnDate` replanifie les rappels dans une transaction qui relit le prêt ; il n'est permis que pour un prêt
+> `PENDING_CONFIRMATION`, `ACTIVE` ou `ACTIVE_BY_DEFAULT` (sinon `409 loan-return-date-locked`). La tâche planifiée
+> n'envoie que pour les prêts encore ouverts. Les jours calendaires (J+2, dates de rappel, bornes d'historique) sont
+> calculés en UTC (`startOfUtcDay`, `common/utils/date.util.ts`).
+
 🏁 **Livrable Sprint 5** : **Frontend reçoit des notifications push automatiques** (5 endpoints Notifications + système de rappels automatique en arrière-plan + `Dockerfile.dev` backend pour environnement Docker unifié).
 
 ---
@@ -705,6 +732,10 @@ Cyclé TDD par comportement.
 > Indispensable pour le développement frontend en parallèle.
 
 ### Phase 6.5 : Migration Cloudflare R2 (Stockage Photos)
+
+> **✅ Livré par FEAT-01 (31/10/2026, PR #30)** — référence unique : `10_ROADMAP_CLOUDFLARE_R2.md`. Écarts avec le
+> tableau ci-dessous : le choix R2/local ne dépend pas de `NODE_ENV` mais de la présence des 5 `R2_*` (tout ou rien),
+> et R2 est **obligatoire** en production (ADR 0008) ; `useStaticAssets()` est conservé pour le stockage local (dev).
 
 > **Note** : Le stockage photos/avatars utilise le disque local (`uploads/`) durant le développement.
 > Cette phase bascule vers Cloudflare R2 pour la production. L'interface `PhotoStorageService` est déjà

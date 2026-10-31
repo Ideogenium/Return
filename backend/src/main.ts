@@ -8,6 +8,8 @@ import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loggerConfig } from './common/logger/winston.config.js';
 import { AllExceptionsFilter } from './common/exceptions/all-exceptions.filter.js';
+import { PHOTO_STORAGE } from './storage/interfaces/photo-storage.interface.js';
+import { LocalPhotoStorageService } from './storage/local-photo-storage.service.js';
 
 // =============================================================================
 // class-validator constraint name → OpenAPI-compatible error code mapping
@@ -41,16 +43,19 @@ async function bootstrap(): Promise<void> {
     logger: loggerConfig,
   });
 
-  // Serve uploaded files (photos, avatars) at /uploads/*
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
-
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
+
+  // Local photo storage only: serve uploaded files at /uploads/*.
+  // With R2, photos are served by the bucket's public URL, never by the API.
+  if (app.get(PHOTO_STORAGE, { strict: false }) instanceof LocalPhotoStorageService) {
+    app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  }
 
   // Security
   app.use(helmet());
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN', 'http://localhost:8081'),
+    origin: config.getOrThrow<string>('CORS_ORIGIN'),
     credentials: true,
   });
 

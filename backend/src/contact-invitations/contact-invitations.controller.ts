@@ -72,10 +72,7 @@ export class ContactInvitationsController {
     @Body() dto: SendInvitationDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ContactInvitationResponse> {
-    const invitation = await this.contactInvitationsService.sendInvitation(
-      req.user.userId,
-      dto,
-    );
+    const invitation = await this.contactInvitationsService.sendInvitation(req.user.userId, dto);
     const baseUrl = `${req.protocol}://${req.headers.host as string}`;
     res.setHeader('Location', `${baseUrl}/v1/contact-invitations/${invitation.id}`);
     return invitation;

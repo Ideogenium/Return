@@ -3,15 +3,9 @@ import { View, StyleSheet } from 'react-native';
 import { Card, Text, Icon, Divider } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import apiClient from '../../api/apiClient';
-import type { Loan, PaginatedResponse } from '../../types/api.types';
-
-const ACTIVE_STATUSES = new Set([
-  'PENDING_CONFIRMATION',
-  'ACTIVE',
-  'ACTIVE_BY_DEFAULT',
-  'CONTESTED',
-  'AWAITING_RETURN',
-]);
+import type { GlobalTrustScore } from '../../types/api.types';
+import { useHistoryStore } from '../../stores/useHistoryStore';
+import { STATUS_COLORS } from '../../config/theme.config';
 
 interface StatItem {
   icon: string;
@@ -20,90 +14,26 @@ interface StatItem {
   color: string;
 }
 
-interface LenderMetrics {
-  totalLoans: number;
-  activeLoans: number;
-  returnedLoans: number;
-  overdueLoans: number;
-}
-
-interface BorrowerMetrics {
-  loansReceived: number;
-  returnedOnTime: number;
-  returnedLate: number;
-  trustScore: number;
-}
-
-function computeLenderMetrics(loans: Loan[]): LenderMetrics {
-  const now = new Date();
-  return {
-    totalLoans: loans.length,
-    activeLoans: loans.filter((l) => ACTIVE_STATUSES.has(l.status)).length,
-    returnedLoans: loans.filter((l) => l.status === 'RETURNED').length,
-    overdueLoans: loans.filter((l) => {
-      if (!ACTIVE_STATUSES.has(l.status)) return false;
-      if (!l.returnDate) return false;
-      return new Date(l.returnDate) < now;
-    }).length,
-  };
-}
-
-const COMPLETED_STATUSES = new Set(['RETURNED', 'NOT_RETURNED', 'ABANDONED']);
-
-function computeBorrowerMetrics(loans: Loan[]): BorrowerMetrics {
-  const completedLoans = loans.filter((l) => COMPLETED_STATUSES.has(l.status));
-  const totalCompleted = completedLoans.length;
-  const onTime = completedLoans.filter(
-    (l) =>
-      l.status === 'RETURNED' &&
-      l.returnDate &&
-      l.returnedDate &&
-      new Date(l.returnedDate) <= new Date(l.returnDate),
-  ).length;
-  const late = completedLoans.filter(
-    (l) =>
-      l.status === 'RETURNED' &&
-      l.returnDate &&
-      l.returnedDate &&
-      new Date(l.returnedDate) > new Date(l.returnDate),
-  ).length;
-  const score = totalCompleted > 0 ? Math.round((onTime * 100 + late * 50) / totalCompleted) : 0;
-  return {
-    loansReceived: loans.length,
-    returnedOnTime: onTime,
-    returnedLate: late,
-    trustScore: score,
-  };
-}
-
-async function fetchLoansForRole(role: 'lender' | 'borrower'): Promise<Loan[]> {
-  const { data } = await apiClient.get<PaginatedResponse<Loan>>('/loans', {
-    params: { role, limit: 100 },
-  });
-  return data.data;
+async function fetchGlobalTrustScore(): Promise<GlobalTrustScore | null> {
+  try {
+    const { data } = await apiClient.get<GlobalTrustScore>('/users/me/trust-score');
+    return data;
+  } catch {
+    // Stats non critiques → l'appelant retombe sur des zéros.
+    return null;
+  }
 }
 
 export function LenderStats() {
   const { t } = useTranslation();
-  const [lender, setLender] = useState<LenderMetrics>({
-    totalLoans: 0,
-    activeLoans: 0,
-    returnedLoans: 0,
-    overdueLoans: 0,
-  });
-  const [borrower, setBorrower] = useState<BorrowerMetrics>({
-    loansReceived: 0,
-    returnedOnTime: 0,
-    returnedLate: 0,
-    trustScore: 0,
-  });
+  const { statistics } = useHistoryStore();
+  const overview = statistics?.overview;
+
+  const [borrowerStats, setBorrowerStats] = useState<GlobalTrustScore | null>(null);
 
   useEffect(() => {
-    fetchLoansForRole('lender')
-      .then((loans) => setLender(computeLenderMetrics(loans)))
-      .catch(() => {});
-    fetchLoansForRole('borrower')
-      .then((loans) => setBorrower(computeBorrowerMetrics(loans)))
+    fetchGlobalTrustScore()
+      .then(setBorrowerStats)
       .catch(() => {});
   }, []);
 
@@ -111,26 +41,38 @@ export function LenderStats() {
     {
       icon: 'handshake-outline',
       label: t('profile.totalLoans'),
-      value: lender.totalLoans,
+      value: overview?.totalLoans ?? 0,
       color: '#4A6355',
     },
     {
       icon: 'clock-outline',
       label: t('profile.activeLoans'),
-      value: lender.activeLoans,
+      value: overview?.activeLoans ?? 0,
       color: '#6B8E7B',
     },
     {
       icon: 'check-circle-outline',
       label: t('profile.returnedLoans'),
-      value: lender.returnedLoans,
+      value: overview?.returnedLoans ?? 0,
       color: '#7BAE8E',
     },
     {
-      icon: 'alert-circle-outline',
-      label: t('profile.overdueLoans'),
-      value: lender.overdueLoans,
+      icon: 'comment-alert-outline',
+      label: t('profile.contestedLoans'),
+      value: overview?.contestedLoans ?? 0,
+      color: '#C46A5D',
+    },
+    {
+      icon: 'close-circle-outline',
+      label: t('profile.notReturnedLoans'),
+      value: overview?.notReturnedLoans ?? 0,
       color: '#D97A6B',
+    },
+    {
+      icon: 'calendar-alert',
+      label: t('profile.overdueLoans'),
+      value: overview?.overdueLoans ?? 0,
+      color: STATUS_COLORS.AWAITING_RETURN.light,
     },
   ];
 
@@ -138,25 +80,26 @@ export function LenderStats() {
     {
       icon: 'package-variant',
       label: t('profile.loansReceived'),
-      value: borrower.loansReceived,
+      value: borrowerStats?.totalLoans ?? 0,
       color: '#4A6355',
     },
     {
       icon: 'check-circle-outline',
       label: t('profile.returnedOnTime'),
-      value: borrower.returnedOnTime,
+      value: borrowerStats?.returnedOnTime ?? 0,
       color: '#7BAE8E',
     },
     {
       icon: 'clock-alert-outline',
       label: t('profile.returnedLate'),
-      value: borrower.returnedLate,
+      value: borrowerStats?.returnedLate ?? 0,
       color: '#D97A6B',
     },
     {
       icon: 'shield-check-outline',
       label: t('profile.trustScore'),
-      value: `${borrower.trustScore}%`,
+      value:
+        borrowerStats?.trustScore == null ? t('profile.notRated') : `${borrowerStats.trustScore}%`,
       color: '#6B8E7B',
     },
   ];
@@ -204,8 +147,8 @@ const styles = StyleSheet.create({
   card: { marginHorizontal: 16, marginBottom: 16, borderRadius: 16, backgroundColor: '#FFFFFF' },
   title: { color: '#2D3748', fontWeight: '700', marginBottom: 12 },
   sectionLabel: { color: '#4A6355', fontWeight: '600', marginBottom: 8 },
-  grid: { flexDirection: 'row', justifyContent: 'space-around' },
-  statItem: { alignItems: 'center', gap: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, rowGap: 16, justifyContent: 'center' },
+  statItem: { alignItems: 'center', gap: 4, minWidth: '28%', flex: 1 },
   statValue: { fontWeight: '700' },
   statLabel: { color: '#6B7A8D', textAlign: 'center' },
   divider: { marginVertical: 12 },

@@ -96,7 +96,9 @@ model Borrower {
   lenderUserId String @map("lender_user_id") @db.Uuid
 
   // Statistiques dénormalisées (mises à jour via événements lors des changements de statut de prêt)
-  trustScore         Float @default(0) @map("trust_score")
+  // trustScore: null = pas encore noté (aucun prêt résolu). Calculé sur les prêts
+  // résolus (returnedOnTime + returnedLate + notReturned), hors CONTESTED et en cours.
+  trustScore         Float? @map("trust_score")
   totalLoans         Int   @default(0) @map("total_loans")
   returnedOnTime     Int   @default(0) @map("returned_on_time")
   returnedLate       Int   @default(0) @map("returned_late")

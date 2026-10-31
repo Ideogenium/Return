@@ -3,7 +3,8 @@ import { Text } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { STATUS_COLORS } from '../../config/theme.config';
 import { StatusBadge } from './StatusBadge';
-import type { Loan } from '../../types/api.types';
+import { formatDate } from '../../utils/date';
+import type { Loan, Reminder, ReminderType } from '../../types/api.types';
 
 interface TimelineStep {
   label: string;
@@ -14,20 +15,92 @@ interface TimelineStep {
 
 interface LoanTimelineProps {
   loan: Loan;
+  // Only provided to the lender; absent on the borrower side
+  reminders?: Reminder[];
+}
+
+const REMINDER_LABEL_KEYS: Record<ReminderType, string> = {
+  PREVENTIVE: 'loans.reminderPreventive',
+  ON_DUE_DATE: 'loans.reminderOnDueDate',
+  FIRST_OVERDUE: 'loans.reminderFirstOverdue',
+  SECOND_OVERDUE: 'loans.reminderSecondOverdue',
+  FINAL_OVERDUE: 'loans.reminderFinalOverdue',
+};
+
+// Reminders sent up to the due date; the others (D+7, D+14, D+21) follow the "return expected" step
+const PRE_DUE_REMINDER_TYPES: ReminderType[] = ['PREVENTIVE', 'ON_DUE_DATE'];
+
+export const REMINDER_LOAN_STATUSES: Loan['status'][] = [
+  'ACTIVE',
+  'ACTIVE_BY_DEFAULT',
+  'AWAITING_RETURN',
+];
+
+function toReminderStep(reminder: Reminder, t: (key: string) => string): TimelineStep | null {
+  const label = t(REMINDER_LABEL_KEYS[reminder.type]);
+  if (reminder.status === 'SENT') return { label, date: reminder.sentAt, reached: true };
+  if (reminder.status === 'SCHEDULED') {
+    return { label, date: reminder.scheduledFor, reached: false };
+  }
+  // CANCELLED / FAILED: no step displayed
+  return null;
+}
+
+function getReminderSteps(
+  reminders: Reminder[],
+  t: (key: string) => string,
+): { beforeDue: TimelineStep[]; afterDue: TimelineStep[] } {
+  const sorted = [...reminders].sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
+  const collect = (preDue: boolean) =>
+    sorted
+      .filter((r) => PRE_DUE_REMINDER_TYPES.includes(r.type) === preDue)
+      .map((r) => toReminderStep(r, t))
+      .filter((step): step is TimelineStep => step !== null);
+  return { beforeDue: collect(true), afterDue: collect(false) };
 }
 
 function formatDateRange(
   from: string | null | undefined,
   to: string | null | undefined,
+  language: string,
 ): string | null {
   if (!from) return null;
-  const f = new Date(from).toLocaleDateString();
+  const f = formatDate(from, language);
+  if (!f) return null;
   if (!to) return f;
-  const t = new Date(to).toLocaleDateString();
-  return f === t ? f : `${f} — ${t}`;
+  const toFormatted = formatDate(to, language);
+  if (!toFormatted) return f;
+  return f === toFormatted ? f : `${f} — ${toFormatted}`;
 }
 
-function getTimelineSteps(loan: Loan, t: (key: string) => string): TimelineStep[] {
+export function getTimelineSteps(
+  loan: Loan,
+  t: (key: string) => string,
+  language: string,
+  reminders: Reminder[] = [],
+): TimelineStep[] {
+  const steps = getBaseTimelineSteps(loan, t, language);
+  if (!REMINDER_LOAN_STATUSES.includes(loan.status) || reminders.length === 0) return steps;
+
+  const { beforeDue, afterDue } = getReminderSteps(reminders, t);
+  const awaitingLabel = t('loans.statusAwaitingReturn');
+  const awaitingIndex = steps.findIndex((step) => step.label === awaitingLabel);
+  if (awaitingIndex === -1) return steps;
+
+  return [
+    ...steps.slice(0, awaitingIndex),
+    ...beforeDue,
+    steps[awaitingIndex]!,
+    ...afterDue,
+    ...steps.slice(awaitingIndex + 1),
+  ];
+}
+
+function getBaseTimelineSteps(
+  loan: Loan,
+  t: (key: string) => string,
+  language: string,
+): TimelineStep[] {
   const activeLabel =
     loan.status === 'ACTIVE_BY_DEFAULT'
       ? t('loans.statusActiveByDefault')
@@ -35,7 +108,7 @@ function getTimelineSteps(loan: Loan, t: (key: string) => string): TimelineStep[
 
   // Active period: from confirmationDate to either returnDate, returnedDate, or updatedAt
   const activePeriodEnd = loan.returnedDate ?? loan.returnDate ?? loan.updatedAt;
-  const activeDate = formatDateRange(loan.confirmationDate, activePeriodEnd);
+  const activeDate = formatDateRange(loan.confirmationDate, activePeriodEnd, language);
 
   switch (loan.status) {
     case 'PENDING_CONFIRMATION':
@@ -50,7 +123,8 @@ function getTimelineSteps(loan: Loan, t: (key: string) => string): TimelineStep[
     case 'ACTIVE_BY_DEFAULT':
       return [
         { label: t('loans.statusPendingConfirmation'), date: loan.createdAt, reached: true },
-        { label: activeLabel, date: activeDate, reached: true },
+        // Ongoing loan: no date on the active step (period not over)
+        { label: activeLabel, reached: true },
         { label: t('loans.statusAwaitingReturn'), date: loan.returnDate, reached: false },
         { label: t('loans.statusReturned'), reached: false },
       ];
@@ -112,16 +186,10 @@ function getTimelineSteps(loan: Loan, t: (key: string) => string): TimelineStep[
   }
 }
 
-export function LoanTimeline({ loan }: LoanTimelineProps) {
-  const { t } = useTranslation();
+export function LoanTimeline({ loan, reminders }: LoanTimelineProps) {
+  const { t, i18n } = useTranslation();
 
-  const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return null;
-    return new Date(dateStr).toLocaleDateString();
-  };
-
-  // TODO Sprint 5 : ajouter les étapes de rappel (J+3, J+7, J+14, J+21) pour AWAITING_RETURN tardif
-  const steps = getTimelineSteps(loan, t);
+  const steps = getTimelineSteps(loan, t, i18n.language, reminders);
 
   const getDotStyle = (step: TimelineStep) => {
     if (!step.reached) return styles.dotUnreached;
@@ -162,7 +230,7 @@ export function LoanTimeline({ loan }: LoanTimelineProps) {
               </Text>
               {step.date && (
                 <Text variant="bodySmall" style={styles.stepDate}>
-                  {formatDate(step.date)}
+                  {formatDate(step.date, i18n.language)}
                 </Text>
               )}
             </View>

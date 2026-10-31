@@ -376,7 +376,7 @@ AWAITING_RETURN → RETURNED (rendu) | NOT_RETURNED (5 rappels ignorés) | ABAND
 
 | ID           | Titre                                                                                                                                                                                                                         | Dépendance | Critère de Fin                              | Temps |
 |--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|---------------------------------------------|-------|
-| **LOAN-016** | Gérer erreur 400 si returnDate < today + 2 jours. Le calendrier doit bloquer les dates avant J+2 (minDate = aujourd'hui + 2 jours). Message d'erreur : "La date de retour doit être au minimum 2 jours après la date du prêt" | LOAN-009   | Message d'erreur affiché, calendrier bloqué | 45min |
+| **LOAN-016** | Gérer erreur 400 si returnDate < today + 2 jours. Le calendrier doit bloquer les dates avant J+2 (minDate = aujourd'hui + 2 jours). Message d'erreur : "La date de retour doit être au minimum 2 jours après la date du jour" | LOAN-009   | Message d'erreur affiché, calendrier bloqué | 45min |
 | **LOAN-017** | Écrire test RNTL : LoanWizard flow (4 étapes, type OBJECT)                                                                                                                                                                    | LOAN-005   | Test RNTL passe                             | 1h30  |
 | **LOAN-018** | Écrire test RNTL : LoanWizard flow (type MONEY)                                                                                                                                                                               | LOAN-005   | Test RNTL passe                             | 1h    |
 | **LOAN-019** | Écrire test RNTL : ConfirmationDialog accept/refuse                                                                                                                                                                           | LOAN-007   | Test RNTL passe                             | 1h    |
@@ -510,6 +510,8 @@ statistiques emprunteur en profil, MSW handlers perspective-aware), couverte par
 
 ## Sprint 4.6 : Contact Invitation System (5 jours)
 
+> **Statut (resync 28/10/2026)** : ✅ **LIVRÉ** (mergé ; le système d'invitation est branché sur l'API réelle).
+
 ### Objectif
 
 Implémenter le système d'invitation de contacts côté frontend : un prêteur peut chercher des utilisateurs inscrits,
@@ -573,6 +575,10 @@ couvert par 10+ tests RNTL.
 
 ## Sprint 5 : Conteneurisation + Validation J+2 + Notifications (5 jours)
 
+> **Statut (resync 28/10/2026)** : ✅ **LIVRÉ** (Docker dev, validation J+2, notifications). Écart avec le texte
+> ci-dessous : le push ne passe **pas** par FCM natif (NOTIF-001/010) mais par l'**Expo Push Service**
+> (`getExpoPushTokenAsync` côté front, `expo-server-sdk` côté back — cf. CORR-13, doc 11).
+
 ### Objectif
 
 1. **Conteneuriser l'environnement de développement frontend** : un `docker compose up` lance tout (postgres + redis + backend + frontend Expo Web). Environnement identique pour tous les développeurs.
@@ -599,7 +605,7 @@ couvert par 10+ tests RNTL.
 | ID            | Titre                                                                                                                                                         | Dépendance | Critère de Fin                                              | Temps |
 |---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|-------------------------------------------------------------|-------|
 | **VALID-001** | `LoanWizard` step 4 : ajouter `minDate = today + 2 jours` sur le composant `Calendar`. Les dates avant J+2 sont grisées/non sélectionnables                 | LOAN-005   | Calendrier bloqué avant J+2                                 | 30min |
-| **VALID-002** | `LoanDetailScreen` (dialog édition) : même contrainte `minDate = createdAt + 2 jours` sur le Calendar                                                        | LOAN-010   | Calendrier édition bloqué avant J+2                         | 30min |
+| **VALID-002** | `LoanDetailScreen` (dialog édition) : même contrainte `minDate = aujourd'hui + 2 jours` sur le Calendar                                                        | LOAN-010   | Calendrier édition bloqué avant J+2                         | 30min |
 | **VALID-003** | Ajouter clés i18n `loans.returnDateTooSoon` : FR "La date de retour doit être au minimum 2 jours après le prêt" / EN "Return date must be at least 2 days after the loan" | VALID-001  | Clés disponibles FR + EN                                    | 15min |
 | **VALID-004** | Mapper le type d'erreur backend `return-date-too-soon` dans `error.ts` + affichage via `getErrorMessage()`                                                    | VALID-003  | Erreur 400 backend affichée correctement                    | 15min |
 | **VALID-005** | Test RNTL : vérifier que les dates avant J+2 ne sont pas sélectionnables dans `LoanWizard`                                                                   | VALID-001  | Test RNTL passe                                             | 45min |
@@ -648,6 +654,13 @@ couvert par 10+ tests RNTL.
 
 ## Sprint 6 : Module History + Dashboard (4 jours)
 
+> **Statut (resync 28/10/2026)** : ◐ **PARTIEL — périmètre réduit acté** (CORR-14, doc 11). Les écrans prévus ci-dessous
+> (`DashboardScreen`, `StatisticsScreen`, onglet « Historique », `PieChart`, `TopBorrowersList`) ont été retirés
+> (commit `e4e1358`) et **ne sont pas livrés** ; le Dashboard dédié est post-échéance. Livré à la place : un écran
+> `HistoryScreen` (liste paginée des prêts archivés, filtre par statut) accessible depuis le **Profil** (FEAT-07, doc 16),
+> et les statistiques de base dans `LenderStats` (profil). Les filtres par date et par emprunteur (HIST-007) ne sont pas
+> livrés.
+
 ### Objectif
 
 Statistiques + Historique archivé + Écran Dashboard avec overview.
@@ -688,6 +701,10 @@ Statistiques + Historique archivé + Écran Dashboard avec overview.
 ---
 
 ## Basculement Mock → Backend Réel
+
+> **⚠️ SECTION OBSOLÈTE (resync 28/10/2026)** : tous les modules sont déjà basculés sur l'API réelle
+> (`frontend/src/config/api-modules.config.ts`, backend `return-api.fly.dev`). Le mécanisme `MOCK_MODULES` /
+> `apiClient.ts` et l'URL `api.return.app` décrits ci-dessous ne reflètent plus le code. Conservée pour l'historique.
 
 ### Stratégie de Basculement Progressif
 
@@ -760,7 +777,7 @@ export const API_BASE_URL = (endpoint: string): string => {
 | **Sprint 4.5** | 3 jours      | Corrections intégration + UX | 0 (refactoring LoanListScreen + LoanDetailScreen adaptatif + LoanCard perspective + BorrowerStats + renommage onglet + MSW handlers) | 8 tests       |
 | **Sprint 4.6** | 5 jours      | Contact Invitation System    | 2 (SearchBorrowerScreen + BorrowerInvitationsScreen) + navigation adaptée                                                            | 8+ tests      |
 | **Sprint 5**   | 5 jours      | Docker Dev + Validation J+2 + Notifications | 1 (NotificationList) + header badge + Dockerfiles dev + validation calendrier J+2                                      | 3 tests       |
-| **Sprint 6**   | 4 jours      | Dashboard + History          | 3 (Dashboard, History, Statistics)                                                                                                   | 1 test        |
+| **Sprint 6**   | 4 jours      | Dashboard + History          | 3 prévus (Dashboard, History, Statistics) — **réalisé : 1 (History, via le Profil)**, cf. note du Sprint 6                           | 1 test        |
 | **TOTAL**      | **41-45 j.** | **7 modules + 1 correctif**  | **24 écrans**                                                                                                                        | **22+ tests** |
 
 ---

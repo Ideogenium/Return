@@ -8,7 +8,8 @@ interface BorrowerStatsBadgeProps {
   statistics: BorrowerStatistics;
 }
 
-function getTrustScoreColor(score: number): string {
+function getTrustScoreColor(score: number | null): string {
+  if (score === null) return '#C9C4BB'; // Neutral — pas encore noté
   if (score >= 75) return '#6B8E7B'; // Sage
   if (score >= 50) return '#C9C4BB'; // Neutral
   return '#D97A6B'; // Terracotta
@@ -33,7 +34,7 @@ export function BorrowerStatsBadge({ statistics }: BorrowerStatsBadgeProps) {
           style={[styles.score, { color: scoreColor }]}
           testID="trust-score"
         >
-          {statistics.trustScore}%
+          {statistics.trustScore === null ? t('borrowers.notRated') : `${statistics.trustScore}%`}
         </Text>
       </View>
 

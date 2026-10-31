@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { useNotificationStore } from '../stores/useNotificationStore';
@@ -18,7 +19,18 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync();
+  // Create the default notification channel on Android before requesting the token
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#4A6355',
+    });
+  }
+
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
   const token = tokenData.data;
 
   const platform = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web';

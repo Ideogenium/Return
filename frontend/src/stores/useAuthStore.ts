@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import apiClient from '../api/apiClient';
+import apiClient, { UPLOAD_TIMEOUT_MS } from '../api/apiClient';
 import {
   setAccessToken,
   setRefreshToken,
@@ -7,6 +7,7 @@ import {
   getRefreshToken,
   clearTokens,
 } from '../utils/storage';
+import { resetSessionStores } from './resetSessionStores';
 import { extractProblemDetails } from '../utils/error';
 import type { User, AuthResponse, ProblemDetails } from '../types/api.types';
 
@@ -14,7 +15,10 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  /** A user action (login, register, avatar…) is in flight. Never tears down navigation. */
   isLoading: boolean;
+  /** The stored session is being restored at app start: the only global loading state. */
+  isHydrating: boolean;
   error: ProblemDetails | null;
 
   login: (email: string, password: string) => Promise<void>;
@@ -22,8 +26,11 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   hydrate: () => Promise<void>;
+  /** Reloads the signed-in user's profile without the app-wide splash screen. */
+  refreshUser: () => Promise<void>;
   updateAvatar: (formData: FormData) => Promise<void>;
   deleteAvatar: () => Promise<void>;
+  clearError: () => void;
   reset: () => void;
 }
 
@@ -32,11 +39,15 @@ const initialState = {
   accessToken: null,
   isAuthenticated: false,
   isLoading: false,
+  isHydrating: false,
   error: null,
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
   ...initialState,
+  // The app starts on the splash screen until hydrate() restores the stored session;
+  // reset() (logout) goes back to initialState, which is not hydrating.
+  isHydrating: true,
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });
@@ -86,6 +97,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // On déconnecte même si l'appel échoue (token expiré, réseau, etc.)
     }
     await clearTokens();
+    resetSessionStores();
     set({ ...initialState });
   },
 
@@ -93,6 +105,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const currentRefreshToken = await getRefreshToken();
     if (!currentRefreshToken) {
       await clearTokens();
+      resetSessionStores();
       set({ ...initialState });
       return;
     }
@@ -110,15 +123,26 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
     } catch {
       await clearTokens();
+      resetSessionStores();
       set({ ...initialState });
     }
   },
 
+  refreshUser: async () => {
+    try {
+      const { data: user } = await apiClient.get<User>('/users/me');
+      set({ user });
+    } catch (err) {
+      set({ error: extractProblemDetails(err) });
+      throw err;
+    }
+  },
+
   hydrate: async () => {
-    set({ isLoading: true });
+    set({ isHydrating: true });
     const token = await getAccessToken();
     if (!token) {
-      set({ isLoading: false });
+      set({ isHydrating: false });
       return;
     }
 
@@ -128,10 +152,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         user,
         accessToken: token,
         isAuthenticated: true,
-        isLoading: false,
+        isHydrating: false,
       });
     } catch {
       await clearTokens();
+      resetSessionStores();
       set({ ...initialState });
     }
   },
@@ -144,6 +169,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         formData,
         {
           headers: { 'Content-Type': undefined },
+          timeout: UPLOAD_TIMEOUT_MS,
         },
       );
       const currentUser = useAuthStore.getState().user;
@@ -173,6 +199,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw err;
     }
   },
+
+  clearError: () => set({ error: null }),
 
   reset: () => set({ ...initialState }),
 }));

@@ -70,12 +70,24 @@ export const useLoanStore = create<LoanState>((set) => ({
   },
 
   fetchLoan: async (id) => {
-    set({ isLoading: true, error: null, selectedLoan: null });
+    // Keep the loan on screen while it is refreshed; never show another loan in its place.
+    set((state) => ({
+      isLoading: true,
+      error: null,
+      selectedLoan: state.selectedLoan?.id === id ? state.selectedLoan : null,
+    }));
     try {
       const { data } = await apiClient.get<Loan>(`/loans/${id}`);
       set({ selectedLoan: data, isLoading: false });
     } catch (err) {
-      set({ isLoading: false, error: extractProblemDetails(err) });
+      const problem = extractProblemDetails(err);
+      // Access lost or loan gone: never keep showing the previously fetched copy
+      const isGone = problem.status === 403 || problem.status === 404;
+      set((state) => ({
+        isLoading: false,
+        error: problem,
+        selectedLoan: isGone && state.selectedLoan?.id === id ? null : state.selectedLoan,
+      }));
       throw err;
     }
   },

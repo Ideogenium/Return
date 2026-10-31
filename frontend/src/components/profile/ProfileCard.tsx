@@ -2,6 +2,7 @@ import { View, Image, StyleSheet } from 'react-native';
 import { Text, Divider, Icon } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
+import { formatDate } from '../../utils/date';
 import type { User } from '../../types/api.types';
 
 interface ProfileCardProps {
@@ -9,11 +10,7 @@ interface ProfileCardProps {
 }
 
 export function ProfileCard({ user }: ProfileCardProps) {
-  const { t } = useTranslation();
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString();
-  };
+  const { t, i18n } = useTranslation();
 
   return (
     <View style={[styles.card, ui.card]} testID="profile-card">
@@ -49,7 +46,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
           </Text>
         </View>
         <Text variant="bodyMedium" style={styles.value}>
-          {formatDate(user.createdAt)}
+          {formatDate(user.createdAt, i18n.language)}
         </Text>
       </View>
 
@@ -62,7 +59,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
             </Text>
           </View>
           <Text variant="bodyMedium" style={styles.value}>
-            {formatDate(user.lastLoginAt)}
+            {formatDate(user.lastLoginAt, i18n.language)}
           </Text>
         </View>
       )}

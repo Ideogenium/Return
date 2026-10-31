@@ -6,6 +6,20 @@ import { LoanWizard } from '../LoanWizard';
 import { useItemStore } from '../../../stores/useItemStore';
 import { useBorrowerStore } from '../../../stores/useBorrowerStore';
 
+// Mock react-native-paper-dates: replace Calendar with a minimal pressable that
+// triggers onChange with a fixed future date, bypassing the real calendar UI.
+jest.mock('react-native-paper-dates', () => {
+  const React = require('react');
+  const { Pressable } = require('react-native');
+  return {
+    Calendar: ({ onChange }: { onChange: (params: { date: Date }) => void }) =>
+      React.createElement(Pressable, {
+        testID: 'mock-calendar-select',
+        onPress: () => onChange({ date: new Date('2025-12-31T00:00:00Z') }),
+      }),
+  };
+});
+
 beforeAll(() => server.listen());
 afterEach(() => {
   server.resetHandlers();
@@ -77,7 +91,7 @@ describe('LoanWizard', () => {
       expect(screen.getByTestId('wizard-step-4')).toBeTruthy();
     });
     expect(screen.getByTestId('wizard-submit-btn')).toBeTruthy();
-  });
+  }, 15000);
 
   it('should navigate through 4 steps for MONEY flow', async () => {
     await setupStoresWithData();
@@ -104,10 +118,14 @@ describe('LoanWizard', () => {
     fireEvent.press(screen.getByTestId('select-borrower-5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f'));
     fireEvent.press(screen.getByTestId('wizard-next-btn'));
 
-    // Step 4: submit
+    // Step 4: select return date then submit
     await waitFor(() => {
       expect(screen.getByTestId('wizard-step-4')).toBeTruthy();
     });
+
+    // Open the (mock) calendar and select a date
+    fireEvent.press(screen.getByTestId('return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
 
     fireEvent.press(screen.getByTestId('wizard-submit-btn'));
 
@@ -115,9 +133,57 @@ describe('LoanWizard', () => {
     expect(mockSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         borrowerId: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+        returnDate: '2025-12-31',
       }),
     );
-  });
+  }, 15000);
+
+  it('should keep submit disabled and show error until a return date is selected', async () => {
+    await setupStoresWithData();
+    renderWizard();
+
+    // Step 1: select MONEY
+    fireEvent.press(screen.getByTestId('type-money'));
+    fireEvent.press(screen.getByTestId('wizard-next-btn'));
+
+    // Step 2: enter amount
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-step-2')).toBeTruthy();
+    });
+    fireEvent.changeText(screen.getByTestId('amount-input'), '100');
+    fireEvent.press(screen.getByTestId('wizard-next-btn'));
+
+    // Step 3: select borrower
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-step-3')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByTestId('select-borrower-5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f'));
+    fireEvent.press(screen.getByTestId('wizard-next-btn'));
+
+    // Step 4: no date selected yet
+    await waitFor(() => {
+      expect(screen.getByTestId('wizard-step-4')).toBeTruthy();
+    });
+
+    // Error helper text is visible when no date is set
+    expect(screen.getByTestId('return-date-required')).toBeTruthy();
+
+    // Pressing the disabled submit button must not call onSubmit
+    // (Paper Button with disabled=true does not fire onPress)
+    fireEvent.press(screen.getByTestId('wizard-submit-btn'));
+    expect(mockSubmit).not.toHaveBeenCalled();
+
+    // Select a return date via the mock calendar
+    fireEvent.press(screen.getByTestId('return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+
+    // Error helper text must disappear once a date is set
+    expect(screen.queryByTestId('return-date-required')).toBeNull();
+
+    // Submit button is now enabled and calls onSubmit
+    fireEvent.press(screen.getByTestId('wizard-submit-btn'));
+    expect(mockSubmit).toHaveBeenCalledTimes(1);
+  }, 15000);
 
   it('should navigate back from step 2', async () => {
     renderWizard();

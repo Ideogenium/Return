@@ -406,6 +406,62 @@ describe('ItemsService', () => {
       expect(prisma.photo.create).toHaveBeenCalledTimes(1);
     });
 
+    it("should store the photo under the owner's prefix so an account's photos can be purged by prefix", async () => {
+      prisma.item.findUnique.mockResolvedValue({ ...mockItem, photos: [] });
+      prisma.photo.count.mockResolvedValue(0);
+      photoStorage.upload.mockResolvedValue({
+        key: 'k',
+        url: 'https://photos.example/k',
+        thumbnailUrl: null,
+      });
+      prisma.photo.create.mockResolvedValue({
+        id: 'pppppppp-pppp-pppp-pppp-pppppppppppp',
+        url: 'https://photos.example/k',
+        thumbnailUrl: null,
+        itemId: ITEM_ID,
+        uploadedAt: new Date('2026-02-08T14:05:00Z'),
+      });
+
+      await service.addPhoto(ITEM_ID, USER_ID, Buffer.from('img'), 'photo.png');
+
+      expect(photoStorage.upload).toHaveBeenCalledWith(
+        Buffer.from('img'),
+        expect.stringMatching(
+          new RegExp(`^users/${USER_ID}/items/${ITEM_ID}/[0-9a-f-]{36}\\.png$`),
+        ),
+      );
+    });
+
+    it('should delete the uploaded file and rethrow when the photo record cannot be saved', async () => {
+      prisma.item.findUnique.mockResolvedValue({ ...mockItem, photos: [] });
+      prisma.photo.count.mockResolvedValue(0);
+      photoStorage.upload.mockResolvedValue({
+        key: 'users/u/items/i/abc.jpg',
+        url: 'https://photos.example/users/u/items/i/abc.jpg',
+        thumbnailUrl: null,
+      });
+      const dbError = new Error('database unavailable');
+      prisma.photo.create.mockRejectedValue(dbError);
+
+      await expect(
+        service.addPhoto(ITEM_ID, USER_ID, Buffer.from('img'), 'photo.jpg'),
+      ).rejects.toBe(dbError);
+      expect(photoStorage.delete).toHaveBeenCalledWith('users/u/items/i/abc.jpg');
+    });
+
+    it('should rethrow the database error even if the rollback deletion fails', async () => {
+      prisma.item.findUnique.mockResolvedValue({ ...mockItem, photos: [] });
+      prisma.photo.count.mockResolvedValue(0);
+      photoStorage.upload.mockResolvedValue({ key: 'k', url: 'u', thumbnailUrl: null });
+      const dbError = new Error('database unavailable');
+      prisma.photo.create.mockRejectedValue(dbError);
+      photoStorage.delete.mockRejectedValue(new Error('storage unavailable'));
+
+      await expect(
+        service.addPhoto(ITEM_ID, USER_ID, Buffer.from('img'), 'photo.jpg'),
+      ).rejects.toBe(dbError);
+    });
+
     it('should throw when max photos (5) exceeded', async () => {
       prisma.item.findUnique.mockResolvedValue({
         ...mockItem,
@@ -457,6 +513,26 @@ describe('ItemsService', () => {
       expect(prisma.photo.delete).toHaveBeenCalledWith({
         where: { id: PHOTO_ID },
       });
+    });
+
+    it('should remove the database record before the stored file, so a record never points to a deleted file', async () => {
+      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+      prisma.photo.delete.mockResolvedValue(mockItemWithPhotos.photos[0]);
+
+      await service.deletePhoto(ITEM_ID, PHOTO_ID, USER_ID);
+
+      expect(prisma.photo.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        photoStorage.delete.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('should succeed when the stored file cannot be deleted (storage outage must not block the user)', async () => {
+      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+      prisma.photo.delete.mockResolvedValue(mockItemWithPhotos.photos[0]);
+      photoStorage.delete.mockRejectedValue(new Error('storage unavailable'));
+
+      await expect(service.deletePhoto(ITEM_ID, PHOTO_ID, USER_ID)).resolves.toBeUndefined();
+      expect(prisma.photo.delete).toHaveBeenCalledWith({ where: { id: PHOTO_ID } });
     });
 
     it('should throw NotFoundException when item does not exist', async () => {

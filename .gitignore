@@ -65,5 +65,9 @@ copilot-instructions.md
 # Google Play service account credentials
 google-play-service-account.json
 
+# Firebase / FCM service account credentials (push)
+*-firebase-adminsdk-*.json
+*service-account*.json
+
 # Upload artifacts (dev)
 backend/uploads/

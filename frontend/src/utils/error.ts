@@ -1,6 +1,7 @@
 import type { AxiosError } from 'axios';
 import type { TFunction } from 'i18next';
-import type { ProblemDetails } from '../types/api.types';
+import type { ProblemDetails, ValidationErrorCode } from '../types/api.types';
+import { PASSWORD_SPECIAL_CHARACTERS } from './password';
 
 // Extrait un ProblemDetails depuis une erreur Axios (retourne null si non-RFC 7807)
 export function parseProblemDetails(error: AxiosError): ProblemDetails | null {
@@ -42,6 +43,7 @@ const ERROR_TYPE_MAP: Record<string, string> = {
   'https://api.return.app/errors/network-error': 'errors.networkError',
   'https://api.return.app/errors/item-not-found': 'errors.itemNotFound',
   'https://api.return.app/errors/item-currently-loaned': 'errors.itemCurrentlyLoaned',
+  'https://api.return.app/errors/item-already-loaned': 'errors.itemAlreadyLoaned',
   'https://api.return.app/errors/max-photos-exceeded': 'errors.maxPhotosExceeded',
   'https://api.return.app/errors/photo-not-found': 'errors.photoNotFound',
   'https://api.return.app/errors/estimated-value-required': 'items.estimatedValueRequired',
@@ -50,9 +52,17 @@ const ERROR_TYPE_MAP: Record<string, string> = {
   'https://api.return.app/errors/forbidden': 'errors.forbidden',
   'https://api.return.app/errors/rate-limit-exceeded': 'errors.rateLimitExceeded',
   'https://api.return.app/errors/internal-server-error': 'errors.internalServerError',
+  'https://api.return.app/errors/not-found': 'errors.notFound',
+  'https://api.return.app/errors/http-error': 'errors.unknownError',
+  'https://api.return.app/errors/invalid-refresh-token': 'errors.unauthorized',
+  'https://api.return.app/errors/notification-access-forbidden': 'errors.forbidden',
+  'https://api.return.app/errors/reminder-already-sent': 'errors.reminderAlreadySent',
+  'https://api.return.app/errors/reminder-not-found': 'errors.reminderNotFound',
+  'https://api.return.app/errors/notification-not-found': 'errors.notificationNotFound',
   'https://api.return.app/errors/loan-not-found': 'errors.loanNotFound',
   'https://api.return.app/errors/daily-loan-limit-exceeded': 'errors.dailyLoanLimitExceeded',
   'https://api.return.app/errors/loan-already-returned': 'errors.loanAlreadyReturned',
+  'https://api.return.app/errors/loan-return-date-locked': 'errors.loanReturnDateLocked',
   'https://api.return.app/errors/forbidden-status-transition': 'errors.forbiddenStatusTransition',
   'https://api.return.app/errors/invalid-status-transition': 'errors.invalidStatusTransition',
   'https://api.return.app/errors/invalid-return-date': 'errors.invalidReturnDate',
@@ -74,4 +84,63 @@ export function getErrorMessage(error: ProblemDetails, t: TFunction): string {
     return t(i18nKey);
   }
   return error.detail || t('errors.unknownError');
+}
+
+/** i18n key per (field, API error code) — codes come from the API ValidationPipe (main.ts). */
+type FieldErrorKeys = Partial<Record<ValidationErrorCode, string>>;
+
+const PASSWORD_FIELD_KEYS: FieldErrorKeys = {
+  INVALID_FORMAT: 'auth.passwordRules',
+  TOO_SHORT: 'auth.passwordMinLength',
+  TOO_LONG: 'auth.passwordMaxLength',
+  REQUIRED: 'auth.passwordRequired',
+  INVALID_TYPE: 'auth.passwordRequired',
+};
+
+const FIELD_ERROR_KEYS: Record<string, FieldErrorKeys> = {
+  password: PASSWORD_FIELD_KEYS,
+  newPassword: PASSWORD_FIELD_KEYS,
+  currentPassword: { REQUIRED: 'auth.passwordRequired', INVALID_TYPE: 'auth.passwordRequired' },
+  email: {
+    INVALID_EMAIL: 'auth.emailInvalid',
+    REQUIRED: 'auth.emailRequired',
+    INVALID_TYPE: 'auth.emailRequired',
+  },
+  firstName: {
+    TOO_LONG: 'auth.nameMaxLength',
+    TOO_SHORT: 'auth.firstNameRequired',
+    REQUIRED: 'auth.firstNameRequired',
+    INVALID_TYPE: 'auth.firstNameRequired',
+  },
+  lastName: {
+    TOO_LONG: 'auth.nameMaxLength',
+    TOO_SHORT: 'auth.lastNameRequired',
+    REQUIRED: 'auth.lastNameRequired',
+    INVALID_TYPE: 'auth.lastNameRequired',
+  },
+};
+
+/**
+ * Field-level messages for an API `validation-failed` problem, so a form can show
+ * each error under its own field instead of a generic banner. Empty for any other problem.
+ *
+ * @param fields the fields the form displays: errors on other fields are left out, so the
+ *               caller can fall back to its banner when nothing can be shown under a field.
+ */
+export function getFieldErrors(
+  error: ProblemDetails,
+  t: TFunction,
+  fields?: readonly string[],
+): Record<string, string> {
+  if (!error.type.endsWith('/validation-failed') || !error.errors) return {};
+  // Own-property checks only: a server field named "toString" or "constructor" must not
+  // match what every object inherits.
+  const messages: Record<string, string> = {};
+  for (const { field, code } of error.errors) {
+    if (Object.hasOwn(messages, field) || (fields && !fields.includes(field))) continue;
+    const codes = Object.hasOwn(FIELD_ERROR_KEYS, field) ? FIELD_ERROR_KEYS[field] : undefined;
+    const key = (codes && Object.hasOwn(codes, code) && codes[code]) || 'errors.fieldInvalid';
+    messages[field] = t(key, { allowed: PASSWORD_SPECIAL_CHARACTERS });
+  }
+  return messages;
 }

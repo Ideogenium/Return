@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength, IsDateString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, MaxLength, IsDateString, IsUUID, IsNotEmpty } from 'class-validator';
 import { CreateItemDto } from '../../items/dto/create-item.dto.js';
 import { IsUuidOrDto } from '../../common/validators/is-uuid-or-dto.validator.js';
 
@@ -19,9 +19,11 @@ export class CreateLoanDto {
   @IsUUID()
   borrowerId!: string;
 
-  @IsOptional()
+  // FIX-03: returnDate is mandatory — the reminder policy relies on it.
+  // A loan without a due date can never trigger reminders (the core promise).
+  @IsNotEmpty()
   @IsDateString()
-  returnDate?: string | null;
+  returnDate!: string;
 
   @IsOptional()
   @IsString()

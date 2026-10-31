@@ -9,6 +9,42 @@
 
 ---
 
+## État au 31/10/2026
+
+| Phase | État | Écart avec le plan ci-dessous |
+| ----- | ---- | ----------------------------- |
+| 1 — Backend Fly.io | ✅ Faite | App `return-api` (région `cdg`), Postgres `return-db` **non managé** (sauvegardes à notre charge). `CORS_ORIGIN=*` du PREPROD-006 est remplacé par une origine https exacte (voir « Exploitation Fly »). |
+| 2 — Config frontend | ✅ Faite | URL de prod `https://return-api.fly.dev/v1` (surcharge `EXPO_PUBLIC_API_URL`), tous les modules à `false` dans `api-modules.config.ts`. Identifiant d'app `com.ideogen.returnapp` (et non `com.ideogen.return`, `return` étant un mot-clé Java). |
+| 3/4 — APK et tests | ✅ Faites (re-test terrain en cours) | — |
+| 5 — Play test interne | ✅ Piste interne active (FEAT-05, AAB importé puis `eas submit` auto validé le 29/10) | Voir `15_SETUP_COMPTES_DISTRIBUTION.md`. |
+| 5b — iOS TestFlight | ✅ Faite (FEAT-03) | Profil EAS `production` (pas `preview`), build dans le cloud EAS (aucun Mac requis), bundle `com.ideogen.returnapp`. Builds 1.0.0 (1)→(3) sur TestFlight. |
+| 6 — Push réels | ✅ Remplacée par l'Expo Push Service (CORR-13) | Plus de Firebase Admin côté back ni de secret Firebase sur Fly : voir `14_ROADMAP_PUSH_EXPO.md`. Push reçu sur iPhone physique le 31/10. |
+
+### Exploitation Fly — règles en vigueur
+
+- **Jamais plus d'une machine** pour `return-api` tant que les tâches planifiées tournent dans le process (CORR-09
+  non fait) : avec deux machines, chaque rappel et chaque transition automatique partirait deux fois. Vérifier
+  `fly status` / `fly machines list` après chaque déploiement (1 machine au 31/10/2026) ; ne jamais lancer
+  `fly scale count` au-delà de 1, et déployer une app neuve avec `--ha=false` (Fly crée sinon 2 machines).
+- `min_machines_running = 1` (CORR-01) : la machine ne s'endort pas, sinon les tâches planifiées ne tournent pas.
+- Chaque tâche planifiée écrit une ligne `info` à chaque passage, même à vide (`Reminders tick`,
+  `Pending-confirmation tick`, `Invitations tick`, puis `Overdue tick` avec FEAT-10) : vérifier leur présence dans
+  `fly logs` après un déploiement.
+- **Secrets** : les poser **avant** `fly deploy` (en `--stage` puis appliqués par le déploiement) ; l'API refuse de
+  démarrer en production sans R2 ni `CORS_ORIGIN` valide.
+
+| Variable | Où | Statut au 31/10/2026 |
+| -------- | -- | -------------------- |
+| `DATABASE_URL`, `JWT_ACCESS_SECRET`, `REDIS_URL` | secrets Fly | en place |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | secrets Fly | stagés (déploiement D2) |
+| `EXPO_ACCESS_TOKEN` | secret Fly | stagé (déploiement D2) |
+| `CORS_ORIGIN` | `fly.toml` (`https://return-api.fly.dev`) | ancien secret `*` retiré en `--stage` |
+| `NODE_ENV`, `PORT`, `API_PREFIX`, `LOG_LEVEL` | `fly.toml` | en place |
+| `UPLOAD_BASE_URL` | — | retiré (R2) |
+| Firebase (`FIREBASE_*`) | — | absent (Expo Push) |
+
+---
+
 ## Objectif
 
 Déployer l'application Return sur un environnement accessible depuis internet pour permettre des tests sur téléphones

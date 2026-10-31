@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import apiClient from '../api/apiClient';
+import apiClient, { UPLOAD_TIMEOUT_MS } from '../api/apiClient';
 import { extractProblemDetails } from '../utils/error';
 import type {
   Item,
@@ -123,6 +123,7 @@ export const useItemStore = create<ItemState>((set) => ({
     try {
       const { data: photo } = await apiClient.post<Photo>(`/items/${itemId}/photos`, formData, {
         headers: { 'Content-Type': undefined },
+        timeout: UPLOAD_TIMEOUT_MS,
       });
       set((state) => {
         const addPhoto = (item: Item | null) => {

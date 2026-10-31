@@ -45,11 +45,13 @@ export class ProblemDetailsException extends HttpException {
 
 export class NotFoundException extends ProblemDetailsException {
   constructor(resource: string, id: string, path: string) {
+    // "DeviceToken" → slug "device-token" (contract: device-token-not-found), words "device token".
+    const words = resource.replace(/([a-z])([A-Z])/g, '$1 $2');
     super(
       HttpStatus.NOT_FOUND,
-      `${resource.toLowerCase()}-not-found`,
-      `${resource} Not Found`,
-      `The ${resource.toLowerCase()} with ID '${id}' does not exist.`,
+      `${words.toLowerCase().replace(/ /g, '-')}-not-found`,
+      `${words} Not Found`,
+      `The ${words.toLowerCase()} with ID '${id}' does not exist.`,
       path,
     );
   }

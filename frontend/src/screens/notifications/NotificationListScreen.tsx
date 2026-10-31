@@ -11,6 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NotificationCard } from '../../components/notifications/NotificationCard';
+import { loanDetailTabsParams } from '../../navigation/navigationRef';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { getErrorMessage } from '../../utils/error';
 import type { Notification } from '../../types/api.types';
@@ -46,13 +47,7 @@ export function NotificationListScreen() {
       navigation.dispatch(
         CommonActions.navigate({
           name: 'Tabs',
-          params: {
-            screen: 'LoanTab',
-            params: {
-              screen: 'LoanDetail',
-              params: { id: notification.relatedLoanId },
-            },
-          },
+          params: loanDetailTabsParams(notification.relatedLoanId),
         }),
       );
     }

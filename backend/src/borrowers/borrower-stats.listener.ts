@@ -75,7 +75,8 @@ export class BorrowerStatsListener {
    * - returnedLate: RETURNED loans where returnedDate > returnDate
    * - notReturned: NOT_RETURNED + ABANDONED loans
    * - averageReturnDelay: integer days (+ = late, - = early), null if no dated returns
-   * - trustScore: float = (returnedOnTime * 100 + returnedLate * 50) / totalLoans
+   * - trustScore: float|null = (returnedOnTime*100 + returnedLate*50) / resolved, where
+   *   resolved = returnedOnTime + returnedLate + notReturned (null if resolved = 0)
    */
   private async recalculateStats(borrowerId: string): Promise<void> {
     const borrower = await this.prisma.borrower.findUnique({
@@ -87,7 +88,7 @@ export class BorrowerStatsListener {
       await this.prisma.borrower.update({
         where: { id: borrowerId },
         data: {
-          trustScore: 0,
+          trustScore: null, // not yet rated
           returnedOnTime: 0,
           returnedLate: 0,
           notReturned: 0,
@@ -115,8 +116,20 @@ export class BorrowerStatsListener {
         continue;
       }
 
-      const delayMs = loan.returnedDate.getTime() - loan.returnDate.getTime();
-      const delayDays = delayMs / (1000 * 60 * 60 * 24);
+      // Compare by calendar day (UTC), not by full timestamp: a loan due at
+      // midnight and returned the same day at 14:00 is ON TIME, not late.
+      // This also keeps averageReturnDelay an exact whole number of days.
+      const dueDay = Date.UTC(
+        loan.returnDate.getUTCFullYear(),
+        loan.returnDate.getUTCMonth(),
+        loan.returnDate.getUTCDate(),
+      );
+      const returnedDay = Date.UTC(
+        loan.returnedDate.getUTCFullYear(),
+        loan.returnedDate.getUTCMonth(),
+        loan.returnedDate.getUTCDate(),
+      );
+      const delayDays = (returnedDay - dueDay) / (1000 * 60 * 60 * 24);
 
       if (delayDays <= 0) {
         returnedOnTime++;
@@ -141,8 +154,15 @@ export class BorrowerStatsListener {
     const averageReturnDelay =
       loansWithDelay > 0 ? Math.round(totalDelayDays / loansWithDelay) : null;
 
-    // trustScore formula (OpenAPI): (returnedOnTime * 100 + returnedLate * 50) / totalLoans
-    const trustScore = (returnedOnTime * 100 + returnedLate * 50) / borrower.totalLoans;
+    // trustScore over RESOLVED loans only (returnedOnTime + returnedLate +
+    // notReturned). CONTESTED and in-progress loans are excluded so they don't
+    // weigh the score down. No resolved loan yet → null ("not yet rated").
+    // Rounded to one decimal, consistent with the global TrustScoreService.
+    const resolved = returnedOnTime + returnedLate + notReturned;
+    const trustScore =
+      resolved > 0
+        ? Math.round(((returnedOnTime * 100 + returnedLate * 50) / resolved) * 10) / 10
+        : null;
 
     await this.prisma.borrower.update({
       where: { id: borrowerId },

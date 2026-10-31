@@ -10,23 +10,27 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F7F4EF"
     },
     "ios": {
       "bundleIdentifier": "com.ideogen.returnapp",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Return needs access to your camera to take photos of loaned items.",
         "NSPhotoLibraryUsageDescription": "Return needs access to your photo library to attach photos to loaned items."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.ideogen.returnapp",
-      "versionCode": 1,
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F7F4EF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -35,7 +39,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-localization"],
+    "plugins": ["expo-localization", "expo-notifications"],
     "extra": {
       "eas": {
         "projectId": "595176ea-3595-4aec-8ba5-b56da4f48a67"

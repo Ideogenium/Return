@@ -2,6 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { Text, TouchableRipple, Icon, IconButton } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
+import { formatDate } from '../../utils/date';
 import type { Notification, NotificationType } from '../../types/api.types';
 
 const ICON_MAP: Record<NotificationType, string> = {
@@ -23,6 +24,7 @@ interface NotificationCardProps {
 function formatRelativeDate(
   dateStr: string,
   t: (key: string, options?: Record<string, unknown>) => string,
+  language: string,
 ): string {
   const now = new Date();
   const date = new Date(dateStr);
@@ -35,11 +37,11 @@ function formatRelativeDate(
   if (diffMin < 60) return t('notifications.timeMinutes', { count: diffMin });
   if (diffHours < 24) return t('notifications.timeHours', { count: diffHours });
   if (diffDays < 7) return t('notifications.timeDays', { count: diffDays });
-  return date.toLocaleDateString();
+  return formatDate(date, language);
 }
 
 export function NotificationCard({ notification, onPress, onMarkRead }: NotificationCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const icon = ICON_MAP[notification.type] ?? 'bell-outline';
 
   return (
@@ -65,7 +67,7 @@ export function NotificationCard({ notification, onPress, onMarkRead }: Notifica
             {notification.body}
           </Text>
           <Text variant="labelSmall" style={styles.date}>
-            {formatRelativeDate(notification.createdAt, t)}
+            {formatRelativeDate(notification.createdAt, t, i18n.language)}
           </Text>
         </View>
 

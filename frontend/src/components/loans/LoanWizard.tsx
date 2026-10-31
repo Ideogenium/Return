@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, FlatList, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, FlatList, Pressable, StyleSheet } from 'react-native';
 import {
   Text,
   Button,
@@ -10,7 +10,6 @@ import {
   Portal,
   Dialog,
 } from 'react-native-paper';
-import { Calendar } from 'react-native-paper-dates';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import i18n from '../../config/i18n.config';
@@ -18,8 +17,10 @@ import { ui } from '../../config/theme.config';
 import { useItemStore } from '../../stores/useItemStore';
 import { useBorrowerStore } from '../../stores/useBorrowerStore';
 import { ItemForm } from '../items/ItemForm';
-import { getMinReturnDate } from '../../utils/date';
+import { formatDate, toLocalIsoDate } from '../../utils/date';
+import { ReturnDateCalendar } from './ReturnDateCalendar';
 import type { CreateLoanDto, CreateItemDto } from '../../types/api.types';
+import { FormScrollView } from '../common/FormScrollView';
 
 type LoanType = 'OBJECT' | 'MONEY';
 
@@ -87,7 +88,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
     onSubmit({
       item: itemValue,
       borrowerId: selectedBorrowerId!,
-      returnDate: returnDate || null,
+      returnDate,
       notes: notes || null,
     });
   };
@@ -146,6 +147,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
       {loanType === 'OBJECT' ? (
         <>
           <FlatList
+            keyboardShouldPersistTaps="handled"
             data={items.filter((i) => i.category !== 'MONEY')}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
@@ -210,6 +212,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
       </Text>
 
       <FlatList
+        keyboardShouldPersistTaps="handled"
         data={borrowers}
         keyExtractor={(b) => b.id}
         renderItem={({ item: b }) => (
@@ -306,23 +309,25 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
           style={styles.input}
           testID="return-date-input"
         >
-          {returnDateObj ? returnDateObj.toLocaleDateString(i18n.language) : t('loans.returnDate')}
+          {returnDateObj ? formatDate(returnDateObj, i18n.language) : t('loans.returnDate')}
         </Button>
+        {!returnDate && (
+          <HelperText type="error" testID="return-date-required">
+            {t('loans.returnDateRequired')}
+          </HelperText>
+        )}
         {calendarExpanded && (
-          <Calendar
+          <ReturnDateCalendar
             locale={i18n.language}
-            mode="single"
             date={returnDateObj}
-            onChange={({ date }) => {
+            onChange={(date) => {
               if (date) {
                 setReturnDateObj(date);
-                setReturnDate(
-                  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
-                );
+                setReturnDate(toLocalIsoDate(date));
               }
               setCalendarExpanded(false);
             }}
-            validRange={{ startDate: getMinReturnDate() }}
+            testID="return-date-calendar"
           />
         )}
         {calendarExpanded && <HelperText type="info">{t('loans.returnDateTooSoon')}</HelperText>}
@@ -402,7 +407,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
             mode="contained"
             onPress={handleSubmit}
             loading={isLoading}
-            disabled={isLoading}
+            disabled={isLoading || !returnDate}
             style={styles.nextButton}
             testID="wizard-submit-btn"
           >
@@ -419,7 +424,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
         >
           <Dialog.Title>{t('items.addItem')}</Dialog.Title>
           <Dialog.ScrollArea>
-            <ScrollView>
+            <FormScrollView>
               <ItemForm
                 mode="create"
                 onSubmit={handleInlineItemCreate}
@@ -427,7 +432,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
                 error={itemDialogError}
                 submitLabel={t('common.save')}
               />
-            </ScrollView>
+            </FormScrollView>
           </Dialog.ScrollArea>
         </Dialog>
       </Portal>

@@ -14,6 +14,7 @@ import type { CreateBorrowerDto } from './dto/create-borrower.dto.js';
 import type { UpdateBorrowerDto } from './dto/update-borrower.dto.js';
 import type { Borrower } from '@prisma/client';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
+import { TrustScoreService } from '../trust-score/trust-score.service.js';
 
 // =============================================================================
 // BorrowersService — Logique métier du module Borrowers
@@ -21,7 +22,10 @@ import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 
 @Injectable()
 export class BorrowersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly trustScoreService: TrustScoreService,
+  ) {}
 
   // ---------------------------------------------------------------------------
   // CREATE
@@ -98,13 +102,21 @@ export class BorrowersService {
     const borrower = await this.findBorrowerOrFail(borrowerId);
     this.assertOwnership(borrower, lenderUserId, `/v1/borrowers/${borrowerId}/statistics`);
 
+    // FIX-15: trustScore is the GLOBAL score of the linked user (aggregated
+    // across all lenders), not the per-relation value. The per-lender counters
+    // below stay relative to this lender's history. A contact not yet linked to
+    // an account (pending invitation) has no global score → 0.
+    const trustScore = borrower.userId
+      ? (await this.trustScoreService.computeGlobalTrustScore(borrower.userId)).trustScore
+      : null;
+
     return {
       totalLoans: borrower.totalLoans,
       returnedOnTime: borrower.returnedOnTime,
       returnedLate: borrower.returnedLate,
       notReturned: borrower.notReturned,
       averageReturnDelay: borrower.averageReturnDelay,
-      trustScore: borrower.trustScore,
+      trustScore,
     };
   }
 

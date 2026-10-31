@@ -1,11 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpStatus } from '@nestjs/common';
+import { HttpStatus, Logger } from '@nestjs/common';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { UsersService } from './users.service.js';
 import { UserRole } from '@prisma/client';
-import { PHOTO_STORAGE } from '../storage/interfaces/photo-storage.interface.js';
+import {
+  PHOTO_STORAGE,
+  PurgeIncompleteError,
+} from '../storage/interfaces/photo-storage.interface.js';
 import type { ProblemDetails } from '../common/exceptions/problem-details.exception.js';
 
 // =============================================================================
@@ -60,6 +63,7 @@ describe('UsersService', () => {
     upload: jest.Mock;
     delete: jest.Mock;
     getUrl: jest.Mock;
+    deleteByPrefix: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -74,6 +78,7 @@ describe('UsersService', () => {
       upload: jest.fn(),
       delete: jest.fn(),
       getUrl: jest.fn(),
+      deleteByPrefix: jest.fn().mockResolvedValue(0),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -264,6 +269,77 @@ describe('UsersService', () => {
         const body = exception.getResponse();
         expect(body.type).toContain('invalid-current-password');
       }
+    });
+
+    describe('purge of the stored photos (GDPR right to erasure)', () => {
+      const DTO = { password: 'StrongPass1!', confirmationText: 'DELETE MY ACCOUNT' as const };
+
+      it("purges every photo stored under the user's folder (avatar and all item photos)", async () => {
+        await service.deleteAccount(MOCK_USER.id, DTO);
+
+        expect(photoStorage.deleteByPrefix).toHaveBeenCalledWith(`users/${MOCK_USER.id}/`);
+      });
+
+      it('purges only after the account is deleted, so a failed deletion never loses photos', async () => {
+        await service.deleteAccount(MOCK_USER.id, DTO);
+
+        expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+          photoStorage.deleteByPrefix.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('still succeeds when the storage purge fails: the account is already deleted', async () => {
+        photoStorage.deleteByPrefix.mockRejectedValue(new Error('R2 unavailable'));
+
+        await expect(service.deleteAccount(MOCK_USER.id, DTO)).resolves.toBeUndefined();
+        expect(prisma.user.delete).toHaveBeenCalled();
+      });
+
+      it('logs the account id and how many photos are left when the purge is incomplete, for a manual retry', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        photoStorage.deleteByPrefix.mockRejectedValue(
+          new PurgeIncompleteError(`users/${MOCK_USER.id}/`, 7, 3),
+        );
+
+        await expect(service.deleteAccount(MOCK_USER.id, DTO)).resolves.toBeUndefined();
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringMatching(new RegExp(`${MOCK_USER.id}.*3 photo\\(s\\) left`)),
+        );
+        warn.mockRestore();
+      });
+
+      it('never calls the storage for an account id that is not a UUID (defense in depth)', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, id: '../everyone' });
+
+        await expect(service.deleteAccount('../everyone', DTO)).resolves.toBeUndefined();
+        expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(expect.stringMatching(/not a UUID/));
+        warn.mockRestore();
+      });
+
+      it('does not purge anything when the password is wrong', async () => {
+        bcrypt.compare.mockResolvedValue(false);
+
+        await expect(service.deleteAccount(MOCK_USER.id, DTO)).rejects.toBeDefined();
+        expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
+      });
+
+      it('does not purge anything while active loans block the deletion', async () => {
+        prisma.loan.count.mockResolvedValue(1);
+
+        await expect(service.deleteAccount(MOCK_USER.id, DTO)).rejects.toBeDefined();
+        expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
+      });
+
+      it('does not purge anything when the database deletion fails', async () => {
+        prisma.user.delete.mockRejectedValue(new Error('database unavailable'));
+
+        await expect(service.deleteAccount(MOCK_USER.id, DTO)).rejects.toThrow(
+          'database unavailable',
+        );
+        expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
+      });
     });
 
     it('should throw NotFoundException if user does not exist', async () => {
@@ -462,7 +538,7 @@ describe('UsersService', () => {
       );
       expect(photoStorage.upload).toHaveBeenCalledWith(
         Buffer.from('fake-image'),
-        `users/${MOCK_USER.id}/avatar.jpg`,
+        expect.stringMatching(new RegExp(`^users/${MOCK_USER.id}/avatar-[0-9a-f-]{36}\\.jpg$`)),
       );
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: MOCK_USER.id },
@@ -494,6 +570,20 @@ describe('UsersService', () => {
       expect(photoStorage.delete).toHaveBeenCalledWith(
         'http://localhost:3000/uploads/users/old-avatar.jpg',
       );
+    });
+
+    it('should use a distinct storage key on each upload so a replacement never overwrites the previous file', async () => {
+      prisma.user.findUnique.mockResolvedValue(MOCK_USER);
+      photoStorage.upload.mockImplementation((_file: Buffer, key: string) =>
+        Promise.resolve({ key, url: `http://localhost:3000/uploads/${key}`, thumbnailUrl: null }),
+      );
+      prisma.user.update.mockResolvedValue(MOCK_USER);
+
+      await service.updateAvatar(MOCK_USER.id, Buffer.from('img-1'), 'avatar.jpg');
+      await service.updateAvatar(MOCK_USER.id, Buffer.from('img-2'), 'avatar.jpg');
+
+      const [firstKey, secondKey] = photoStorage.upload.mock.calls.map(([, key]) => key);
+      expect(firstKey).not.toBe(secondKey);
     });
 
     it('should not delete old avatar if none exists', async () => {

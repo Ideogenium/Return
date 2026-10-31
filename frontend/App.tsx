@@ -9,6 +9,7 @@ import {
 } from '@expo-google-fonts/nunito';
 import { lightTheme } from './src/config/theme.config';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
 import './src/config/i18n.config';
 
 const navTheme = {
@@ -35,7 +36,7 @@ export default function App() {
 
   return (
     <PaperProvider theme={lightTheme}>
-      <NavigationContainer theme={navTheme as never}>
+      <NavigationContainer ref={navigationRef} theme={navTheme as never}>
         <RootNavigator />
         <StatusBar style="dark" />
       </NavigationContainer>

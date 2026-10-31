@@ -43,9 +43,7 @@ export class BorrowerLinkingListener {
     });
 
     if (result.count > 0) {
-      this.logger.log(
-        `Linked ${result.count} Borrower record(s) to User ${userId}`,
-      );
+      this.logger.log(`Linked ${result.count} Borrower record(s) to User ${userId}`);
     }
   }
 }

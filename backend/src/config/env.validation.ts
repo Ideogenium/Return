@@ -41,7 +41,49 @@ export class EnvironmentVariables {
   @IsString()
   CORS_ORIGIN: string = 'http://localhost:8081';
 
+  // CORR-13 / Option B: push goes through the Expo Push Service. The access
+  // token is optional (it only lifts the anonymous rate limit). The former
+  // FIREBASE_SERVICE_ACCOUNT_BASE64 is no longer used.
   @IsOptional()
   @IsString()
-  FIREBASE_SERVICE_ACCOUNT_BASE64?: string;
+  EXPO_ACCESS_TOKEN?: string;
+
+  // Cloudflare R2 photo storage: all set → R2, none set → local disk.
+  // Completeness, https public URL and "required in production" are enforced
+  // by readR2Settings() in config.validation.ts.
+  @IsOptional()
+  @IsString()
+  R2_ACCOUNT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_ACCESS_KEY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_SECRET_ACCESS_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_BUCKET_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_PUBLIC_URL?: string;
+
+  // FEAT-10 overdue job. Opt-in: only the exact value 'true' enables it. The batch size
+  // is a positive integer (default 100) and the max share a number in ]0, 1] (default
+  // 0.5); an invalid value silently falls back to the default in LoansCronService
+  // rather than blocking startup.
+  @IsOptional()
+  @IsString()
+  OVERDUE_JOB_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  OVERDUE_JOB_BATCH_SIZE?: string;
+
+  @IsOptional()
+  @IsString()
+  OVERDUE_JOB_MAX_SHARE?: string;
 }

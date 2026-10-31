@@ -257,6 +257,17 @@ export const handlers = [
     return HttpResponse.json({ ...mockSettings }, { status: 200 });
   }),
 
+  // GET /users/me/trust-score
+  http.get('*/users/me/trust-score', () =>
+    HttpResponse.json({
+      trustScore: 87,
+      totalLoans: 40,
+      returnedOnTime: 31,
+      returnedLate: 8,
+      notReturned: 3,
+    }),
+  ),
+
   // PATCH /users/me/settings
   http.patch(`${API_REAL}/users/me/settings`, async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
@@ -526,6 +537,33 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  // GET /loans/:id/reminders
+  http.get(`${API_REAL}/loans/:id/reminders`, ({ params }) => {
+    return HttpResponse.json(
+      [
+        {
+          id: 'c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f',
+          loanId: params.id,
+          type: 'PREVENTIVE',
+          status: 'SENT',
+          scheduledFor: '2026-04-12T08:00:00Z',
+          sentAt: '2026-04-12T08:00:03Z',
+          channel: 'PUSH',
+        },
+        {
+          id: 'd2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f6a',
+          loanId: params.id,
+          type: 'ON_DUE_DATE',
+          status: 'SCHEDULED',
+          scheduledFor: '2026-04-15T08:00:00Z',
+          sentAt: null,
+          channel: 'PUSH',
+        },
+      ],
+      { status: 200 },
+    );
+  }),
+
   // PATCH /loans/:id/status
   http.patch(`${API_REAL}/loans/:id/status`, async ({ params, request }) => {
     const body = (await request.json()) as Record<string, unknown>;
@@ -663,6 +701,67 @@ export const handlers = [
   // DELETE /contact-invitations/:invitationId
   http.delete(`${API_REAL}/contact-invitations/:invitationId`, () => {
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // =========================================================================
+  // HISTORY / STATISTICS
+  // =========================================================================
+
+  // GET /history/statistics
+  http.get(`${API_REAL}/history/statistics`, () => {
+    return HttpResponse.json(
+      {
+        overview: {
+          totalLoans: 3,
+          activeLoans: 1,
+          returnedLoans: 2,
+          notReturnedLoans: 0,
+          contestedLoans: 0,
+          overdueLoans: 0,
+          averageReturnDelay: 1.5,
+        },
+        byCategory: [],
+        topBorrowers: [],
+        mostLoanedItems: [],
+      },
+      { status: 200 },
+    );
+  }),
+
+  // GET /history/loans — 25 archived loans (newest first), paginated like the real backend
+  http.get(`${API_REAL}/history/loans`, ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const limit = Number(url.searchParams.get('limit') ?? 20);
+    const statusFilter = url.searchParams.get('status')?.split(',');
+
+    const terminalStatuses = ['RETURNED', 'NOT_RETURNED', 'CONTESTED', 'ABANDONED'] as const;
+    const archived = Array.from({ length: 25 }, (_, index) => ({
+      ...mockLoan,
+      id: `history-loan-${index + 1}`,
+      item: { ...mockItem, id: `history-item-${index + 1}`, name: `Archived item ${index + 1}` },
+      status: terminalStatuses[index % terminalStatuses.length]!,
+      // Index 0 is the most recent, as returned by the backend (createdAt desc)
+      createdAt: new Date(Date.UTC(2026, 5, 30 - index, 10)).toISOString(),
+    })).filter((loan) => !statusFilter || statusFilter.includes(loan.status));
+
+    const totalItems = archived.length;
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
+
+    return HttpResponse.json(
+      {
+        data: archived.slice((page - 1) * limit, page * limit),
+        pagination: {
+          currentPage: page,
+          itemsPerPage: limit,
+          totalItems,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      },
+      { status: 200 },
+    );
   }),
 
   // =========================================================================

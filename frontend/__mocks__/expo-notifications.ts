@@ -8,3 +8,6 @@ export const addNotificationReceivedListener = jest.fn().mockReturnValue({ remov
 export const addNotificationResponseReceivedListener = jest
   .fn()
   .mockReturnValue({ remove: jest.fn() });
+export const setNotificationChannelAsync = jest.fn().mockResolvedValue(undefined);
+export const AndroidImportance = { MAX: 5, HIGH: 4, DEFAULT: 3, LOW: 2, MIN: 1, NONE: 0 };
+export const getLastNotificationResponseAsync = jest.fn().mockResolvedValue(null);

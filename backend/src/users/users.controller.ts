@@ -23,6 +23,8 @@ import { UpdateSettingsDto } from './dto/update-settings.dto.js';
 import { DeleteAccountDto } from './dto/delete-account.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { mimeToExtension } from '../common/utils/mime.util.js';
+import { TrustScoreService } from '../trust-score/trust-score.service.js';
+import type { GlobalTrustScore } from '../trust-score/trust-score.service.js';
 import type { SafeUser, UserSettings } from '../auth/interfaces/auth-response.interface.js';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy.js';
 
@@ -45,7 +47,10 @@ import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy.js';
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly trustScoreService: TrustScoreService,
+  ) {}
 
   /**
    * GET /v1/users/me
@@ -58,6 +63,20 @@ export class UsersController {
   @Get('me')
   async getProfile(@Request() req: { user: AuthenticatedUser }): Promise<SafeUser> {
     return this.usersService.getProfile(req.user.userId);
+  }
+
+  /**
+   * GET /v1/users/me/trust-score
+   *
+   * FIX-15: global trust score of the authenticated user as a borrower,
+   * aggregated across all lenders. Single source of truth for the score shown
+   * on the user's own profile.
+   *
+   * @returns 200 OK — GlobalTrustScore
+   */
+  @Get('me/trust-score')
+  async getMyTrustScore(@Request() req: { user: AuthenticatedUser }): Promise<GlobalTrustScore> {
+    return this.trustScoreService.computeGlobalTrustScore(req.user.userId);
   }
 
   /**

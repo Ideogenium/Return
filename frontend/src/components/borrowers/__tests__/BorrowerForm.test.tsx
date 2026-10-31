@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { BorrowerForm } from '../BorrowerForm';
+import i18n from '../../../config/i18n.config';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -113,5 +115,154 @@ describe('BorrowerForm', () => {
     );
 
     expect(screen.getByTestId('form-error')).toBeTruthy();
+  });
+
+  // FIX-09 — email field lock in edit mode
+  describe('FIX-09: email field lock in edit mode', () => {
+    const editDefaultValues = {
+      firstName: 'Marie',
+      lastName: 'Dupont',
+      email: 'marie@example.com',
+    };
+
+    it('should render email-input as non-editable in edit mode', () => {
+      renderWithProvider(
+        <BorrowerForm
+          mode="edit"
+          defaultValues={editDefaultValues}
+          onSubmit={mockOnSubmit}
+          isLoading={false}
+          submitLabel="Save"
+        />,
+      );
+
+      const emailInput = screen.getByTestId('email-input');
+      expect(emailInput.props.editable).toBe(false);
+    });
+
+    it('should display the readonly hint in edit mode', () => {
+      renderWithProvider(
+        <BorrowerForm
+          mode="edit"
+          defaultValues={editDefaultValues}
+          onSubmit={mockOnSubmit}
+          isLoading={false}
+          submitLabel="Save"
+        />,
+      );
+
+      expect(screen.getByTestId('email-readonly-hint')).toBeTruthy();
+    });
+
+    it('should display the default email value in edit mode', () => {
+      renderWithProvider(
+        <BorrowerForm
+          mode="edit"
+          defaultValues={editDefaultValues}
+          onSubmit={mockOnSubmit}
+          isLoading={false}
+          submitLabel="Save"
+        />,
+      );
+
+      const emailInput = screen.getByTestId('email-input');
+      expect(emailInput.props.value).toBe('marie@example.com');
+    });
+
+    it('should render email-input as editable in create mode and not show readonly hint', () => {
+      renderWithProvider(
+        <BorrowerForm onSubmit={mockOnSubmit} isLoading={false} submitLabel="Save" />,
+      );
+
+      const emailInput = screen.getByTestId('email-input');
+      expect(emailInput.props.editable).not.toBe(false);
+      expect(screen.queryByTestId('email-readonly-hint')).toBeNull();
+    });
+  });
+
+  it('accepts and trims an email ending with a space (iOS autocomplete)', async () => {
+    renderWithProvider(
+      <BorrowerForm onSubmit={mockOnSubmit} isLoading={false} submitLabel="Save" />,
+    );
+
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Marie');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Dupont');
+    fireEvent.changeText(screen.getByTestId('email-input'), ' marie@example.com ');
+    fireEvent.press(screen.getByTestId('borrower-submit-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'marie@example.com' }),
+      );
+    });
+  });
+
+  it('asks for the email (not "invalid") when it is made only of spaces', async () => {
+    renderWithProvider(
+      <BorrowerForm onSubmit={mockOnSubmit} isLoading={false} submitLabel="Save" />,
+    );
+
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Marie');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Dupont');
+    fireEvent.changeText(screen.getByTestId('email-input'), '   ');
+    fireEvent.press(screen.getByTestId('borrower-submit-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
+    });
+    expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('BorrowerForm keyboard', () => {
+  it('moves through the fields with the return key', async () => {
+    renderWithProvider(<BorrowerForm onSubmit={jest.fn()} isLoading={false} submitLabel="Save" />);
+
+    expect(await pressReturnIn('firstName-input')).toBe('lastName-input');
+    expect(await pressReturnIn('lastName-input')).toBe('email-input');
+    expect(await pressReturnIn('email-input')).toBe('phone-input');
+    ['firstName-input', 'lastName-input', 'email-input'].forEach((id) =>
+      expect(returnKeyOf(id)).toEqual({ returnKeyType: 'next', submitBehavior: 'submit' }),
+    );
+  });
+
+  it('skips the email, which cannot change, when editing', async () => {
+    renderWithProvider(
+      <BorrowerForm
+        mode="edit"
+        defaultValues={{ firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }}
+        onSubmit={jest.fn()}
+        isLoading={false}
+        submitLabel="Save"
+      />,
+    );
+
+    expect(await pressReturnIn('lastName-input')).toBe('phone-input');
+  });
+
+  it('saves from the phone field', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<BorrowerForm onSubmit={onSubmit} isLoading={false} submitLabel="Save" />);
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Jane');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Doe');
+    fireEvent.changeText(screen.getByTestId('email-input'), 'jane@example.com');
+
+    expect(returnKeyOf('phone-input').returnKeyType).toBe('done');
+    await pressReturnIn('phone-input');
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not save again while saving', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<BorrowerForm onSubmit={onSubmit} isLoading submitLabel="Save" />);
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Jane');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Doe');
+    fireEvent.changeText(screen.getByTestId('email-input'), 'jane@example.com');
+
+    await pressReturnIn('phone-input');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

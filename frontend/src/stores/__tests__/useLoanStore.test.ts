@@ -89,6 +89,64 @@ describe('useLoanStore', () => {
       expect(state.isLoading).toBe(false);
     });
 
+    it('keeps the displayed loan while the same loan is being refreshed', async () => {
+      await useLoanStore.getState().fetchLoan('7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+
+      const pending = useLoanStore.getState().fetchLoan('7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+
+      expect(useLoanStore.getState().selectedLoan?.id).toBe('7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+      await pending;
+    });
+
+    it('drops the previous loan when another loan is requested, so it is never shown in its place', async () => {
+      await useLoanStore.getState().fetchLoan('7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+
+      const pending = useLoanStore.getState().fetchLoan('00000000-0000-4000-8000-000000000001');
+
+      expect(useLoanStore.getState().selectedLoan).toBeNull();
+      await pending.catch(() => {});
+    });
+
+    it.each([403, 404])(
+      'drops the displayed loan when the refresh fails with %i',
+      async (status) => {
+        const id = '7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d';
+        await useLoanStore.getState().fetchLoan(id);
+        expect(useLoanStore.getState().selectedLoan).not.toBeNull();
+
+        server.use(
+          http.get(`${API_BASE}/loans/${id}`, () =>
+            HttpResponse.json(
+              {
+                type: 'https://api.return.app/errors/forbidden',
+                title: 'Error',
+                status,
+                detail: 'No access.',
+                instance: `/v1/loans/${id}`,
+                timestamp: '2026-02-18T10:00:00Z',
+                requestId: 'req-mock',
+              },
+              { status },
+            ),
+          ),
+        );
+
+        await expect(useLoanStore.getState().fetchLoan(id)).rejects.toBeDefined();
+
+        expect(useLoanStore.getState().selectedLoan).toBeNull();
+      },
+    );
+
+    it('keeps the displayed loan when the refresh fails on a network error', async () => {
+      const id = '7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d';
+      await useLoanStore.getState().fetchLoan(id);
+      server.use(http.get(`${API_BASE}/loans/${id}`, () => HttpResponse.error()));
+
+      await expect(useLoanStore.getState().fetchLoan(id)).rejects.toBeDefined();
+
+      expect(useLoanStore.getState().selectedLoan?.id).toBe(id);
+    });
+
     it('should set error on 404', async () => {
       await expect(useLoanStore.getState().fetchLoan('not-found')).rejects.toThrow();
 

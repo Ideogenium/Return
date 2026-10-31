@@ -10,6 +10,10 @@ import {
   RateLimitException,
 } from '../common/exceptions/problem-details.exception.js';
 import { LOAN_EVENTS } from '../common/events/loan.events.js';
+import {
+  ACTIVE_LOAN_STATUSES,
+  RETURN_DATE_RESCHEDULABLE_STATUSES,
+} from '../common/constants/loan-statuses.js';
 import { isValidTransition, isAllowedForRole } from './loan-status-machine.js';
 import type { LoanRole } from './loan-status-machine.js';
 import { CreateLoanDto } from './dto/create-loan.dto.js';
@@ -23,10 +27,25 @@ import type {
   LoanCreatedEvent,
   LoanStatusChangedEvent,
   LoanDeletedEvent,
+  LoanReturnDateChangedEvent,
 } from '../common/events/loan.events.js';
+import { isPrismaRecordNotFoundError } from '../common/utils/prisma-errors.util.js';
+import { startOfUtcDay } from '../common/utils/date.util.js';
 import { LoanStatus, Prisma } from '@prisma/client';
 
 const MAX_LOANS_PER_DAY = 15;
+
+/** Earliest accepted return date: J+2 counted on UTC calendar days (returnDate is a @db.Date). */
+function minimumReturnDate(startOfToday: Date): Date {
+  const minimum = new Date(startOfToday);
+  minimum.setUTCDate(minimum.getUTCDate() + 2);
+  return minimum;
+}
+
+function sameDay(a: Date | null, b: Date | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+}
 
 /** Transaction client type for Prisma interactive transactions */
 type TxClient = Prisma.TransactionClient;
@@ -51,8 +70,7 @@ export class LoansService {
     // Validate returnDate if provided
     if (dto.returnDate) {
       const returnDate = new Date(dto.returnDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const today = startOfUtcDay(new Date());
       if (returnDate < today) {
         throw new BadRequestException(
           'invalid-return-date',
@@ -61,13 +79,11 @@ export class LoansService {
           '/v1/loans',
         );
       }
-      const minReturnDate = new Date(today);
-      minReturnDate.setDate(minReturnDate.getDate() + 2);
-      if (returnDate < minReturnDate) {
+      if (returnDate < minimumReturnDate(today)) {
         throw new BadRequestException(
           'return-date-too-soon',
           'Return Date Too Soon',
-          'Return date must be at least 2 days after the loan creation date.',
+          'Return date must be at least 2 days from now.',
           '/v1/loans',
         );
       }
@@ -77,6 +93,26 @@ export class LoansService {
     // Prevents orphaned records if any step fails
     const loan = await this.prisma.$transaction(async (tx) => {
       const itemId = await this.resolveItem(tx, dto.item, lenderId);
+
+      // FIX-04: an item can only be lent once at a time. Reject if it already
+      // has a loan in an active status (a freshly created inline item never does).
+      const activeLoan = await tx.loan.findFirst({
+        where: {
+          itemId,
+          status: { in: ACTIVE_LOAN_STATUSES },
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (activeLoan) {
+        throw new ConflictException(
+          'item-already-loaned',
+          'Item Already Loaned',
+          'This item already has an active loan and cannot be lent again until it is returned.',
+          '/v1/loans',
+        );
+      }
+
       const borrowerId = await this.resolveBorrower(tx, dto.borrowerId, lenderId);
 
       // CINV-019: Verify ACCEPTED contact invitation exists for this borrower.
@@ -259,14 +295,14 @@ export class LoansService {
     this.assertOwnership(loan, lenderId, `/v1/loans/${loanId}`);
 
     const data: Record<string, unknown> = {};
+    let newReturnDate: Date | null | undefined;
     if (dto.returnDate !== undefined) {
+      if (!RETURN_DATE_RESCHEDULABLE_STATUSES.includes(loan.status)) {
+        throw this.returnDateLockedException(loanId);
+      }
       if (dto.returnDate) {
         const returnDate = new Date(dto.returnDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const minReturnDate = new Date(today);
-        minReturnDate.setDate(minReturnDate.getDate() + 2);
-        if (returnDate < minReturnDate) {
+        if (returnDate < minimumReturnDate(startOfUtcDay(new Date()))) {
           throw new BadRequestException(
             'return-date-too-soon',
             'Return Date Too Soon',
@@ -274,26 +310,58 @@ export class LoansService {
             `/v1/loans/${loanId}`,
           );
         }
-        data.returnDate = returnDate;
+        newReturnDate = returnDate;
       } else {
-        data.returnDate = null;
+        newReturnDate = null;
       }
+      data.returnDate = newReturnDate;
     }
     if (dto.notes !== undefined) {
       data.notes = dto.notes;
     }
 
-    const updated = await this.prisma.loan.update({
-      where: { id: loanId },
-      data,
-      include: {
-        item: { include: { photos: true } },
-        lender: true,
-        borrower: true,
-      },
-    });
+    let updated: LoanWithRelations;
+    try {
+      updated = (await this.prisma.loan.update({
+        // The status filter closes the race with a concurrent return or overdue transition.
+        where:
+          newReturnDate === undefined
+            ? { id: loanId }
+            : { id: loanId, status: { in: RETURN_DATE_RESCHEDULABLE_STATUSES } },
+        data,
+        include: {
+          item: { include: { photos: true } },
+          lender: true,
+          borrower: true,
+        },
+      })) as LoanWithRelations;
+    } catch (error) {
+      if (newReturnDate !== undefined && isPrismaRecordNotFoundError(error)) {
+        throw this.returnDateLockedException(loanId);
+      }
+      throw error;
+    }
 
-    return toLoanResponse(updated as LoanWithRelations);
+    if (newReturnDate !== undefined && !sameDay(loan.returnDate, newReturnDate)) {
+      const event: LoanReturnDateChangedEvent = {
+        loanId,
+        // Stored value: @db.Date drops any time part sent by the client.
+        returnDate: updated.returnDate,
+        changedAt: new Date(),
+      };
+      this.eventEmitter.emit(LOAN_EVENTS.RETURN_DATE_CHANGED, event);
+    }
+
+    return toLoanResponse(updated);
+  }
+
+  private returnDateLockedException(loanId: string): ConflictException {
+    return new ConflictException(
+      'loan-return-date-locked',
+      'Return Date Locked',
+      'The return date can only be changed while the loan is pending or active.',
+      `/v1/loans/${loanId}`,
+    );
   }
 
   // =========================================================================

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Button, Text, HelperText } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -12,6 +12,7 @@ import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import type { ItemStackParamList } from '../../navigation/types';
 import type { CreateItemDto, Photo } from '../../types/api.types';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<ItemStackParamList, 'CreateItem'>;
 
@@ -62,7 +63,7 @@ export function CreateItemScreen({ navigation }: Props) {
   // Step 2: Photo upload after item creation
   if (createdItemId) {
     return (
-      <ScrollView contentContainerStyle={styles.container} testID="create-item-photos">
+      <FormScrollView contentContainerStyle={styles.container} testID="create-item-photos">
         <Text variant="titleMedium" style={styles.sectionTitle}>
           {t('items.photos')}
         </Text>
@@ -76,13 +77,13 @@ export function CreateItemScreen({ navigation }: Props) {
         <Button mode="contained" onPress={handleDone} testID="done-btn" style={styles.doneButton}>
           {t('common.save')}
         </Button>
-      </ScrollView>
+      </FormScrollView>
     );
   }
 
   // Step 1: Item form
   return (
-    <ScrollView contentContainerStyle={styles.container} testID="create-item-form">
+    <FormScrollView contentContainerStyle={styles.container} testID="create-item-form">
       <ItemForm
         mode="create"
         onSubmit={handleSubmit}
@@ -90,7 +91,7 @@ export function CreateItemScreen({ navigation }: Props) {
         error={apiError}
         submitLabel={t('items.addItem')}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text, TextInput, Button, HelperText, Icon } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { ui } from '../../config/theme.config';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 interface DeleteFormData {
   password: string;
@@ -23,6 +24,7 @@ export function DeleteAccountScreen() {
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<DeleteFormData>();
 
@@ -43,7 +45,7 @@ export function DeleteAccountScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <View style={styles.warningCard}>
         <View style={styles.warningHeader}>
           <Icon source="alert-circle-outline" size={22} color="#D97A6B" />
@@ -59,15 +61,9 @@ export function DeleteAccountScreen() {
       <Controller
         control={control}
         name="password"
-        rules={{
-          required: t('auth.passwordRequired'),
-          minLength: { value: 8, message: t('auth.passwordMinLength') },
-          pattern: {
-            value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/,
-            message: t('auth.passwordStrength'),
-          },
-        }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        // Verification of the current password: only required, as in the API (DeleteAccountDto).
+        rules={{ required: t('auth.passwordRequired') }}
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.password')}
             mode="outlined"
@@ -77,6 +73,10 @@ export function DeleteAccountScreen() {
             onChangeText={onChange}
             value={value}
             error={!!errors.password}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('confirmationText')}
             testID="password-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -97,7 +97,7 @@ export function DeleteAccountScreen() {
           validate: (value) =>
             value === 'DELETE MY ACCOUNT' || t('profile.confirmationTextInvalid'),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('profile.confirmationText')}
             mode="outlined"
@@ -106,6 +106,8 @@ export function DeleteAccountScreen() {
             onChangeText={onChange}
             value={value}
             error={!!errors.confirmationText}
+            ref={ref}
+            returnKeyType="done"
             testID="confirmationText-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -138,7 +140,7 @@ export function DeleteAccountScreen() {
       >
         {t('profile.deleteAccount')}
       </Button>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

@@ -1,5 +1,7 @@
+import { Logger } from '@nestjs/common';
+import { REMINDABLE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
-import { ReminderStatus, ReminderType } from '@prisma/client';
+import { LoanStatus, ReminderStatus, ReminderType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RemindersCronService } from './reminders-cron.service.js';
@@ -62,6 +64,16 @@ describe('RemindersCronService', () => {
   });
 
   describe('sendScheduledReminders', () => {
+    it('logs one tick per run even when nothing is due, so the job is visible in production logs', async () => {
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+      prisma.reminder.findMany.mockResolvedValue([]);
+
+      await cronService.sendScheduledReminders();
+
+      expect(log).toHaveBeenCalledWith('Reminders tick: 0 due');
+      log.mockRestore();
+    });
+
     it('should find SCHEDULED reminders where scheduledFor <= now', async () => {
       prisma.reminder.findMany.mockResolvedValue([]);
 
@@ -71,6 +83,7 @@ describe('RemindersCronService', () => {
         where: {
           status: ReminderStatus.SCHEDULED,
           scheduledFor: { lte: expect.any(Date) },
+          loan: { deletedAt: null, status: { in: REMINDABLE_LOAN_STATUSES } },
         },
         include: {
           loan: {
@@ -83,6 +96,25 @@ describe('RemindersCronService', () => {
           },
         },
       });
+    });
+
+    it('keeps sending reminders of overdue loans, which lead to NOT_RETURNED, and skips closed or deleted loans', async () => {
+      prisma.reminder.findMany.mockResolvedValue([]);
+
+      await cronService.sendScheduledReminders();
+
+      const where = prisma.reminder.findMany.mock.calls[0][0]!.where as {
+        loan: { deletedAt: null; status: { in: LoanStatus[] } };
+      };
+      expect(where.loan.deletedAt).toBeNull();
+      expect([...where.loan.status.in].sort()).toEqual(
+        [
+          LoanStatus.PENDING_CONFIRMATION,
+          LoanStatus.ACTIVE,
+          LoanStatus.ACTIVE_BY_DEFAULT,
+          LoanStatus.AWAITING_RETURN,
+        ].sort(),
+      );
     });
 
     it('should update reminder status to SENT and set sentAt', async () => {
@@ -101,8 +133,8 @@ describe('RemindersCronService', () => {
 
       await cronService.sendScheduledReminders();
 
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: reminder.id },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { id: reminder.id, status: ReminderStatus.SCHEDULED },
         data: { status: ReminderStatus.SENT, sentAt: expect.any(Date) },
       });
     });
@@ -137,7 +169,7 @@ describe('RemindersCronService', () => {
 
       await cronService.sendScheduledReminders();
 
-      expect(prisma.reminder.update).not.toHaveBeenCalled();
+      expect(prisma.reminder.updateMany).not.toHaveBeenCalled();
       expect(notificationsService.sendReminderNotification).not.toHaveBeenCalled();
     });
 
@@ -158,8 +190,8 @@ describe('RemindersCronService', () => {
 
       await cronService.sendScheduledReminders();
 
-      expect(prisma.reminder.update).toHaveBeenCalledWith({
-        where: { id: reminder.id },
+      expect(prisma.reminder.updateMany).toHaveBeenCalledWith({
+        where: { id: reminder.id, status: ReminderStatus.SCHEDULED },
         data: { status: ReminderStatus.FAILED },
       });
     });

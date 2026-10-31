@@ -7,6 +7,7 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "moduleNameMapper": {
-    "^(\\.{1,2}/.+)\\.js$": "$1"
+    "^(\\.{1,2}/.+)\\.js$": "$1",
+    "^expo-server-sdk$": "<rootDir>/__mocks__/expo-server-sdk.ts"
   }
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { EditProfileForm } from '../../components/profile/EditProfileForm';
@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import apiClient from '../../api/apiClient';
 import type { AppStackParamList } from '../../navigation/types';
 import type { User, UpdateProfileDto } from '../../types/api.types';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'EditProfile'>;
 
@@ -31,9 +32,9 @@ export function EditProfileScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <EditProfileForm user={user} onSubmit={handleSubmit} isLoading={isLoading} />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

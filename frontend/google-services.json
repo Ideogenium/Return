@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "934347767787",
+    "project_id": "return-642c7",
+    "storage_bucket": "return-642c7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:934347767787:android:62e94fb07acdc8df2423ae",
+        "android_client_info": {
+          "package_name": "com.ideogen.returnapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPKK5ChEjGtqejtvo1n3DhAJv7q62o-iE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -9,6 +9,7 @@ import {
   toPhotoResponse,
   type LoanWithRelations,
 } from '../common/mappers/loan-response.mapper.js';
+import { startOfUtcDay } from '../common/utils/date.util.js';
 import { LoanStatus } from '@prisma/client';
 
 /** Active statuses used for overview counting */
@@ -17,6 +18,13 @@ const ACTIVE_STATUSES: LoanStatus[] = [
   LoanStatus.ACTIVE_BY_DEFAULT,
   LoanStatus.AWAITING_RETURN,
   LoanStatus.PENDING_CONFIRMATION,
+];
+
+/** Started, still-open statuses: the only ones that can be overdue */
+const OVERDUE_CANDIDATE_STATUSES: LoanStatus[] = [
+  LoanStatus.ACTIVE,
+  LoanStatus.ACTIVE_BY_DEFAULT,
+  LoanStatus.AWAITING_RETURN,
 ];
 
 // =========================================================================
@@ -29,6 +37,8 @@ export interface HistoryOverview {
   returnedLoans: number;
   notReturnedLoans: number;
   contestedLoans: number;
+  /** Open loans past their return date; also counted in activeLoans */
+  overdueLoans: number;
   averageReturnDelay: number;
 }
 
@@ -46,7 +56,8 @@ export interface TopBorrower {
     profilePicture: string | null;
   };
   loanCount: number;
-  trustScore: number;
+  /** null = pas encore noté (aucun prêt résolu). */
+  trustScore: number | null;
 }
 
 export interface MostLoanedItem {
@@ -114,8 +125,9 @@ export class HistoryService {
         createdAt.gte = new Date(query.startDate);
       }
       if (query.endDate) {
+        // Same UTC calendar day convention as startDate (and as @db.Date return dates).
         const end = new Date(query.endDate);
-        end.setHours(23, 59, 59, 999);
+        end.setUTCHours(23, 59, 59, 999);
         createdAt.lte = end;
       }
       where.createdAt = createdAt;
@@ -180,6 +192,7 @@ export class HistoryService {
       notReturnedLoans,
       contestedLoans,
       returnedLoansData,
+      overdueLoans,
     ] = await Promise.all([
       this.prisma.loan.count({ where: baseWhere }),
       this.prisma.loan.count({
@@ -198,6 +211,13 @@ export class HistoryService {
       this.prisma.loan.findMany({
         where: { ...baseWhere, status: LoanStatus.RETURNED, returnDate: { not: null } },
         select: { returnDate: true, returnedDate: true },
+      }),
+      this.prisma.loan.count({
+        where: {
+          ...baseWhere,
+          status: { in: OVERDUE_CANDIDATE_STATUSES },
+          returnDate: { lt: startOfUtcDay(new Date()) },
+        },
       }),
     ]);
 
@@ -228,6 +248,7 @@ export class HistoryService {
       returnedLoans,
       notReturnedLoans,
       contestedLoans,
+      overdueLoans,
       averageReturnDelay,
     };
   }

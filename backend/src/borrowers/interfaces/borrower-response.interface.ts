@@ -9,7 +9,8 @@ export interface BorrowerStatistics {
   notReturned: number;
   /** Délai moyen de retour en jours (arrondi, conforme OpenAPI integer). null si aucun prêt rendu. */
   averageReturnDelay: number | null;
-  trustScore: number;
+  /** null = pas encore noté (aucun prêt résolu). */
+  trustScore: number | null;
 }
 
 export interface BorrowerResponse {
@@ -45,5 +46,5 @@ export const DEFAULT_BORROWER_STATISTICS: BorrowerStatistics = {
   returnedLate: 0,
   notReturned: 0,
   averageReturnDelay: null,
-  trustScore: 0,
+  trustScore: null,
 };

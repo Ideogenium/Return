@@ -15,7 +15,10 @@ import {
 import { toSafeUser } from '../common/mappers/user.mapper.js';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { isPrismaUniqueConstraintError } from '../common/utils/prisma-errors.util.js';
-import { PHOTO_STORAGE } from '../storage/interfaces/photo-storage.interface.js';
+import {
+  PHOTO_STORAGE,
+  PurgeIncompleteError,
+} from '../storage/interfaces/photo-storage.interface.js';
 import type { PhotoStorage } from '../storage/interfaces/photo-storage.interface.js';
 import type {
   UserSettings,
@@ -37,6 +40,8 @@ import type { User } from '@prisma/client';
 //   - Suppression et changement de mot de passe requièrent le mot de passe actuel
 //   - Suppression de compte = Prisma onDelete: Cascade (supprime aussi les refresh tokens)
 // =============================================================================
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class UsersService {
@@ -99,7 +104,8 @@ export class UsersService {
    * 2. Vérifie le texte de confirmation ("DELETE MY ACCOUNT")
    *    → La validation @Equals est dans le DTO, mais on double-check ici
    *
-   * La suppression cascade sur les refresh tokens (Prisma onDelete: Cascade).
+   * La suppression cascade sur les refresh tokens (Prisma onDelete: Cascade), puis les
+   * photos stockées (avatar et objets) sont purgées.
    *
    * @throws NotFoundException (404) si l'utilisateur n'existe plus
    * @throws UnauthorizedException (401) si le mot de passe est incorrect
@@ -137,10 +143,39 @@ export class UsersService {
       );
     }
 
-    // Suppression (cascade → refresh tokens supprimés automatiquement)
+    // Suppression (cascade → refresh tokens, objets et lignes Photo supprimés automatiquement)
     await this.prisma.user.delete({ where: { id: userId } });
 
     this.logger.log(`Account deleted: ${userId}`);
+
+    await this.purgeStoredPhotos(userId);
+  }
+
+  /**
+   * Droit à l'effacement (RGPD) : avatar et photos de tous les objets, y compris supprimés
+   * logiquement, vivent sous `users/<userId>/`. Best-effort après la suppression en base :
+   * le compte n'existe déjà plus, un échec du stockage est journalisé, jamais remonté.
+   * Les anciennes URL `fly.dev/uploads` (avant R2) ne sont pas concernées : ces fichiers
+   * ont déjà disparu avec les conteneurs éphémères.
+   */
+  private async purgeStoredPhotos(userId: string): Promise<void> {
+    // Defense in depth: the prefix is built from the id, so it must be an id and nothing else.
+    if (!UUID_PATTERN.test(userId)) {
+      this.logger.warn(`Photo purge skipped: account id is not a UUID (${JSON.stringify(userId)})`);
+      return;
+    }
+    try {
+      await this.photoStorage.deleteByPrefix(`users/${userId}/`);
+    } catch (error) {
+      // No automatic retry: the log carries what a manual purge of users/<id>/ needs.
+      const left =
+        error instanceof PurgeIncompleteError
+          ? `${error.failed} photo(s) left`
+          : 'unknown count left';
+      this.logger.warn(
+        `Stored photos of deleted account ${userId} could not be fully purged, ${left}: ${(error as Error).message}`,
+      );
+    }
   }
 
   // ===========================================================================
@@ -254,7 +289,9 @@ export class UsersService {
 
     // 1. Upload le nouvel avatar
     const ext = filename.split('.').pop() ?? 'jpg';
-    const key = `users/${userId}/avatar.${ext}`;
+    // Unique key per upload: a fixed key would make the replacement overwrite the previous
+    // file, which step 3 would then delete — and it also defeats CDN cache invalidation.
+    const key = `users/${userId}/avatar-${crypto.randomUUID()}.${ext}`;
     const uploadResult = await this.photoStorage.upload(file, key);
 
     // 2. Mettre à jour en DB (rollback upload si échec)

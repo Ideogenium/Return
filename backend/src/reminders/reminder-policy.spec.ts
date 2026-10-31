@@ -25,14 +25,18 @@ describe('ReminderPolicy', () => {
       });
     });
 
-    it('should use J-1 for PREVENTIVE when Δ = 2 days', () => {
+    it('should NOT schedule a PREVENTIVE reminder when Δ < 3 days', () => {
+      // FIX-05 vol. B: short loans (Δ < 3) get no preventive reminder —
+      // the first relevant notification is ON_DUE_DATE (J).
       const createdAt = new Date('2026-04-08'); // Δ = 2 days < 3
 
       const result = ReminderPolicy.calculateDates(returnDate, createdAt);
 
+      expect(result).toHaveLength(4);
+      expect(result.some((r) => r.type === ReminderType.PREVENTIVE)).toBe(false);
       expect(result[0]).toEqual<ReminderSchedule>({
-        type: ReminderType.PREVENTIVE,
-        scheduledFor: new Date('2026-04-09'), // J-1
+        type: ReminderType.ON_DUE_DATE,
+        scheduledFor: returnDate, // J
       });
     });
 
@@ -88,18 +92,49 @@ describe('ReminderPolicy', () => {
       expect(result).toEqual([]);
     });
 
-    it('should skip PREVENTIVE reminder that falls before createdAt', () => {
-      // Δ = 1 day → J-1 = returnDate - 1 = createdAt itself
-      // PREVENTIVE at J-1 but createdAt is the same day
+    it('should not schedule a PREVENTIVE reminder for a very short loan (Δ = 1 day)', () => {
+      // FIX-05 vol. B: Δ = 1 day < 3 → no preventive at all.
       const tightCreatedAt = new Date('2026-04-09');
 
       const result = ReminderPolicy.calculateDates(returnDate, tightCreatedAt);
 
-      // PREVENTIVE J-1 = April 9 = createdAt → still valid (same day is OK)
-      expect(result[0]).toEqual<ReminderSchedule>({
-        type: ReminderType.PREVENTIVE,
-        scheduledFor: new Date('2026-04-09'), // J-1
+      expect(result.some((r) => r.type === ReminderType.PREVENTIVE)).toBe(false);
+      expect(result[0].type).toBe(ReminderType.ON_DUE_DATE);
+    });
+  });
+
+  describe('calendar days across a daylight-saving change (suite runs in Europe/Paris)', () => {
+    // A return date is a @db.Date (midnight UTC). Reminders must stay on midnight UTC of
+    // their calendar day even when the period crosses a DST change of the server zone.
+    const schedule = (returnDate: string, createdAt: string) =>
+      Object.fromEntries(
+        ReminderPolicy.calculateDates(new Date(returnDate), new Date(createdAt)).map((r) => [
+          r.type,
+          r.scheduledFor.toISOString(),
+        ]),
+      );
+
+    it('keeps J+7, J+14 and J+21 on midnight UTC across the spring change (2027-03-28)', () => {
+      expect(schedule('2027-03-25', '2027-03-01')).toEqual({
+        [ReminderType.PREVENTIVE]: '2027-03-22T00:00:00.000Z',
+        [ReminderType.ON_DUE_DATE]: '2027-03-25T00:00:00.000Z',
+        [ReminderType.FIRST_OVERDUE]: '2027-04-01T00:00:00.000Z',
+        [ReminderType.SECOND_OVERDUE]: '2027-04-08T00:00:00.000Z',
+        [ReminderType.FINAL_OVERDUE]: '2027-04-15T00:00:00.000Z',
       });
+    });
+
+    it('keeps J-3 on midnight UTC when the change falls between J-3 and J (spring)', () => {
+      expect(schedule('2027-03-30', '2027-03-01')[ReminderType.PREVENTIVE]).toBe(
+        '2027-03-27T00:00:00.000Z',
+      );
+    });
+
+    it('keeps the overdue reminders on midnight UTC across the autumn change (2027-10-31)', () => {
+      const result = schedule('2027-10-28', '2027-10-01');
+
+      expect(result[ReminderType.FIRST_OVERDUE]).toBe('2027-11-04T00:00:00.000Z');
+      expect(result[ReminderType.FINAL_OVERDUE]).toBe('2027-11-18T00:00:00.000Z');
     });
   });
 });

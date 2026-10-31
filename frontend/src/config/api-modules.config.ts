@@ -18,5 +18,9 @@ export function getBaseUrl(endpoint: string): string {
     return 'http://localhost:4010'; // Prism mock server (pas de /v1)
   }
 
-  return __DEV__ ? 'http://localhost:3000/v1' : 'https://return-api.fly.dev/v1';
+  // Override optionnel via .env (EXPO_PUBLIC_API_URL) : permet de viser le backend Fly.io
+  // tout en restant en local (ex: test partagé avec un collègue sur le même back + BDD).
+  // Sans override → localhost en dev, Fly.io en build prod.
+  const defaultUrl = __DEV__ ? 'http://localhost:3000/v1' : 'https://return-api.fly.dev/v1';
+  return process.env.EXPO_PUBLIC_API_URL ?? defaultUrl;
 }

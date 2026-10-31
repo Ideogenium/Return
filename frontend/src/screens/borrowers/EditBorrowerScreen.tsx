@@ -1,48 +1,44 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { ActivityIndicator, Text, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BorrowerForm } from '../../components/borrowers/BorrowerForm';
 import { useBorrowerStore } from '../../stores/useBorrowerStore';
+import { RefreshError } from '../../components/common/RefreshError';
+import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import type { BorrowerStackParamList } from '../../navigation/types';
 import type { UpdateBorrowerDto } from '../../types/api.types';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<BorrowerStackParamList, 'EditBorrower'>;
 
 export function EditBorrowerScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const {
-    selectedBorrower,
-    isLoading: storeLoading,
-    error: storeError,
-    fetchBorrower,
-  } = useBorrowerStore();
+  const { selectedBorrower, fetchBorrower } = useBorrowerStore();
+  const { loadError, reload } = useEntityLoad(id, fetchBorrower);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
 
-  useEffect(() => {
-    if (!selectedBorrower || selectedBorrower.id !== id) {
-      fetchBorrower(id).catch(() => {});
+  // Full-screen states only while nothing is displayable for this id: saving keeps the
+  // form mounted, with what the user typed.
+  if (!selectedBorrower || selectedBorrower.id !== id) {
+    if (!loadError) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
+        </View>
+      );
     }
-  }, [id, selectedBorrower, fetchBorrower]);
-
-  if (storeLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
-      </View>
-    );
-  }
-
-  if (!selectedBorrower) {
     return (
       <View style={styles.centerContainer} testID="borrower-error">
         <Text variant="titleMedium" style={styles.errorText}>
-          {storeError ? t('errors.borrowerNotFound') : t('errors.unknownError')}
+          {loadError.type?.includes('borrower-not-found')
+            ? t('errors.borrowerNotFound')
+            : t('errors.unknownError')}
         </Text>
         <Button mode="outlined" onPress={() => navigation.goBack()} style={styles.backButton}>
           {t('common.back')}
@@ -66,7 +62,8 @@ export function EditBorrowerScreen({ route, navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container} testID="edit-borrower">
+      {loadError && <RefreshError problem={loadError} onRetry={reload} />}
       <BorrowerForm
         mode="edit"
         defaultValues={{
@@ -80,7 +77,7 @@ export function EditBorrowerScreen({ route, navigation }: Props) {
         error={apiError}
         submitLabel={t('common.save')}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 
