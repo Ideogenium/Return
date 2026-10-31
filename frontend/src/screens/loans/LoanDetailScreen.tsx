@@ -176,11 +176,14 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  // Edits not saved yet: the save sends the return date only when it changed, and the edit
+  // dialog keeps itself open on a backdrop tap while anything differs from the loan.
+  const returnDateChanged = editReturnDate.slice(0, 10) !== (loan?.returnDate?.slice(0, 10) ?? '');
+  const hasUnsavedEdit = editNotes !== (loan?.notes ?? '') || returnDateChanged;
+
   const handleEdit = async () => {
     setEditApiError(undefined);
     if (!loan) return;
-    const originalReturnDate = loan.returnDate?.slice(0, 10) ?? '';
-    const returnDateChanged = editReturnDate.slice(0, 10) !== originalReturnDate;
     const sendReturnDate = isReturnDateEditable(loan.status) && returnDateChanged;
     try {
       await useLoanStore.getState().updateLoan(id, {
@@ -553,6 +556,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           visible={editDialogVisible}
           onDismiss={() => setEditDialogVisible(false)}
           title={t('loans.editLoan')}
+          hasUnsavedInput={hasUnsavedEdit}
           testID="edit-loan-dialog"
           actions={
             <>

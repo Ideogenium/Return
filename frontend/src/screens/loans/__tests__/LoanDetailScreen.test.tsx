@@ -494,6 +494,37 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
     });
   }
 
+  it('keeps changed notes when the backdrop is tapped', async () => {
+    serveLoanWithStatus('ACTIVE');
+    await openEditDialog();
+
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('edit-loan-dialog-backdrop'));
+
+    expect(editDialog()?.props.visible).toBe(true);
+    expect(screen.getByTestId('edit-notes-input').props.value).toBe('new notes');
+  });
+
+  it('keeps a changed return date when the backdrop is tapped', async () => {
+    serveLoanWithStatus('ACTIVE');
+    await openEditDialog();
+
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.press(screen.getByTestId('edit-loan-dialog-backdrop'));
+
+    expect(editDialog()?.props.visible).toBe(true);
+  });
+
+  it('closes on a backdrop tap when nothing was changed', async () => {
+    serveLoanWithStatus('ACTIVE');
+    await openEditDialog();
+
+    fireEvent.press(screen.getByTestId('edit-loan-dialog-backdrop'));
+
+    expect(editDialog()?.props.visible).toBe(false);
+  });
+
   it('lets the lender change the return date of an open loan', async () => {
     serveLoanWithStatus('ACTIVE');
 
