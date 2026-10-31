@@ -213,7 +213,21 @@ Identique au doc 13 :
   Multer lit tout le fichier avant le contrôle de taille. `all-exceptions.filter.ts:84-121` ne reconnaît pas les
   messages de taille et de type de NestJS 11 et les étiquette `INVALID_UUID` sur le champ `id`.
 - **Correctif** : `limits: { fileSize }` sur les deux routes (5 Mo, 2 Mo), réponse 400 du contrat ; codes `TOO_LARGE`
-  et `INVALID_FORMAT` (déjà dans l'enum `ErrorDetail.code`).
+  et `FILE_REQUIRED` pour un type refusé (définition du contrat), déjà dans l'enum `ErrorDetail.code`.
+- **Livré** (PR #44, branche `fix/FIX-26-upload-limits`) : limites Multer partagées avec `ParseFilePipe`
+  (`common/upload/upload-limits.ts`), plus `files`, `fields`, `fieldSize` et `parts` bornés ; filtre d'exceptions qui
+  donne à chaque 400 à message (fichier, multipart, UUID) son propre code, et qui répond en RFC 7807 aux erreurs du
+  lecteur de corps JSON au lieu d'une 500 (413 au-delà de 100 Ko, 415 pour un jeu de caractères non pris en charge).
+- **Suite contrat** (PR contrat seul, branche `docs/contract-upload-errors`, accord d'Ismael) : règle transversale
+  413 / 415 dans `info.description` avec les composants `PayloadTooLarge` et `UnsupportedMediaType` ; `TOO_LARGE`
+  étendu à la taille d'un fichier ; exemples 400 des deux routes d'envoi, avec les champs `photo` et `avatar`.
+- **Suites de code, après la fusion du contrat** :
+    - filtre : erreurs d'envoi sur `photo` / `avatar` (nom réel de la partie multipart) au lieu de `file` ;
+    - piste : un `exceptionFactory` sur le `ParseFilePipe` de chaque route, qui porte le nom du champ, plutôt que de
+      reconnaître les messages de NestJS dans le filtre ;
+    - limite exacte : `MaxFileSizeValidator` refuse une taille **égale** à la limite (`<`), Multer et l'app
+      l'acceptent (`<=`) ; aligner les trois sur la même règle ;
+    - app : `payload-too-large` dans `ERROR_TYPE_MAP`, et un message dédié pour `TOO_LARGE` sur une photo.
 
 ### FIX-27 — Aucune notification à la réception d'une invitation de contact
 
