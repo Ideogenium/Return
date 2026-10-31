@@ -37,7 +37,9 @@
     "registerTitle": "Register",
     "noAccount": "No account? Register",
     "hasAccount": "Already have an account? Login",
-    "logout": "Logout"
+    "logout": "Logout",
+    "privacyConsent": "By creating an account, you accept the",
+    "privacyConsentLink": "privacy policy"
   },
   "profile": {
     "title": "My profile",
@@ -46,6 +48,7 @@
     "deleteAccount": "Delete my account",
     "settings": "Settings",
     "history": "Loan history",
+    "privacyPolicy": "Privacy policy",
     "currentPassword": "Current password",
     "newPassword": "New password",
     "confirmNewPassword": "Confirm new password",

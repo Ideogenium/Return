@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider } from 'react-native-paper';
@@ -128,5 +129,26 @@ describe('RegisterScreen', () => {
     await waitFor(() => {
       expect(useAuthStore.getState().error).toBeNull();
     });
+  });
+
+  it('opens the privacy policy in the active language from the consent line', () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    renderRegisterScreen();
+
+    fireEvent.press(screen.getByTestId('register-privacy-link'));
+
+    expect(openURL).toHaveBeenCalledWith('http://localhost:3000/privacy?lang=en');
+    openURL.mockRestore();
+  });
+
+  it('does not crash when the privacy policy cannot be opened', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no browser'));
+    renderRegisterScreen();
+
+    fireEvent.press(screen.getByTestId('register-privacy-link'));
+
+    await waitFor(() => expect(openURL).toHaveBeenCalled());
+    expect(screen.getByTestId('register-btn')).toBeTruthy();
+    openURL.mockRestore();
   });
 });
