@@ -11,7 +11,7 @@ import {
 } from '../services/pushNotifications';
 import { AuthNavigator } from './AuthNavigator';
 import { AppNavigator } from './AppNavigator';
-import { navigateToLoanDetail } from './navigationRef';
+import { navigateToInvitationsFromPush, navigateToLoanDetail } from './navigationRef';
 
 export function RootNavigator() {
   const { isAuthenticated, isHydrating, user, hydrate } = useAuthStore();
@@ -42,17 +42,25 @@ export function RootNavigator() {
     }
   }, [isAuthenticated]);
 
-  // Deep-link to the relevant loan when a push notification is tapped
+  // Deep-link to the relevant screen when a push notification is tapped
   useEffect(() => {
+    const openFromPush = (data: Record<string, unknown> | undefined) => {
+      const loanId = data?.loanId as string | undefined;
+      if (loanId) {
+        navigateToLoanDetail(loanId);
+      } else {
+        // Contact-invitation pushes carry no loanId, only a type
+        navigateToInvitationsFromPush(data?.type as string | undefined);
+      }
+    };
+
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const loanId = response.notification.request.content.data?.loanId as string | undefined;
-      navigateToLoanDetail(loanId);
+      openFromPush(response.notification.request.content.data);
     });
 
     // Cold start: the app was opened from a killed state by tapping a notification
     Notifications.getLastNotificationResponseAsync().then((response) => {
-      const loanId = response?.notification.request.content.data?.loanId as string | undefined;
-      navigateToLoanDetail(loanId);
+      openFromPush(response?.notification.request.content.data);
     });
 
     return () => subscription.remove();

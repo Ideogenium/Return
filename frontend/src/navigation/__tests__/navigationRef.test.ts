@@ -9,7 +9,7 @@ jest.mock('@react-navigation/native', () => {
   };
 });
 
-import { navigateToLoanDetail } from '../navigationRef';
+import { navigateToLoanDetail, navigateToInvitationsFromPush } from '../navigationRef';
 import * as ReactNavigation from '@react-navigation/native';
 
 const mockNavigate = (ReactNavigation as unknown as { __navigate: jest.Mock }).__navigate;
@@ -51,6 +51,46 @@ describe('navigateToLoanDetail', () => {
     mockIsReady.mockReturnValue(false);
 
     navigateToLoanDetail('loan-123');
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('navigateToInvitationsFromPush', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockIsReady.mockReturnValue(true);
+  });
+
+  it('opens the received invitations for CONTACT_INVITATION_RECEIVED', () => {
+    navigateToInvitationsFromPush('CONTACT_INVITATION_RECEIVED');
+
+    expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
+      screen: 'BorrowerTab',
+      params: { screen: 'BorrowerInvitations', initial: false },
+    });
+  });
+
+  it('opens the sent invitations for CONTACT_INVITATION_ACCEPTED', () => {
+    navigateToInvitationsFromPush('CONTACT_INVITATION_ACCEPTED');
+
+    expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
+      screen: 'BorrowerTab',
+      params: { screen: 'SentInvitations', initial: false },
+    });
+  });
+
+  it('ignores unknown or missing types', () => {
+    navigateToInvitationsFromPush('SOMETHING_ELSE');
+    navigateToInvitationsFromPush(undefined);
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when navigation is not ready', () => {
+    mockIsReady.mockReturnValue(false);
+
+    navigateToInvitationsFromPush('CONTACT_INVITATION_RECEIVED');
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });
