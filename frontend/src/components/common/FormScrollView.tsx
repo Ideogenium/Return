@@ -24,11 +24,11 @@ const FIELD_KEYBOARD_MARGIN = 16;
  * above the form or a tab bar below it. iOS needs none of this: the scroll view insets
  * itself (`automaticallyAdjustKeyboardInsets`).
  */
-function useAndroidKeyboardOverlap(area: React.RefObject<View | null>): number {
+function useAndroidKeyboardOverlap(area: React.RefObject<View | null>, enabled: boolean): number {
   const [overlap, setOverlap] = useState(0);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
+    if (Platform.OS !== 'android' || !enabled) return undefined;
     const show = Keyboard.addListener('keyboardDidShow', ({ endCoordinates }) => {
       area.current?.measureInWindow((_x, y, _width, height) => {
         setOverlap(Math.max(0, y + height - endCoordinates.screenY));
@@ -39,15 +39,17 @@ function useAndroidKeyboardOverlap(area: React.RefObject<View | null>): number {
       show.remove();
       hide.remove();
     };
-  }, [area]);
+  }, [area, enabled]);
 
   return overlap;
 }
 
 /**
  * Scrolls the form when its content grows (a multiline field gaining a line) so the bottom of
- * the focused field stays above the keyboard. Neither platform does it on its own: iOS and
- * Android only bring a field into view when it receives the focus.
+ * the focused field stays visible: above the keyboard, and above the bottom of the scroll view
+ * itself when that one ends higher (a dialog already moved above the keyboard). Neither
+ * platform does it on its own: iOS and Android only bring a field into view when it receives
+ * the focus.
  */
 function useKeepFocusedFieldVisible(scroll: React.RefObject<ScrollView | null>) {
   const offsetY = useRef(0);
@@ -61,14 +63,19 @@ function useKeepFocusedFieldVisible(scroll: React.RefObject<ScrollView | null>) 
     const input = TextInput.State.currentlyFocusedInput();
     const scrollView = scroll.current;
     if (!keyboard || !input || !scrollView) return;
+    // At runtime the ScrollView ref is its native host view, which the class type does not show.
+    const scrollHost = scrollView as unknown as HostInstance;
 
     // Measuring against this scroll view fails when the focused field belongs to another view.
     input.measureLayout(
-      scrollView as unknown as HostInstance,
+      scrollHost,
       () => {
-        input.measureInWindow((_x, y, _width, height) => {
-          const hidden = y + height + FIELD_KEYBOARD_MARGIN - keyboard.screenY;
-          if (hidden > 0) scrollView.scrollTo({ y: offsetY.current + hidden, animated: true });
+        scrollHost.measureInWindow((_sx, scrollTop, _sw, scrollHeight) => {
+          const visibleBottom = Math.min(keyboard.screenY, scrollTop + scrollHeight);
+          input.measureInWindow((_x, y, _width, height) => {
+            const hidden = y + height + FIELD_KEYBOARD_MARGIN - visibleBottom;
+            if (hidden > 0) scrollView.scrollTo({ y: offsetY.current + hidden, animated: true });
+          });
         });
       },
       () => undefined,
@@ -87,14 +94,32 @@ function useKeepFocusedFieldVisible(scroll: React.RefObject<ScrollView | null>) 
  *   (Android has no interactive dismissal, and closing at the first scroll hid the end of
  *   long fields).
  */
-export const FormScrollView = forwardRef<ScrollView, ScrollViewProps>(function FormScrollView(
-  { testID, onScroll, onContentSizeChange, scrollEventThrottle = 16, ...props },
+export interface FormScrollViewProps extends ScrollViewProps {
+  /**
+   * Compensates for the keyboard (default true): iOS insets the scroll view, Android pads it
+   * by the part the keyboard covers. Pass false when a parent already moves the whole view
+   * above the keyboard (FormDialog): the insets would be computed on the position before the
+   * move and stay frozen, leaving an empty gap or pushing the field out of view. The growing
+   * field is still kept in view either way.
+   */
+  keyboardAvoidance?: boolean;
+}
+
+export const FormScrollView = forwardRef<ScrollView, FormScrollViewProps>(function FormScrollView(
+  {
+    testID,
+    onScroll,
+    onContentSizeChange,
+    scrollEventThrottle = 16,
+    keyboardAvoidance = true,
+    ...props
+  },
   ref,
 ) {
   const area = useRef<View>(null);
   const scroll = useRef<ScrollView>(null);
   useImperativeHandle(ref, () => scroll.current as ScrollView);
-  const overlap = useAndroidKeyboardOverlap(area);
+  const overlap = useAndroidKeyboardOverlap(area, keyboardAvoidance);
   const { trackOffset, keepFocusedFieldVisible } = useKeepFocusedFieldVisible(scroll);
 
   const scrollView = (
@@ -104,7 +129,7 @@ export const FormScrollView = forwardRef<ScrollView, ScrollViewProps>(function F
       testID={testID}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
-      automaticallyAdjustKeyboardInsets
+      automaticallyAdjustKeyboardInsets={keyboardAvoidance}
       scrollEventThrottle={scrollEventThrottle}
       onScroll={(event) => {
         trackOffset(event);
@@ -117,7 +142,7 @@ export const FormScrollView = forwardRef<ScrollView, ScrollViewProps>(function F
     />
   );
 
-  if (Platform.OS !== 'android') return scrollView;
+  if (Platform.OS !== 'android' || !keyboardAvoidance) return scrollView;
 
   return (
     <View

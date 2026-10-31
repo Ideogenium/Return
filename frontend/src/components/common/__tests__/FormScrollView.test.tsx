@@ -182,7 +182,8 @@ describe('FormScrollView', () => {
         );
     }
 
-    function renderGrowingForm() {
+    /** The scroll view occupies the window from `top` to `bottom` (default: below the keyboard). */
+    function renderGrowingForm({ top = 0, bottom = 2000 }: { top?: number; bottom?: number } = {}) {
       const ref = createRef<ScrollView>();
       const onContentSizeChange = jest.fn();
       render(
@@ -190,6 +191,9 @@ describe('FormScrollView', () => {
           <Text>field</Text>
         </FormScrollView>,
       );
+      jest
+        .spyOn(ref.current as unknown as { measureInWindow: MeasureInWindow }, 'measureInWindow')
+        .mockImplementation((callback) => callback(0, top, 400, bottom - top));
       // The mocked ScrollView shares one scrollTo across instances: clear its earlier calls.
       const scrollTo = jest
         .spyOn(ref.current as ScrollView, 'scrollTo')
@@ -217,6 +221,18 @@ describe('FormScrollView', () => {
         grow();
 
         expect(scrollTo).toHaveBeenCalledWith({ y: 50 + 36, animated: true });
+      });
+
+      it('scrolls a field hidden below the bottom of a scroll view that sits above the keyboard', () => {
+        // A dialog moved above the keyboard: its scroll area ends at 450, the keyboard starts at 600.
+        // Field bottom at 400 + 80 = 480, plus the 16 px margin: 46 px below the scroll area.
+        keyboardOpenAt(600);
+        focusField({ y: 400, height: 80 });
+        const { scrollTo, grow } = renderGrowingForm({ top: 150, bottom: 450 });
+
+        grow();
+
+        expect(scrollTo).toHaveBeenCalledWith({ y: 46, animated: true });
       });
 
       it('does not scroll when the field is still above the keyboard', () => {
@@ -273,6 +289,35 @@ describe('FormScrollView', () => {
 
         expect(onContentSizeChange).toHaveBeenCalledWith(400, 1200);
       });
+    });
+  });
+
+  describe('with keyboardAvoidance={false} (a parent already moves above the keyboard)', () => {
+    function renderUnavoidingForm() {
+      return render(
+        <FormScrollView testID="form" keyboardAvoidance={false}>
+          <Text>field</Text>
+        </FormScrollView>,
+      );
+    }
+
+    it('does not inset the scroll view for the keyboard on iOS', () => {
+      jest.replaceProperty(Platform, 'OS', 'ios');
+      renderUnavoidingForm();
+
+      const scroll = screen.getByTestId('form');
+      expect(scroll.props.automaticallyAdjustKeyboardInsets).toBe(false);
+      expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
+    });
+
+    it('neither listens to the keyboard nor pads the form on Android', () => {
+      jest.replaceProperty(Platform, 'OS', 'android');
+      const addListener = jest.spyOn(Keyboard, 'addListener');
+      renderUnavoidingForm();
+
+      expect(addListener).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('form-keyboard-area')).toBeNull();
+      expect(screen.getByTestId('form').props.keyboardDismissMode).toBe('none');
     });
   });
 });
