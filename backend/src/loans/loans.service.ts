@@ -83,7 +83,7 @@ export class LoansService {
         throw new BadRequestException(
           'return-date-too-soon',
           'Return Date Too Soon',
-          'Return date must be at least 2 days after the loan creation date.',
+          'Return date must be at least 2 days from now.',
           '/v1/loans',
         );
       }
