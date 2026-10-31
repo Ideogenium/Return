@@ -8,6 +8,7 @@ import type { LoanStatusChangedEvent } from '../common/events/loan.events.js';
 import { isAllowedForRole } from './loan-status-machine.js';
 import { ReminderExhaustedListener } from './reminder-exhausted.listener.js';
 import { ReminderPolicy } from '../reminders/reminder-policy.js';
+import { startOfUtcDay } from '../common/utils/date.util.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -134,9 +135,8 @@ export class LoansCronService {
 
   private async markOverdueLoansAwaitingReturn(counters: { marked: number }): Promise<void> {
     const now = new Date();
-    const startOfTodayUtc = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
+    // Same "today" as the lender statistics (FEAT-04): see startOfUtcDay.
+    const startOfTodayUtc = startOfUtcDay(now);
 
     const overdueLoans = await this.prisma.loan.findMany({
       where: {
