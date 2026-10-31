@@ -101,6 +101,14 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 88,
+        "branches": 74,
+        "functions": 82,
+        "lines": 89
+      }
+    },
     "testEnvironment": "node",
     "globalSetup": "<rootDir>/../test/jest.timezone.global-setup.js",
     "coveragePathIgnorePatterns": [
