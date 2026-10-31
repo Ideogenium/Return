@@ -1,4 +1,4 @@
-import { getMinReturnDate, formatDate, toLocalIsoDate } from '../date';
+import { getMinReturnDate, formatDate, parseIsoDate, toLocalIsoDate } from '../date';
 
 // The minimum is "UTC day of the reference + 2", mirroring the API's startOfUtcDay: references are
 // UTC instants so the expectations hold in any machine timezone (see the `test:tz` script).
@@ -78,8 +78,8 @@ describe('formatDate', () => {
   });
 
   it('should format a valid ISO string with fr-FR locale (day first)', () => {
-    // Arrange — unambiguous UTC noon to avoid local-timezone day shift
-    const isoString = '2024-01-15T12:00:00Z';
+    // Arrange — a calendar day (no time): it is read as a local date, so no timezone shift
+    const isoString = '2024-01-15';
 
     // Act
     const result = formatDate(isoString, 'fr-FR');
@@ -90,7 +90,7 @@ describe('formatDate', () => {
 
   it('should format a valid ISO string with en-US locale (month first)', () => {
     // Arrange
-    const isoString = '2024-01-15T12:00:00Z';
+    const isoString = '2024-01-15';
 
     // Act
     const result = formatDate(isoString, 'en-US');
@@ -102,7 +102,7 @@ describe('formatDate', () => {
   it('should produce different output for fr-FR vs en-US (locale is honoured regardless of ICU completeness)', () => {
     // Robustness assertion: does not depend on exact ICU formatting,
     // only verifies that the locale argument is actually passed through.
-    const isoString = '2024-01-15T12:00:00Z';
+    const isoString = '2024-01-15';
 
     const frResult = formatDate(isoString, 'fr-FR');
     const enResult = formatDate(isoString, 'en-US');
@@ -120,6 +120,39 @@ describe('formatDate', () => {
     // Assert — a Date object input is accepted and produces a non-empty result
     expect(result).not.toBe('');
     expect(typeof result).toBe('string');
+  });
+});
+
+describe('formatDate with API calendar days', () => {
+  it('shows the API day as is, not the day before west of UTC', () => {
+    expect(formatDate('2026-11-03', 'fr-FR')).toBe('03/11/2026');
+    expect(formatDate('2026-01-01', 'en-US')).toBe('1/1/2026');
+  });
+
+  it('keeps reading a full timestamp as an instant in local time', () => {
+    const instant = '2026-11-03T12:00:00Z';
+
+    expect(formatDate(instant, 'fr-FR')).toBe(new Date(instant).toLocaleDateString('fr-FR'));
+  });
+});
+
+describe('parseIsoDate', () => {
+  it('reads YYYY-MM-DD as a local midnight with the same year, month and day', () => {
+    const result = parseIsoDate('2026-11-03');
+
+    expect(result.getFullYear()).toBe(2026);
+    expect(result.getMonth()).toBe(10);
+    expect(result.getDate()).toBe(3);
+    expect(result.getHours()).toBe(0);
+    expect(result.getMinutes()).toBe(0);
+  });
+
+  it('is the inverse of toLocalIsoDate', () => {
+    expect(toLocalIsoDate(parseIsoDate('2028-02-29'))).toBe('2028-02-29');
+  });
+
+  it('only keeps the calendar day of a full timestamp string', () => {
+    expect(toLocalIsoDate(parseIsoDate('2026-11-03T00:00:00.000Z'))).toBe('2026-11-03');
   });
 });
 
