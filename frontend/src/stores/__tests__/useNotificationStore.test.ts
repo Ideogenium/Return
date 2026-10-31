@@ -139,6 +139,30 @@ describe('useNotificationStore', () => {
       expect(useNotificationStore.getState().isLoading).toBe(false);
       expect(useNotificationStore.getState().error).toBeNull();
     });
+
+    it('keeps the device token once the registration succeeds', async () => {
+      await useNotificationStore.getState().registerDeviceToken('expo-token-123', 'android');
+
+      expect(useNotificationStore.getState().deviceToken).toBe('expo-token-123');
+    });
+
+    it('leaves the device token unchanged when the registration fails', async () => {
+      useNotificationStore.setState({ deviceToken: 'previous-token' });
+      server.use(
+        http.post(`${API_BASE}/notifications/device-token`, () =>
+          HttpResponse.json(
+            { type: 'error', title: 'Error', status: 500, detail: 'fail' },
+            { status: 500 },
+          ),
+        ),
+      );
+
+      await expect(
+        useNotificationStore.getState().registerDeviceToken('expo-token-123', 'android'),
+      ).rejects.toThrow();
+
+      expect(useNotificationStore.getState().deviceToken).toBe('previous-token');
+    });
   });
 
   describe('unregisterDeviceToken', () => {
@@ -157,6 +181,32 @@ describe('useNotificationStore', () => {
       expect(useNotificationStore.getState().isLoading).toBe(false);
       expect(useNotificationStore.getState().error).toBeNull();
     });
+
+    it('clears the device token once the unregistration succeeds', async () => {
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+
+      await useNotificationStore.getState().unregisterDeviceToken('expo-token-123');
+
+      expect(useNotificationStore.getState().deviceToken).toBeNull();
+    });
+
+    it('keeps the device token when the unregistration fails', async () => {
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+      server.use(
+        http.delete(`${API_BASE}/notifications/device-token`, () =>
+          HttpResponse.json(
+            { type: 'error', title: 'Error', status: 500, detail: 'fail' },
+            { status: 500 },
+          ),
+        ),
+      );
+
+      await expect(
+        useNotificationStore.getState().unregisterDeviceToken('expo-token-123'),
+      ).rejects.toThrow();
+
+      expect(useNotificationStore.getState().deviceToken).toBe('expo-token-123');
+    });
   });
 
   describe('reset', () => {
@@ -171,6 +221,15 @@ describe('useNotificationStore', () => {
       expect(state.unreadCount).toBe(0);
       expect(state.isLoading).toBe(false);
       expect(state.error).toBeNull();
+    });
+
+    it('starts with no device token and clears it on reset', () => {
+      expect(useNotificationStore.getState().deviceToken).toBeNull();
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+
+      useNotificationStore.getState().reset();
+
+      expect(useNotificationStore.getState().deviceToken).toBeNull();
     });
   });
 

@@ -8,6 +8,7 @@ import {
   clearTokens,
 } from '../utils/storage';
 import { resetSessionStores } from './resetSessionStores';
+import { useNotificationStore } from './useNotificationStore';
 import { extractProblemDetails } from '../utils/error';
 import type { User, AuthResponse, ProblemDetails } from '../types/api.types';
 
@@ -91,6 +92,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    // The phone must be unregistered BEFORE /auth/logout and clearTokens(): the endpoint needs a
+    // valid Bearer, which is gone afterwards. Otherwise the previous account keeps receiving
+    // pushes on this phone.
+    const { deviceToken, unregisterDeviceToken } = useNotificationStore.getState();
+    if (deviceToken) {
+      try {
+        await unregisterDeviceToken(deviceToken);
+      } catch {
+        // Logging out must not depend on it (network, expired token...)
+      }
+    }
     try {
       await apiClient.post('/auth/logout');
     } catch {

@@ -8,6 +8,8 @@ interface NotificationState {
   unreadCount: number;
   isLoading: boolean;
   error: ProblemDetails | null;
+  /** Push token registered for this phone, kept so the logout can unregister it. */
+  deviceToken: string | null;
 
   fetchNotifications: (options?: {
     unreadOnly?: boolean;
@@ -27,6 +29,7 @@ const initialState = {
   unreadCount: 0,
   isLoading: false,
   error: null as ProblemDetails | null,
+  deviceToken: null as string | null,
 };
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -115,7 +118,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await apiClient.post('/notifications/device-token', { token, platform });
-      set({ isLoading: false });
+      set({ isLoading: false, deviceToken: token });
     } catch (err) {
       set({ isLoading: false, error: extractProblemDetails(err) });
       throw err;
@@ -126,7 +129,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await apiClient.delete('/notifications/device-token', { data: { token } });
-      set({ isLoading: false });
+      set({ isLoading: false, deviceToken: null });
     } catch (err) {
       set({ isLoading: false, error: extractProblemDetails(err) });
       throw err;

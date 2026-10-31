@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import i18n from '../config/i18n.config';
@@ -28,25 +28,16 @@ export function RootNavigator() {
   }, [user?.settings?.language]);
 
   // Init / cleanup notifications on auth changes
-  const deviceTokenRef = useRef<string | null>(null);
-
   useEffect(() => {
     const store = useNotificationStore.getState();
 
     if (isAuthenticated) {
       setupNotificationHandler();
-      registerForPushNotifications()
-        .then((token) => {
-          deviceTokenRef.current = token;
-        })
-        .catch(() => {});
+      // The token is kept by registerDeviceToken; useAuthStore.logout unregisters it
+      registerForPushNotifications().catch(() => {});
       store.fetchNotifications().catch(() => {});
     } else {
-      if (deviceTokenRef.current) {
-        store.unregisterDeviceToken(deviceTokenRef.current).catch(() => {});
-        deviceTokenRef.current = null;
-      }
-      // Same reset as logout/refresh failure; kept after the device-token call to preserve its order
+      // Same reset as logout/refresh failure
       resetSessionStores();
     }
   }, [isAuthenticated]);
