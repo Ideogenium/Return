@@ -1,12 +1,15 @@
 /**
- * Returns the minimum allowed return date (referenceDate + 2 days at 00:00:00).
+ * Returns the minimum allowed return date as a local midnight whose year/month/day are the UTC
+ * calendar day of referenceDate + 2 days. Aligned on the API (`startOfUtcDay` + 2), so that
+ * `toLocalIsoDate(getMinReturnDate())` is exactly the earliest day the API accepts, in any
+ * timezone: using the local day would offer a refused day near midnight (west of UTC) or hide a
+ * valid one (east of UTC).
  */
 export function getMinReturnDate(referenceDate?: Date): Date {
   const base = referenceDate ?? new Date();
-  const min = new Date(base);
-  min.setDate(min.getDate() + 2);
-  min.setHours(0, 0, 0, 0);
-  return min;
+  // Local midnight carrying the UTC calendar day + 2: the calendar (react-native-paper-dates)
+  // reasons in local dates, but the API's bound is startOfUtcDay(now) + 2.
+  return new Date(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + 2);
 }
 
 /**

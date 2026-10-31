@@ -14,6 +14,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:tz": "TZ=America/New_York jest src/utils/__tests__/date.test.ts -t getMinReturnDate && TZ=Pacific/Kiritimati jest src/utils/__tests__/date.test.ts -t getMinReturnDate",
     "typecheck": "tsc --noEmit",
     "mock:api": "prism mock ../docs/openapi.yaml --host 0.0.0.0 --port 4010 --cors"
   },
