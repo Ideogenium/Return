@@ -57,6 +57,7 @@ Identique au doc 13 :
 | FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #46                                |
 | FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —          | ✅ #39                                |
 | FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #47 ; secret retiré au D3          |
+| FIX-37 | Limite de débit partagée par tous les utilisateurs derrière le proxy Fly              | 🔴 Critique | 2   | Ozias   | S      | —          | ✅ #52 ; prod au D3                   |
 | FIX-32 | Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits      | 🟡 Mineur   | 3   | Ismael  | M      | —          | ☐                                     |
 | FIX-33 | Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app | 🟡 Mineur   | 3   | Ozias   | S      | fait (#48) | ☐                                     |
 | FIX-34 | Notifications écrites en français en dur côté serveur                                 | 🟡 Mineur   | 3   | Ismael  | M      | oui        | ☐                                     |
@@ -318,6 +319,34 @@ Identique au doc 13 :
 - **Correctif** : `fly secrets unset JWT_REFRESH_SECRET --stage -a return-api`, appliqué au prochain déploiement ;
   retirer la variable de `.env.example` et des docs.
 - **Statut** : 🟡 secret mis en attente de suppression sur Fly le 31/10 (`--stage`), effectif au prochain déploiement ; variable retirée de `.env.example`, `backend/.env.example`, `docker-compose.yml` et du doc 07. Aucun code ne la lit (`git grep`). Les docs 08, 09 et 11 sont des traces datées, laissées telles quelles.
+
+### FIX-37 — Limite de débit partagée par tous les utilisateurs derrière le proxy Fly
+
+- **Gravité** : 🔴 Critique · **Porteur** : Ozias · **Effort** : S
+- **Constat (31/10, build 5)** : « Too many attempts » à la connexion, alors que l'utilisateur venait d'arriver.
+- **Cause** : l'API ne fait pas confiance au proxy Fly (`main.ts` sans `trust proxy`) et le `ThrottlerGuard` compte
+  par `req.ip`, c'est-à-dire l'adresse du proxy. Tous les utilisateurs partagent donc les mêmes compteurs :
+  10 connexions par 15 min (`auth.controller.ts`) et 100 requêtes par minute (`app.module.ts`) **pour toute l'app**.
+  N'importe qui peut bloquer la connexion de tout le monde avec 10 requêtes.
+- **Correctif** :
+  - `ClientIpThrottlerGuard` remplace le garde global : il compte par IP réelle du client, lue dans l'en-tête posé
+    par le proxy (`CLIENT_IP_HEADER`, sur Fly `fly-client-ip`), sinon `req.ip` ;
+  - `trust proxy` Express réglé par `TRUST_PROXY_HOPS` : **2** sur Fly, car le proxy ajoute sa propre adresse en
+    dernier dans `X-Forwarded-For` (`<forgée…>, <client>, <Fly>`). Avec 1, `req.ip` serait l'adresse de Fly ;
+  - connexion : compteur par IP **et** email normalisé (`@ThrottleByBodyField('email')`), 10 / 15 min, plus un
+    plafond par IP seule (`clientIpCeiling`, 50 / 15 min) contre le « password spraying » (une IP qui essaie
+    beaucoup d'emails) ;
+  - les deux variables sont dans `fly.toml` (pas de secret) ; en production, l'API refuse de démarrer sans
+    `CLIENT_IP_HEADER` (`TRUST_PROXY_HOPS` seul ne suffit pas).
+- **Hypothèse** : sur Fly, tout le trafic passe par le proxy, qui pose `Fly-Client-IP` sur chaque requête. Hors Fly,
+  l'en-tête n'est lu que s'il est configuré, sinon un client pourrait choisir son compteur.
+- **Suivis (lot 3)** :
+  - force brute distribuée sur un seul compte (beaucoup d'IP, un email) : limite par email seul ou verrouillage
+    temporaire du compte, avec un message qui ne révèle pas l'existence du compte ;
+  - les compteurs sont en mémoire, par machine, et repartent à zéro à chaque redémarrage : passer au stockage
+    Redis du throttler avant d'avoir plus d'une machine.
+- **Statut** : 🟡 PR ; effectif au déploiement D3. À vérifier après le D3 : deux téléphones sur des réseaux différents
+  ne se bloquent plus l'un l'autre.
 
 ---
 

@@ -265,7 +265,20 @@ export type NotificationType =
   | 'LOAN_CONTESTED'
   | 'LOAN_RETURNED'
   | 'REMINDER_SENT'
-  | 'REMINDER_RECEIVED';
+  | 'REMINDER_RECEIVED'
+  | 'CONTACT_INVITATION_RECEIVED'
+  | 'CONTACT_INVITATION_ACCEPTED';
+
+export type ContactInvitationNotificationType = Extract<
+  NotificationType,
+  'CONTACT_INVITATION_RECEIVED' | 'CONTACT_INVITATION_ACCEPTED'
+>;
+
+/** `data` attached to the push notification (see `PushNotificationData` in the OpenAPI contract). */
+export type PushNotificationData =
+  | { loanId: string; type: NotificationType }
+  | { loanId: string; reminderId: string; type: 'REMINDER' }
+  | { type: ContactInvitationNotificationType; invitationId: string };
 
 export interface Notification {
   id: string;

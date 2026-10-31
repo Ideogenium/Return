@@ -14,7 +14,7 @@ export type RootAppStackParamList = {
 // Tabs principaux
 export type AppTabParamList = {
   LoanTab: NavigatorScreenParams<LoanStackParamList> | undefined;
-  BorrowerTab: undefined;
+  BorrowerTab: NavigatorScreenParams<BorrowerStackParamList> | undefined;
   ItemTab: undefined;
   ProfileTab: undefined;
 };

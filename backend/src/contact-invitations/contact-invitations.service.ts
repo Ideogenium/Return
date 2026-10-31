@@ -4,7 +4,6 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   ProblemDetailsException,
 } from '../common/exceptions/problem-details.exception.js';
 import { HttpStatus } from '@nestjs/common';
@@ -12,6 +11,7 @@ import { CONTACT_INVITATION_EVENTS } from '../common/events/contact-invitation.e
 import type {
   ContactInvitationAcceptedEvent,
   ContactInvitationRejectedEvent,
+  ContactInvitationSentEvent,
 } from '../common/events/contact-invitation.events.js';
 import type {
   ContactInvitationResponse,
@@ -215,6 +215,16 @@ export class ContactInvitationsService {
       },
     });
 
+    // Emit SENT event after the write succeeded (listener failures never reach the caller)
+    const event: ContactInvitationSentEvent = {
+      invitationId: invitation.id,
+      senderUserId: invitation.senderUserId,
+      recipientUserId: recipient.id,
+      senderFirstName: invitation.senderUser.firstName,
+      senderLastName: invitation.senderUser.lastName,
+    };
+    this.eventEmitter.emit(CONTACT_INVITATION_EVENTS.SENT, event);
+
     return this.toInvitationResponse(invitation as ContactInvitationWithRelations);
   }
 
@@ -223,17 +233,9 @@ export class ContactInvitationsService {
   // ---------------------------------------------------------------------------
 
   async acceptInvitation(invitationId: string, userId: string): Promise<ContactInvitationResponse> {
-    const invitation = await this.findInvitationOrFail(invitationId);
-
-    // Only the recipient can accept
-    if (invitation.recipientUserId !== userId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'Only the recipient can accept this invitation.',
-        `/v1/contact-invitations/${invitationId}/accept`,
-      );
-    }
+    const invitation = await this.findInvitationOrFail(invitationId, {
+      recipientUserId: userId,
+    });
 
     if (invitation.status !== InvitationStatus.PENDING) {
       throw new ConflictException(
@@ -327,17 +329,9 @@ export class ContactInvitationsService {
   // ---------------------------------------------------------------------------
 
   async rejectInvitation(invitationId: string, userId: string): Promise<void> {
-    const invitation = await this.findInvitationOrFail(invitationId);
-
-    // Only the recipient can reject
-    if (invitation.recipientUserId !== userId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'Only the recipient can reject this invitation.',
-        `/v1/contact-invitations/${invitationId}/reject`,
-      );
-    }
+    const invitation = await this.findInvitationOrFail(invitationId, {
+      recipientUserId: userId,
+    });
 
     if (invitation.status !== InvitationStatus.PENDING) {
       throw new ConflictException(
@@ -370,17 +364,7 @@ export class ContactInvitationsService {
   // ---------------------------------------------------------------------------
 
   async cancelInvitation(invitationId: string, userId: string): Promise<void> {
-    const invitation = await this.findInvitationOrFail(invitationId);
-
-    // Only the sender can cancel
-    if (invitation.senderUserId !== userId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'Only the sender can cancel this invitation.',
-        `/v1/contact-invitations/${invitationId}`,
-      );
-    }
+    const invitation = await this.findInvitationOrFail(invitationId, { senderUserId: userId });
 
     if (invitation.status === InvitationStatus.ACCEPTED) {
       throw new ConflictException(
@@ -477,8 +461,14 @@ export class ContactInvitationsService {
   // PRIVATE HELPERS
   // ---------------------------------------------------------------------------
 
+  /**
+   * Loads an invitation visible to the caller. `allowed` names who may act on it: anyone else
+   * (the other party included) gets the same 404 as for a missing invitation, decided before
+   * any 409 so that ids cannot be probed (FIX-28).
+   */
   private async findInvitationOrFail(
     invitationId: string,
+    allowed: { recipientUserId: string } | { senderUserId: string },
   ): Promise<ContactInvitationWithRelations> {
     const invitation = await this.prisma.contactInvitation.findUnique({
       where: { id: invitationId },
@@ -488,7 +478,13 @@ export class ContactInvitationsService {
       },
     });
 
-    if (!invitation) {
+    const isAllowed =
+      invitation !== null &&
+      ('recipientUserId' in allowed
+        ? invitation.recipientUserId === allowed.recipientUserId
+        : invitation.senderUserId === allowed.senderUserId);
+
+    if (!invitation || !isAllowed) {
       throw new ProblemDetailsException(
         HttpStatus.NOT_FOUND,
         'invitation-not-found',

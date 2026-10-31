@@ -2,8 +2,23 @@ import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 import { LoanStatus, ReminderStatus, ReminderType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { ProblemDetails } from '../common/exceptions/problem-details.exception.js';
 import { RemindersService } from './reminders.service.js';
 import { ReminderPolicy } from './reminder-policy.js';
+
+const LENDER_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
+const BORROWER_USER_ID = '770e8400-e29b-41d4-a716-446655440000';
+const THIRD_PARTY_USER_ID = '660e8400-e29b-41d4-a716-446655440000';
+
+/** Runs a call expected to throw and returns the ProblemDetails body. */
+function problemOf(call: () => unknown): ProblemDetails {
+  try {
+    call();
+  } catch (error) {
+    return (error as { getResponse: () => ProblemDetails }).getResponse();
+  }
+  throw new Error('Expected the call to throw');
+}
 
 describe('RemindersService', () => {
   let service: RemindersService;
@@ -12,6 +27,104 @@ describe('RemindersService', () => {
   beforeEach(() => {
     prisma = mockDeep<PrismaService>();
     service = new RemindersService(prisma);
+  });
+
+  // FIX-28: lender sees the reminders, the borrower (a party) gets 403, a third party gets
+  // the same 404 as for a missing resource.
+  describe('assertLoanOwnership', () => {
+    const LOAN_ID = '11111111-1111-1111-1111-111111111111';
+    const REMINDER_ID = 'aaa00000-e29b-41d4-a716-446655440000';
+    const loan = { id: LOAN_ID, lenderId: LENDER_USER_ID, borrowerUserId: BORROWER_USER_ID };
+    const path = `/v1/loans/${LOAN_ID}/reminders`;
+
+    it('should let the lender through', () => {
+      expect(() =>
+        service.assertLoanOwnership(loan, LENDER_USER_ID, path, { name: 'Loan', id: LOAN_ID }),
+      ).not.toThrow();
+    });
+
+    it('should throw 403 for the borrower, who is a party to the loan', () => {
+      const problem = problemOf(() =>
+        service.assertLoanOwnership(loan, BORROWER_USER_ID, path, { name: 'Loan', id: LOAN_ID }),
+      );
+
+      expect(problem.status).toBe(403);
+    });
+
+    it('should throw the loan 404 for a third party, identical to a missing loan', async () => {
+      prisma.loan.findUnique.mockResolvedValue(null);
+      const missing = await service
+        .findLoanForReminders(LOAN_ID, path)
+        .catch((error: { getResponse: () => ProblemDetails }) => error.getResponse());
+
+      const foreign = problemOf(() =>
+        service.assertLoanOwnership(loan, THIRD_PARTY_USER_ID, path, {
+          name: 'Loan',
+          id: LOAN_ID,
+        }),
+      );
+
+      expect(foreign.status).toBe(404);
+      expect(foreign.type).toBe((missing as ProblemDetails).type);
+      expect(foreign.title).toBe((missing as ProblemDetails).title);
+      expect(foreign.detail).toBe((missing as ProblemDetails).detail);
+    });
+
+    it('should throw the reminder 404 for a third party', () => {
+      const problem = problemOf(() =>
+        service.assertLoanOwnership(loan, THIRD_PARTY_USER_ID, `/v1/reminders/${REMINDER_ID}`, {
+          name: 'Reminder',
+          id: REMINDER_ID,
+        }),
+      );
+
+      expect(problem.status).toBe(404);
+      expect(problem.type).toContain('reminder-not-found');
+      expect(problem.detail).toContain(REMINDER_ID);
+    });
+  });
+
+  describe('loan lookups expose the borrower user', () => {
+    const LOAN_ID = '11111111-1111-1111-1111-111111111111';
+
+    it('findLoanForReminders should return the borrower userId', async () => {
+      prisma.loan.findUnique.mockResolvedValue({
+        id: LOAN_ID,
+        lenderId: LENDER_USER_ID,
+        deletedAt: null,
+        borrower: { userId: BORROWER_USER_ID },
+      } as never);
+
+      const loan = await service.findLoanForReminders(LOAN_ID, '/p');
+
+      expect(loan).toEqual({
+        id: LOAN_ID,
+        lenderId: LENDER_USER_ID,
+        borrowerUserId: BORROWER_USER_ID,
+      });
+    });
+
+    it('findById should return the reminder with the loan borrower userId', async () => {
+      prisma.reminder.findUnique.mockResolvedValue({
+        id: 'r1',
+        loanId: LOAN_ID,
+        loan: { id: LOAN_ID, lenderId: LENDER_USER_ID, borrower: { userId: BORROWER_USER_ID } },
+      } as never);
+
+      const reminder = await service.findById('r1');
+
+      expect(reminder?.loan).toEqual({
+        id: LOAN_ID,
+        lenderId: LENDER_USER_ID,
+        borrowerUserId: BORROWER_USER_ID,
+      });
+    });
+
+    it('findById should return null for an unknown reminder', async () => {
+      prisma.reminder.findUnique.mockResolvedValue(null);
+
+      await expect(service.findById('nope')).resolves.toBeNull();
+    });
   });
 
   describe('scheduleReminders', () => {

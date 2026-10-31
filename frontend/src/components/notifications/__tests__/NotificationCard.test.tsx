@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react-native';
-import { PaperProvider } from 'react-native-paper';
+import { Icon, PaperProvider } from 'react-native-paper';
 import { NotificationCard } from '../NotificationCard';
 import type { Notification } from '../../../types/api.types';
 
@@ -70,5 +70,24 @@ describe('NotificationCard', () => {
     renderCard(readNotification);
 
     expect(screen.queryByTestId('mark-read-notif-2')).toBeNull();
+  });
+
+  describe('icon by type', () => {
+    const iconFor = (type: Notification['type']) => {
+      renderCard({ ...unreadNotification, type, relatedLoanId: null });
+      return screen.UNSAFE_getByType(Icon).props.source;
+    };
+
+    it('uses account-plus for a received contact invitation', () => {
+      expect(iconFor('CONTACT_INVITATION_RECEIVED')).toBe('account-plus');
+    });
+
+    it('uses account-check for an accepted contact invitation', () => {
+      expect(iconFor('CONTACT_INVITATION_ACCEPTED')).toBe('account-check');
+    });
+
+    it('keeps the loan icon for loan notifications', () => {
+      expect(iconFor('LOAN_CREATED')).toBe('handshake-outline');
+    });
   });
 });

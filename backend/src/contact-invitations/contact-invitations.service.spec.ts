@@ -241,6 +241,49 @@ describe('ContactInvitationsService', () => {
       );
     });
 
+    it('should emit SENT after the invitation is created', async () => {
+      prisma.user.findFirst.mockResolvedValue(RECIPIENT_USER);
+      prisma.contactInvitation.findFirst.mockResolvedValue(null);
+      prisma.contactInvitation.create.mockResolvedValue({
+        ...MOCK_INVITATION,
+        senderUser: SENDER_USER,
+        recipientUser: RECIPIENT_USER,
+      } as any);
+
+      await service.sendInvitation(SENDER_USER_ID, { recipientEmail: 'marie.dupont@example.com' });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTACT_INVITATION_EVENTS.SENT, {
+        invitationId: INVITATION_ID,
+        senderUserId: SENDER_USER_ID,
+        recipientUserId: RECIPIENT_USER_ID,
+        senderFirstName: 'Jean',
+        senderLastName: 'Martin',
+      });
+    });
+
+    it('should not emit SENT when the creation fails', async () => {
+      prisma.user.findFirst.mockResolvedValue(RECIPIENT_USER);
+      prisma.contactInvitation.findFirst.mockResolvedValue(null);
+      prisma.contactInvitation.create.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.sendInvitation(SENDER_USER_ID, { recipientEmail: 'marie.dupont@example.com' }),
+      ).rejects.toThrow('db down');
+
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('should not emit SENT when an invitation is already pending', async () => {
+      prisma.user.findFirst.mockResolvedValue(RECIPIENT_USER);
+      prisma.contactInvitation.findFirst.mockResolvedValue(MOCK_INVITATION as any);
+
+      await expect(
+        service.sendInvitation(SENDER_USER_ID, { recipientEmail: 'marie.dupont@example.com' }),
+      ).rejects.toBeDefined();
+
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
     it('should throw 400 for self-invitation', async () => {
       prisma.user.findFirst.mockResolvedValue(SENDER_USER);
 
@@ -425,22 +468,6 @@ describe('ContactInvitationsService', () => {
       );
     });
 
-    it('should throw 403 when non-recipient tries to accept', async () => {
-      prisma.contactInvitation.findUnique.mockResolvedValue({
-        ...MOCK_INVITATION,
-        senderUser: SENDER_USER,
-        recipientUser: RECIPIENT_USER,
-      } as any);
-
-      try {
-        await service.acceptInvitation(INVITATION_ID, OTHER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const body = (error as { getResponse: () => ProblemDetails }).getResponse();
-        expect(body.status).toBe(HttpStatus.FORBIDDEN);
-      }
-    });
-
     it('should throw 404 when invitation does not exist', async () => {
       prisma.contactInvitation.findUnique.mockResolvedValue(null);
 
@@ -506,18 +533,6 @@ describe('ContactInvitationsService', () => {
       );
     });
 
-    it('should throw 403 when non-recipient tries to reject', async () => {
-      prisma.contactInvitation.findUnique.mockResolvedValue(MOCK_INVITATION as any);
-
-      try {
-        await service.rejectInvitation(INVITATION_ID, OTHER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const body = (error as { getResponse: () => ProblemDetails }).getResponse();
-        expect(body.status).toBe(HttpStatus.FORBIDDEN);
-      }
-    });
-
     it('should throw 404 when invitation does not exist', async () => {
       prisma.contactInvitation.findUnique.mockResolvedValue(null);
 
@@ -561,18 +576,6 @@ describe('ContactInvitationsService', () => {
       expect(prisma.contactInvitation.delete).toHaveBeenCalledWith({
         where: { id: INVITATION_ID },
       });
-    });
-
-    it('should throw 403 when non-sender tries to cancel', async () => {
-      prisma.contactInvitation.findUnique.mockResolvedValue(MOCK_INVITATION as any);
-
-      try {
-        await service.cancelInvitation(INVITATION_ID, OTHER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const body = (error as { getResponse: () => ProblemDetails }).getResponse();
-        expect(body.status).toBe(HttpStatus.FORBIDDEN);
-      }
     });
 
     it('should throw 404 when invitation does not exist', async () => {
@@ -720,6 +723,89 @@ describe('ContactInvitationsService', () => {
 
       const result = await service.hasAcceptedContact(SENDER_USER_ID, RECIPIENT_USER_ID);
       expect(result).toBe(false);
+    });
+  });
+
+  // ===========================================================================
+  // FIX-28: only the authorized party sees the invitation, anyone else gets the
+  // uniform 404, decided before any 409
+  // ===========================================================================
+
+  describe('uniform 404 for non-authorized users (FIX-28)', () => {
+    const problemOf = async (call: Promise<unknown>): Promise<ProblemDetails> => {
+      try {
+        await call;
+      } catch (error) {
+        return (error as { getResponse: () => ProblemDetails }).getResponse();
+      }
+      throw new Error('Expected the call to reject');
+    };
+
+    const visibleFields = (
+      problem: ProblemDetails,
+    ): Pick<ProblemDetails, 'status' | 'type' | 'title' | 'detail'> => {
+      const { status, type, title, detail } = problem;
+      return { status, type, title, detail };
+    };
+
+    const withUsers = (invitation: ContactInvitation): never =>
+      ({ ...invitation, senderUser: SENDER_USER, recipientUser: RECIPIENT_USER }) as never;
+
+    const actions: Array<{
+      name: string;
+      // The user who is a party to the invitation but not allowed to do this action
+      otherParty: string;
+      run: (userId: string) => Promise<unknown>;
+    }> = [
+      {
+        name: 'accept',
+        otherParty: SENDER_USER_ID,
+        run: (userId) => service.acceptInvitation(INVITATION_ID, userId),
+      },
+      {
+        name: 'reject',
+        otherParty: SENDER_USER_ID,
+        run: (userId) => service.rejectInvitation(INVITATION_ID, userId),
+      },
+      {
+        name: 'cancel',
+        otherParty: RECIPIENT_USER_ID,
+        run: (userId) => service.cancelInvitation(INVITATION_ID, userId),
+      },
+    ];
+
+    describe.each(actions)('$name', ({ otherParty, run }) => {
+      it('should answer a third party with the same 404 as a missing invitation', async () => {
+        prisma.contactInvitation.findUnique.mockResolvedValueOnce(null);
+        const missing = await problemOf(run(OTHER_USER_ID));
+
+        prisma.contactInvitation.findUnique.mockResolvedValue(withUsers(MOCK_INVITATION));
+        const foreign = await problemOf(run(OTHER_USER_ID));
+
+        expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+        expect(foreign.type).toContain('invitation-not-found');
+        expect(visibleFields(foreign)).toEqual(visibleFields(missing));
+      });
+
+      it('should answer the other party with the same 404 (not 403)', async () => {
+        prisma.contactInvitation.findUnique.mockResolvedValue(withUsers(MOCK_INVITATION));
+
+        const problem = await problemOf(run(otherParty));
+
+        expect(problem.status).toBe(HttpStatus.NOT_FOUND);
+        expect(problem.type).toContain('invitation-not-found');
+      });
+
+      it('should answer 404 before 409 for a non-authorized user on an already accepted invitation', async () => {
+        prisma.contactInvitation.findUnique.mockResolvedValue(
+          withUsers({ ...MOCK_INVITATION, status: InvitationStatus.ACCEPTED }),
+        );
+
+        const problem = await problemOf(run(OTHER_USER_ID));
+
+        expect(problem.status).toBe(HttpStatus.NOT_FOUND);
+        expect(problem.type).toContain('invitation-not-found');
+      });
     });
   });
 });

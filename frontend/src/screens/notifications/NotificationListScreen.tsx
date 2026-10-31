@@ -11,7 +11,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NotificationCard } from '../../components/notifications/NotificationCard';
-import { loanDetailTabsParams } from '../../navigation/navigationRef';
+import { invitationTabsParams, loanDetailTabsParams } from '../../navigation/navigationRef';
 import { useNotificationStore } from '../../stores/useNotificationStore';
 import { getErrorMessage } from '../../utils/error';
 import type { Notification } from '../../types/api.types';
@@ -43,13 +43,12 @@ export function NotificationListScreen() {
     if (!notification.isRead) {
       markAsRead(notification.id).catch(() => {});
     }
-    if (notification.relatedLoanId) {
-      navigation.dispatch(
-        CommonActions.navigate({
-          name: 'Tabs',
-          params: loanDetailTabsParams(notification.relatedLoanId),
-        }),
-      );
+    // Invitation notifications have no relatedLoanId; unknown types open nothing
+    const tabsParams = notification.relatedLoanId
+      ? loanDetailTabsParams(notification.relatedLoanId)
+      : invitationTabsParams(notification.type);
+    if (tabsParams) {
+      navigation.dispatch(CommonActions.navigate({ name: 'Tabs', params: tabsParams }));
     }
   };
 

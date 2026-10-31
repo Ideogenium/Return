@@ -420,19 +420,22 @@ describe('ContactInvitations (e2e)', () => {
       expect(res.body.type).toBe('https://api.return.app/errors/validation-failed');
     });
 
-    it('should return 403 when user is not the recipient', async () => {
+    it('should return 404 invitation-not-found when user is not the recipient (FIX-28)', async () => {
       service.acceptInvitation.mockRejectedValue(
-        new ForbiddenException(
-          'not-recipient',
-          'Forbidden',
-          'Only the recipient can accept this invitation.',
-          `/v1/contact-invitations/${INVITATION_ID}/accept`,
+        new ProblemDetailsException(
+          HttpStatus.NOT_FOUND,
+          'invitation-not-found',
+          'Invitation Not Found',
+          'The invitation does not exist or does not belong to you.',
+          `/v1/contact-invitations/${INVITATION_ID}`,
         ),
       );
 
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post(`/contact-invitations/${INVITATION_ID}/accept`)
-        .expect(HttpStatus.FORBIDDEN);
+        .expect(HttpStatus.NOT_FOUND);
+
+      expect(res.body.type).toBe('https://api.return.app/errors/invitation-not-found');
     });
 
     it('should return 404 when invitation not found', async () => {
@@ -483,19 +486,22 @@ describe('ContactInvitations (e2e)', () => {
       expect(service.rejectInvitation).toHaveBeenCalledWith(INVITATION_ID, SENDER_USER_ID);
     });
 
-    it('should return 403 when user is not the recipient', async () => {
+    it('should return 404 invitation-not-found when user is not the recipient (FIX-28)', async () => {
       service.rejectInvitation.mockRejectedValue(
-        new ForbiddenException(
-          'not-recipient',
-          'Forbidden',
-          'Only the recipient can reject this invitation.',
-          `/v1/contact-invitations/${INVITATION_ID}/reject`,
+        new ProblemDetailsException(
+          HttpStatus.NOT_FOUND,
+          'invitation-not-found',
+          'Invitation Not Found',
+          'The invitation does not exist or does not belong to you.',
+          `/v1/contact-invitations/${INVITATION_ID}`,
         ),
       );
 
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post(`/contact-invitations/${INVITATION_ID}/reject`)
-        .expect(HttpStatus.FORBIDDEN);
+        .expect(HttpStatus.NOT_FOUND);
+
+      expect(res.body.type).toBe('https://api.return.app/errors/invitation-not-found');
     });
   });
 
@@ -514,19 +520,22 @@ describe('ContactInvitations (e2e)', () => {
       expect(service.cancelInvitation).toHaveBeenCalledWith(INVITATION_ID, SENDER_USER_ID);
     });
 
-    it('should return 403 when user is not the sender', async () => {
+    it('should return 404 invitation-not-found when user is not the sender (FIX-28)', async () => {
       service.cancelInvitation.mockRejectedValue(
-        new ForbiddenException(
-          'not-sender',
-          'Forbidden',
-          'Only the sender can cancel this invitation.',
+        new ProblemDetailsException(
+          HttpStatus.NOT_FOUND,
+          'invitation-not-found',
+          'Invitation Not Found',
+          'The invitation does not exist or does not belong to you.',
           `/v1/contact-invitations/${INVITATION_ID}`,
         ),
       );
 
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .delete(`/contact-invitations/${INVITATION_ID}`)
-        .expect(HttpStatus.FORBIDDEN);
+        .expect(HttpStatus.NOT_FOUND);
+
+      expect(res.body.type).toBe('https://api.return.app/errors/invitation-not-found');
     });
 
     it('should return 409 when invitation is already accepted', async () => {

@@ -77,6 +77,10 @@ Les autres valeurs ont des défauts fonctionnels pour le développement local.
 | `JWT_REFRESH_EXPIRATION` | Non     | `30d`                    | Durée de vie refresh token                    |
 | `LOG_LEVEL`              | Non     | `info`                   | Niveau de log (error, warn, info, debug)      |
 | `CORS_ORIGIN`            | Non     | `http://localhost:8081`  | Origine CORS autorisée                        |
+| `CLIENT_IP_HEADER`       | Prod    | —                        | En-tête posé par le proxy avec l'IP du client (Fly : `fly-client-ip`), pour la limite de débit |
+| `TRUST_PROXY_HOPS`       | Non     | `0`                      | Nombre de proxys de confiance (`trust proxy` Express ; Fly : `2`, le proxy ajoute sa propre adresse en dernier dans `X-Forwarded-For`) |
+
+`CLIENT_IP_HEADER` est obligatoire en production (FIX-37) : derrière un proxy, sans lui, tous les utilisateurs partageraient le même compteur de limite de débit. `TRUST_PROXY_HOPS` seul ne suffit pas.
 
 ---
 

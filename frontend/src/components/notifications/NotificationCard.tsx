@@ -13,6 +13,8 @@ const ICON_MAP: Record<NotificationType, string> = {
   LOAN_RETURNED: 'check-all',
   REMINDER_SENT: 'bell-ring-outline',
   REMINDER_RECEIVED: 'bell-ring-outline',
+  CONTACT_INVITATION_RECEIVED: 'account-plus',
+  CONTACT_INVITATION_ACCEPTED: 'account-check',
 };
 
 interface NotificationCardProps {

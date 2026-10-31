@@ -243,6 +243,20 @@ describe('Loans Integration (e2e)', () => {
   });
 
   // ===========================================================================
+  // FIX-28 — a third party gets the same 404 as for a missing loan
+  // ===========================================================================
+
+  describe('FIX-28: third party gets a 404 indistinguishable from a missing loan', () => {
+    // The exhaustive third-party vs missing comparison lives in third-party-not-found.e2e-spec.ts.
+    it('should keep 403 for the borrower, a party to the loan, on DELETE', async () => {
+      setAuthUser(BORROWER_USER_ID, 'marie@example.com');
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN as never);
+
+      await request(app.getHttpServer()).delete(`/v1/loans/${LOAN_ID}`).expect(403);
+    });
+  });
+
+  // ===========================================================================
   // INTEG-012 — GET /v1/loans?role=borrower par tiers retourne vide
   // ===========================================================================
 
