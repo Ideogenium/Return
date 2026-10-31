@@ -41,22 +41,27 @@ Identique au doc 13 :
 
 **Lot 1** = build 5, à faire maintenant. **Lot 2** = avant la publication sur les stores.
 
-| ID     | Titre                                                                                 | Gravité     | Lot | Porteur | Effort | Contrat   | Statut |
-| ------ | ------------------------------------------------------------------------------------- | ----------- | --- | ------- | ------ | --------- | ------ |
-| FIX-18 | Fenêtres avec champ de texte : clavier par-dessus, contestation impossible sur iPhone | 🔴 Critique | 1   | Ozias   | S      | —         | ☐      |
-| FIX-19 | Champ multiligne caché par le clavier ; défiler ferme le clavier (Android)            | 🟠 Majeur   | 1   | Ozias   | S      | —         | ☐      |
-| FIX-20 | Photos HEIC de l'iPhone refusées                                                      | 🟠 Majeur   | 1   | Ozias   | S      | —         | ☐      |
-| FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —         | ☐      |
-| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | oui       | ☐      |
-| FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —         | ☐      |
-| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ☐      |
-| FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —         | ☐      |
-| FIX-26 | Envoi de fichiers : aucune limite Multer, erreurs étiquetées `INVALID_UUID`           | 🟠 Majeur   | 2   | Ozias   | S      | —         | ☐      |
-| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | ☐      |
-| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | ☐      |
-| FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
-| FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —         | ☐      |
-| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —         | 🟡      |
+| ID     | Titre                                                                                 | Gravité     | Lot | Porteur | Effort | Contrat    | Statut                                |
+| ------ | ------------------------------------------------------------------------------------- | ----------- | --- | ------- | ------ | ---------- | ------------------------------------- |
+| FIX-18 | Fenêtres avec champ de texte : clavier par-dessus, contestation impossible sur iPhone | 🔴 Critique | 1   | Ozias   | S      | —          | ✅ #34, recette build 5               |
+| FIX-19 | Champ multiligne caché par le clavier ; défiler ferme le clavier (Android)            | 🟠 Majeur   | 1   | Ozias   | S      | —          | ✅ #35, recette build 5               |
+| FIX-20 | Photos HEIC de l'iPhone refusées                                                      | 🟠 Majeur   | 1   | Ozias   | S      | —          | ✅ #36, recette build 5               |
+| FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —          | ✅ #41, recette build 5               |
+| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | oui        | 🟡 contrat #43 ; code à faire         |
+| FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —          | ✅ #37                                |
+| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ✅ #42 ; prod au D3                   |
+| FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —          | ✅ #38                                |
+| FIX-26 | Envoi de fichiers : aucune limite Multer, erreurs étiquetées `INVALID_UUID`           | 🟠 Majeur   | 2   | Ozias   | S      | —          | ✅ #44, contrat #48 ; suites → FIX-33 |
+| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | 🟡 #45 en relecture                   |
+| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | 🟡 #49 approuvée                      |
+| FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #46                                |
+| FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —          | ✅ #39                                |
+| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #47 ; secret retiré au D3          |
+| FIX-32 | Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits      | 🟡 Mineur   | 3   | Ismael  | M      | —          | ☐                                     |
+| FIX-33 | Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app | 🟡 Mineur   | 3   | Ozias   | S      | fait (#48) | ☐                                     |
+| FIX-34 | Notifications écrites en français en dur côté serveur                                 | 🟡 Mineur   | 3   | Ismael  | M      | oui        | ☐                                     |
+| FIX-35 | Réponses de prêt sans `Cache-Control: private` alors qu'elles dépendent du lecteur    | 🟡 Mineur   | 3   | Ozias   | XS     | —          | ☐                                     |
+| FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)  | 🟡 Mineur   | 3   | Ismael  | S      | —          | ☐                                     |
 
 ### Répartition
 
@@ -244,12 +249,12 @@ Identique au doc 13 :
   413 / 415 dans `info.description` avec les composants `PayloadTooLarge` et `UnsupportedMediaType` ; `TOO_LARGE`
   étendu à la taille d'un fichier ; exemples 400 des deux routes d'envoi, avec les champs `photo` et `avatar`.
 - **Suites de code, après la fusion du contrat** :
-    - filtre : erreurs d'envoi sur `photo` / `avatar` (nom réel de la partie multipart) au lieu de `file` ;
-    - piste : un `exceptionFactory` sur le `ParseFilePipe` de chaque route, qui porte le nom du champ, plutôt que de
-      reconnaître les messages de NestJS dans le filtre ;
-    - limite exacte : `MaxFileSizeValidator` refuse une taille **égale** à la limite (`<`), Multer et l'app
-      l'acceptent (`<=`) ; aligner les trois sur la même règle ;
-    - app : `payload-too-large` dans `ERROR_TYPE_MAP`, et un message dédié pour `TOO_LARGE` sur une photo.
+  - filtre : erreurs d'envoi sur `photo` / `avatar` (nom réel de la partie multipart) au lieu de `file` ;
+  - piste : un `exceptionFactory` sur le `ParseFilePipe` de chaque route, qui porte le nom du champ, plutôt que de
+    reconnaître les messages de NestJS dans le filtre ;
+  - limite exacte : `MaxFileSizeValidator` refuse une taille **égale** à la limite (`<`), Multer et l'app
+    l'acceptent (`<=`) ; aligner les trois sur la même règle ;
+  - app : `payload-too-large` dans `ERROR_TYPE_MAP`, et un message dédié pour `TOO_LARGE` sur une photo.
 
 ### FIX-27 — Aucune notification à la réception d'une invitation de contact
 
@@ -309,3 +314,62 @@ Identique au doc 13 :
 - **Correctif** : `fly secrets unset JWT_REFRESH_SECRET --stage -a return-api`, appliqué au prochain déploiement ;
   retirer la variable de `.env.example` et des docs.
 - **Statut** : 🟡 secret mis en attente de suppression sur Fly le 31/10 (`--stage`), effectif au prochain déploiement ; variable retirée de `.env.example`, `backend/.env.example`, `docker-compose.yml` et du doc 07. Aucun code ne la lit (`git grep`). Les docs 08, 09 et 11 sont des traces datées, laissées telles quelles.
+
+---
+
+## Lot 3 — suivis relevés en relecture (31/10)
+
+Aucun ne bloque une mise en production. À planifier après le D3.
+
+### FIX-32 — Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ismael · **Effort** : M
+- **Source** : relecture de #49 (FIX-28).
+- **Constat** :
+  - `loans.service.ts` `resolveItem` ne teste pas `deletedAt` : un objet supprimé reste sélectionnable pour un
+    nouveau prêt ;
+  - `reminders.service.ts` `findById` ne teste pas `loan.deletedAt` : le rappel d'un prêt supprimé reste
+    accessible ;
+  - la règle « tiers = 404, partie sans droit = 403 » existe en trois variantes (`assertOwnership`,
+    `assertBorrowerRole`, `ReminderLoanAccess`), qui peuvent diverger.
+- **Correctif** : un accès partagé pour les prêts, et les deux filtres `deletedAt`, avec les tests de l'e2e
+  `third-party-not-found`.
+
+### FIX-33 — Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : S · **Contrat** : déjà fusionné (#48)
+- **Constat** :
+  - les erreurs d'envoi portent encore le champ `file`, alors que le contrat dit `photo` / `avatar` ;
+  - un fichier d'exactement 5 Mo (2 Mo pour l'avatar) est accepté par l'app et par Multer (`<=`), mais refusé par
+    l'API (`MaxFileSizeValidator` : `size < max`) ;
+  - l'app n'a pas `payload-too-large` dans `ERROR_TYPE_MAP` (`frontend/src/utils/error.ts`), et affiche le message
+    générique pour `TOO_LARGE` sur une photo.
+- **Correctif** : `imageFilePipe(maxBytes, field)` avec un `exceptionFactory` qui donne le bon champ (le filtre ne
+  garde que Multer et l'UUID) ; une seule règle de limite partout ; les clés FR/EN dans l'app.
+
+### FIX-34 — Notifications écrites en français en dur côté serveur
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ismael · **Effort** : M · **Contrat** : oui
+- **Constat** : le titre et le texte des notifications de prêt et d'invitation sont écrits en français dans les
+  listeners. Un utilisateur dont l'app est en anglais les reçoit en français.
+- **Pistes** : la langue du compte (`settings.language`) lue à l'envoi, ou des clés i18n et des paramètres envoyés à
+  l'app, qui compose le texte. À trancher, contrat d'abord.
+
+### FIX-35 — Réponses de prêt sans `Cache-Control: private`
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : XS
+- **Constat** : depuis FIX-24, une réponse de prêt dépend de qui la demande. Aucun en-tête n'empêche un cache partagé
+  de la servir à un autre utilisateur.
+- **Correctif** : `Cache-Control: private, no-store` sur les routes de prêts et d'historique, avec un test.
+
+### FIX-36 — Finitions photos
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ismael · **Effort** : S
+- **Source** : relectures de #36 et #41.
+- **Liste** :
+  - `<StatusBar style="light" />` dans la visionneuse, pour des icônes lisibles sur le fond noir ;
+  - factoriser le bloc galerie, présent dans `LoanDetailScreen` et dans `ConfirmationDialog` ;
+  - un indicateur de chargement des photos sur réseau lent ;
+  - le zoom en pinçant ;
+  - sur le web, sauter l'étape PNG (deux avertissements « not supported on web ») et tester
+    `getMimeType('blob:…') === 'image/jpeg'`.
