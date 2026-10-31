@@ -14,7 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.ideogen.returnapp",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Return needs access to your camera to take photos of loaned items.",
@@ -27,7 +27,7 @@
     "android": {
       "package": "com.ideogen.returnapp",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F7F4EF"
