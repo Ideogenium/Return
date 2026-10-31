@@ -244,6 +244,143 @@ describe('LoanDetailScreen', () => {
     expect(screen.queryByTestId('delete-loan-btn')).toBeNull();
   });
 
+  describe('contest by the borrower', () => {
+    // A loan waiting for the confirmation of the current user, its borrower.
+    const pendingLoan = (id: string) => ({
+      id,
+      item: {
+        id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+        name: 'Perceuse Bosch',
+        category: 'TOOLS',
+        createdAt: '2026-02-10T10:00:00Z',
+      },
+      lender: {
+        id: 'other-user-id',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        profilePicture: null,
+      },
+      borrower: {
+        id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'test@example.com',
+      },
+      status: 'PENDING_CONFIRMATION',
+      returnDate: '2026-04-15',
+      confirmationDate: null,
+      returnedDate: null,
+      notes: null,
+      contestReason: null,
+      createdAt: '2026-02-01T10:00:00Z',
+      updatedAt: '2026-02-01T10:00:00Z',
+    });
+
+    function servePendingLoanForBorrower() {
+      server.use(
+        http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+          HttpResponse.json(pendingLoan(String(params.id))),
+        ),
+      );
+    }
+
+    const contestDialog = () =>
+      screen.UNSAFE_getAllByType(Dialog).find((d) => d.props.testID === 'contest-loan-dialog');
+
+    async function typeContestReason(reason: string) {
+      servePendingLoanForBorrower();
+      renderDetailScreen();
+      await waitFor(() => expect(screen.getByTestId('contest-loan-btn')).toBeTruthy());
+      fireEvent.press(screen.getByTestId('contest-loan-btn'));
+      fireEvent.changeText(screen.getByTestId('contest-reason-input'), reason);
+    }
+
+    it('keeps the dialog and its typed reason when the backdrop is tapped', async () => {
+      await typeContestReason('Not the right item');
+
+      fireEvent.press(screen.getByTestId('contest-loan-dialog-backdrop'));
+
+      expect(contestDialog()?.props.visible).toBe(true);
+      expect(screen.getByTestId('contest-reason-input').props.value).toBe('Not the right item');
+    });
+
+    it('keeps the dialog open while the contest is sent, then closes it', async () => {
+      let release: () => void = () => {};
+      const sent = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.post('http://localhost:3000/v1/loans/:id/contest', async ({ params }) => {
+          await sent;
+          return HttpResponse.json({ ...pendingLoan(String(params.id)), status: 'CONTESTED' });
+        }),
+      );
+      await typeContestReason('Not the right item');
+
+      fireEvent.press(screen.getByTestId('submit-contest-btn'));
+
+      expect(contestDialog()?.props.visible).toBe(true);
+      expect(screen.getByTestId('submit-contest-btn').props.accessibilityState).toEqual(
+        expect.objectContaining({ disabled: true }),
+      );
+
+      await act(async () => release());
+      await waitFor(() => expect(contestDialog()?.props.visible).toBe(false));
+    });
+
+    it('disables Cancel while the contest is sent, so a failure is never shown in a closed dialog', async () => {
+      let release: () => void = () => {};
+      const sent = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.post('http://localhost:3000/v1/loans/:id/contest', async () => {
+          await sent;
+          return HttpResponse.json(
+            { type: 'about:blank', title: 'Internal Server Error', status: 500 },
+            { status: 500 },
+          );
+        }),
+      );
+      await typeContestReason('Not the right item');
+
+      fireEvent.press(screen.getByTestId('submit-contest-btn'));
+
+      expect(screen.getByTestId('cancel-contest-btn').props.accessibilityState).toEqual(
+        expect.objectContaining({ disabled: true }),
+      );
+      await act(async () => release());
+      await waitFor(() => expect(screen.getByTestId('contest-dialog-error')).toBeTruthy());
+      expect(screen.getByTestId('cancel-contest-btn').props.accessibilityState).toEqual(
+        expect.objectContaining({ disabled: false }),
+      );
+    });
+
+    it('keeps the dialog, the reason and shows the error inside it when the contest fails', async () => {
+      server.use(
+        http.post('http://localhost:3000/v1/loans/:id/contest', () =>
+          HttpResponse.json(
+            {
+              type: 'https://api.return.app/errors/internal-server-error',
+              title: 'Internal Server Error',
+              status: 500,
+              detail: 'boom',
+            },
+            { status: 500 },
+          ),
+        ),
+      );
+      await typeContestReason('Not the right item');
+
+      fireEvent.press(screen.getByTestId('submit-contest-btn'));
+
+      await waitFor(() => expect(screen.getByTestId('contest-dialog-error')).toBeTruthy());
+      expect(contestDialog()?.props.visible).toBe(true);
+      expect(screen.getByTestId('contest-reason-input').props.value).toBe('Not the right item');
+      expect(screen.queryByTestId('api-error')).toBeNull();
+    });
+  });
+
   it('should delete and go back on confirm', async () => {
     renderDetailScreen();
 
@@ -448,6 +585,37 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
       expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
     });
   }
+
+  it('keeps changed notes when the backdrop is tapped', async () => {
+    serveLoanWithStatus('ACTIVE');
+    await openEditDialog();
+
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('edit-loan-dialog-backdrop'));
+
+    expect(editDialog()?.props.visible).toBe(true);
+    expect(screen.getByTestId('edit-notes-input').props.value).toBe('new notes');
+  });
+
+  it('keeps a changed return date when the backdrop is tapped', async () => {
+    serveLoanWithStatus('ACTIVE');
+    await openEditDialog();
+
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.press(screen.getByTestId('edit-loan-dialog-backdrop'));
+
+    expect(editDialog()?.props.visible).toBe(true);
+  });
+
+  it('closes on a backdrop tap when nothing was changed', async () => {
+    serveLoanWithStatus('ACTIVE');
+    await openEditDialog();
+
+    fireEvent.press(screen.getByTestId('edit-loan-dialog-backdrop'));
+
+    expect(editDialog()?.props.visible).toBe(false);
+  });
 
   it('lets the lender change the return date of an open loan', async () => {
     serveLoanWithStatus('ACTIVE');
@@ -655,6 +823,37 @@ describe('LoanDetailScreen — actions never unmount the screen', () => {
     });
     return { opened, release };
   }
+
+  it('disables both edit buttons while the change is saved, so it is sent only once', async () => {
+    const { opened, release } = gate();
+    let patches = 0;
+    server.use(
+      http.patch('http://localhost:3000/v1/loans/:id', async ({ request }) => {
+        patches += 1;
+        await opened;
+        const body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { ...useLoanStore.getState().selectedLoan, ...body },
+          { status: 200 },
+        );
+      }),
+    );
+    renderDetailScreen();
+    await waitFor(() => expect(screen.getByTestId('edit-loan-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('edit-loan-btn'));
+    await waitFor(() => expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy());
+
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    const disabled = expect.objectContaining({ disabled: true });
+    expect(screen.getByTestId('confirm-edit-btn').props.accessibilityState).toEqual(disabled);
+    expect(screen.getByTestId('cancel-edit-btn').props.accessibilityState).toEqual(disabled);
+    release();
+    await waitFor(() => expect(useLoanStore.getState().isLoading).toBe(false));
+    expect(patches).toBe(1);
+  });
 
   it('keeps the screen and the edit dialog mounted while the change is being saved', async () => {
     const { opened, release } = gate();

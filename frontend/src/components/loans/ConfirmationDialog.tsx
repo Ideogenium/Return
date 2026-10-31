@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, Button, Dialog, Portal, TextInput, HelperText } from 'react-native-paper';
+import { Text, Button, Portal, TextInput, HelperText } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { formatDate } from '../../utils/date';
-import { FormScrollView } from '../common/FormScrollView';
+import { FormDialog } from '../common/FormDialog';
 import type { Loan } from '../../types/api.types';
 
 interface ConfirmationDialogProps {
@@ -54,54 +54,21 @@ export function ConfirmationDialog({
 
   return (
     <Portal>
-      <Dialog visible={visible} onDismiss={handleDismiss} testID="confirmation-dialog">
-        <Dialog.Title>{t('loans.confirmLoan')}</Dialog.Title>
-        <Dialog.ScrollArea style={styles.scrollArea}>
-          <FormScrollView testID="confirmation-dialog-scroll">
-            <View style={styles.content}>
-              <View style={styles.info}>
-                <Text variant="bodyMedium" style={styles.label}>
-                  {loan.item.name}
-                </Text>
-                <Text variant="bodySmall" style={styles.sub}>
-                  {t('navigation.contacts')}: {loan.lender.firstName} {loan.lender.lastName}
-                </Text>
-                {loan.returnDate && (
-                  <Text variant="bodySmall" style={styles.sub}>
-                    {t('loans.returnDate')}: {formatDate(loan.returnDate, i18n.language)}
-                  </Text>
-                )}
-              </View>
-
-              {showContestForm && (
-                <View style={styles.contestForm}>
-                  <TextInput
-                    label={t('loans.contestReason')}
-                    value={reason}
-                    onChangeText={setReason}
-                    multiline
-                    numberOfLines={3}
-                    maxLength={MAX_REASON_LENGTH}
-                    testID="contest-reason-input"
-                    contentStyle={{ textAlignVertical: 'top' }}
-                  />
-                  <HelperText type={reason.length > 0 && !isReasonValid ? 'error' : 'info'}>
-                    {reason.length}/{MAX_REASON_LENGTH} (min {MIN_REASON_LENGTH})
-                  </HelperText>
-                </View>
-              )}
-              {error && (
-                <HelperText type="error" testID="confirmation-dialog-error">
-                  {error}
-                </HelperText>
-              )}
-            </View>
-          </FormScrollView>
-        </Dialog.ScrollArea>
-        <Dialog.Actions>
-          {showContestForm ? (
+      <FormDialog
+        visible={visible}
+        onDismiss={handleDismiss}
+        title={t('loans.confirmLoan')}
+        hasUnsavedInput={showContestForm && reason.length > 0}
+        testID="confirmation-dialog"
+        scrollTestID="confirmation-dialog-scroll"
+        actions={
+          showContestForm ? (
             <>
-              <Button onPress={() => setShowContestForm(false)} testID="cancel-contest-btn">
+              <Button
+                onPress={() => setShowContestForm(false)}
+                disabled={isLoading}
+                testID="cancel-contest-btn"
+              >
                 {t('common.cancel')}
               </Button>
               <Button
@@ -132,9 +99,46 @@ export function ConfirmationDialog({
                 {t('loans.confirmLoan')}
               </Button>
             </>
+          )
+        }
+      >
+        <View style={styles.info}>
+          <Text variant="bodyMedium" style={styles.label}>
+            {loan.item.name}
+          </Text>
+          <Text variant="bodySmall" style={styles.sub}>
+            {t('navigation.contacts')}: {loan.lender.firstName} {loan.lender.lastName}
+          </Text>
+          {loan.returnDate && (
+            <Text variant="bodySmall" style={styles.sub}>
+              {t('loans.returnDate')}: {formatDate(loan.returnDate, i18n.language)}
+            </Text>
           )}
-        </Dialog.Actions>
-      </Dialog>
+        </View>
+
+        {showContestForm && (
+          <View style={styles.contestForm}>
+            <TextInput
+              label={t('loans.contestReason')}
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              numberOfLines={3}
+              maxLength={MAX_REASON_LENGTH}
+              testID="contest-reason-input"
+              contentStyle={{ textAlignVertical: 'top' }}
+            />
+            <HelperText type={reason.length > 0 && !isReasonValid ? 'error' : 'info'}>
+              {reason.length}/{MAX_REASON_LENGTH} (min {MIN_REASON_LENGTH})
+            </HelperText>
+          </View>
+        )}
+        {error && (
+          <HelperText type="error" testID="confirmation-dialog-error">
+            {error}
+          </HelperText>
+        )}
+      </FormDialog>
     </Portal>
   );
 }
@@ -144,7 +148,4 @@ const styles = StyleSheet.create({
   label: { color: '#2D3748', fontWeight: '600' },
   sub: { color: '#6B7A8D', marginTop: 4 },
   contestForm: { marginTop: 12 },
-  // Same layout as the loan edit dialog: the scroll area spans the dialog, the content keeps the padding.
-  scrollArea: { maxHeight: 420, paddingHorizontal: 0 },
-  content: { paddingHorizontal: 24, paddingVertical: 8 },
 });
