@@ -62,6 +62,8 @@ Identique au doc 13 :
 | FIX-34 | Notifications écrites en français en dur côté serveur                                 | 🟡 Mineur   | 3   | Ismael  | M      | oui        | ☐                                     |
 | FIX-35 | Réponses de prêt sans `Cache-Control: private` alors qu'elles dépendent du lecteur    | 🟡 Mineur   | 3   | Ozias   | XS     | —          | ☐                                     |
 | FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)  | 🟡 Mineur   | 3   | Ismael  | S      | —          | ☐                                     |
+| FIX-38 | Aucune notification quand le prêteur change la date de retour                         | 🟠 Majeur   | 3   | Ismael  | M      | oui        | ☐                                     |
+| FIX-39 | Limites de connexion : par email seul, et compteurs en mémoire                        | 🟡 Mineur   | 3   | Ozias   | S      | —          | ☐                                     |
 
 ### Répartition
 
@@ -373,3 +375,34 @@ Aucun ne bloque une mise en production. À planifier après le D3.
   - le zoom en pinçant ;
   - sur le web, sauter l'étape PNG (deux avertissements « not supported on web ») et tester
     `getMimeType('blob:…') === 'image/jpeg'`.
+
+### FIX-38 — Aucune notification quand le prêteur change la date de retour
+
+- **Gravité** : 🟠 Majeur · **Porteur** : Ismael · **Effort** : M · **Contrat** : oui
+- **Source** : test du build 5 sur iPhone (Ozias, 31/10).
+- **Constat** : quand le prêteur avance ou repousse la date de retour, l'emprunteur n'est pas prévenu. Il ne le voit
+  qu'en ouvrant le prêt, ou au rappel suivant (FIX-11 replanifie bien les rappels).
+- **Cause** : `NotificationType` (`schema.prisma`) n'a pas de type pour ce cas, et `loan-notification.listener.ts`
+  n'écoute que `LOAN_EVENTS.CREATED` et `LOAN_EVENTS.STATUS_CHANGED`. Changer la date ne change pas le statut. Le
+  contrat ne prévoit pas cette notification.
+- **Correctif proposé** :
+  1. **D'abord un inventaire** des événements métier qui méritent une notification, pour ne plus les ajouter un par
+     un. Par exemple, le passage en `NOT_RETURNED` par le job overdue n'a pas de type non plus.
+  2. Contrat : un type `LOAN_RETURN_DATE_CHANGED`, envoyé à l'emprunteur, avec l'ancienne et la nouvelle date dans
+     le message, et `{ loanId, type }` dans le push. Le tap ouvre le prêt, ce qui marche déjà dans les builds
+     installés grâce à `loanId`.
+  3. Serveur : un événement émis par `PATCH /loans/{loanId}` seulement quand la date change vraiment, plus une
+     migration additive de l'enum (comme FIX-27).
+- **À trancher** : notifier aussi un changement des notes ? Proposition : non, pour éviter le bruit.
+
+### FIX-39 — Limites de connexion : par email seul, et compteurs en mémoire
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : S
+- **Source** : relecture de #52 (FIX-37) par Ismael.
+- **Constat** :
+  - aucune limite par email seul : une attaque distribuée (beaucoup d'IP) sur un même compte n'est limitée que par
+    les compteurs IP + email ;
+  - les compteurs du throttler sont en mémoire : un par machine, remis à zéro à chaque redémarrage.
+- **Correctif** : un compteur par email seul sur `/auth/login` (ou un verrouillage temporaire du compte, à trancher
+  pour éviter qu'un attaquant bloque un compte), et un stockage Redis du throttler, indispensable avant de passer à
+  plusieurs machines (règle « une seule machine », CORR-09).
