@@ -2268,14 +2268,17 @@ paths:
         ses noms et son email, sans téléphone. Si aucun prêt n'est conservé, le compte est entièrement
         supprimé, sans trace.
 
-        **Ses emprunts** : s'il était emprunteur chez d'autres prêteurs, leurs contacts et leurs prêts
-        restent inchangés pour eux, mais ne sont plus reliés à un compte (`Borrower.userId: null`) : il
-        ne reçoit plus aucun rappel. Le motif de contestation (`contestReason`) qu'il a écrit est conservé,
-        car il explique le statut du prêt au prêteur.
+        **Ses emprunts** : s'il était emprunteur chez d'autres prêteurs, chacun de ces contacts est détaché
+        (`Borrower.userId: null`, `accountDeleted: true`) : son email est remplacé par une adresse non
+        routable du domaine réservé `deleted.invalid` et son téléphone est effacé. Le nom que le prêteur lui
+        avait donné, ses prêts et ses statistiques restent chez ce prêteur. Il ne reçoit plus aucun rappel.
+        Le motif de contestation (`contestReason`) qu'il a écrit est conservé, car il explique le statut du
+        prêt au prêteur.
 
-        **Nouvelle inscription avec la même adresse** : elle crée un nouveau compte, et les contacts qui le
-        représentaient chez d'autres prêteurs s'y relient par email, comme pour toute inscription : le
-        nouveau compte retrouve l'historique et le score de confiance d'emprunteur de l'ancien.
+        **Nouvelle inscription avec la même adresse** : elle crée un nouveau compte, **sans aucun lien** avec
+        l'ancien. Les contacts détachés ne sont jamais reliés à nouveau, car l'adresse n'est pas vérifiée
+        (ADR 0010). Si un prêteur invite ce nouveau compte, l'invitation acceptée crée un nouveau contact,
+        sans l'historique de l'ancien.
       operationId: deleteUserAccount
       requestBody:
         required: true
@@ -3111,6 +3114,14 @@ components:
           format: uuid
           example: 9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
           description: ID utilisateur Return (null si invitation en attente)
+        accountDeleted:
+          type: boolean
+          example: true
+          description: |
+            Présent et `true` seulement si le compte que ce contact représentait a été supprimé (FIX-22) ;
+            **omis** sinon. Le contact est alors détaché (`userId: null`), son `email` est une adresse non
+            routable du domaine réservé `deleted.invalid` (à ne pas afficher) et son téléphone est effacé.
+            Le nom donné par le prêteur, ses prêts et ses statistiques restent.
         statistics:
           allOf:
             - $ref: '#/components/schemas/BorrowerStatistics'
