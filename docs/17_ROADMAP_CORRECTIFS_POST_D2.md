@@ -191,6 +191,11 @@ Identique au doc 13 :
   filtré à la connexion, au refresh, à la recherche et aux invitations ; `accountDeleted` dans le mapper du prêteur ;
   libellé traduit côté app. Un test par point d'entrée qui lit des utilisateurs.
 - **Builds installés** : ils ignorent `accountDeleted` et affichent « Compte supprimé » tel quel.
+- **Statut** : 🟡 code livré sur `fix/FIX-22-account-deletion` (31/10), tout le contrat #43 sauf la suppression
+  des notifications d'invitation d'autres utilisateurs, isolée dans `deleteOthersInvitationNotifications` en attente
+  de `Notification.actorUserId` (#45) ; les notifications de prêt d'autres utilisateurs qui le nomment sont, elles,
+  supprimées via `relatedLoanId`. Preuve sur un vrai Postgres 17 : `test/account-deletion.db.e2e-spec.ts`
+  (opt-in `DB_E2E_DATABASE_URL`), dont la reproduction du `P2003` d'origine.
 
 ### FIX-23 — La déconnexion ne désinscrit pas le téléphone des notifications
 
