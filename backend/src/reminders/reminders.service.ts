@@ -145,7 +145,7 @@ export class RemindersService {
     return {
       ...rest,
       loan: { id: loan.id, lenderId: loan.lenderId, borrowerUserId: loan.borrower.userId },
-    } as ReminderWithLoan;
+    };
   }
 
   /**

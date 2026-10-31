@@ -247,28 +247,7 @@ describe('Loans Integration (e2e)', () => {
   // ===========================================================================
 
   describe('FIX-28: third party gets a 404 indistinguishable from a missing loan', () => {
-    const visible = (body: Record<string, unknown>): Record<string, unknown> => ({
-      status: body.status,
-      type: body.type,
-      title: body.title,
-      detail: body.detail,
-    });
-
-    it.each([
-      ['GET', (id: string) => request(app.getHttpServer()).get(`/v1/loans/${id}`)],
-      ['DELETE', (id: string) => request(app.getHttpServer()).delete(`/v1/loans/${id}`)],
-    ])('should answer %s on a foreign loan like on a missing one', async (_method, call) => {
-      setAuthUser(OTHER_USER_ID, 'other@example.com');
-
-      prisma.loan.findUnique.mockResolvedValueOnce(null);
-      const missing = await call(LOAN_ID).expect(404);
-
-      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN as never);
-      const foreign = await call(LOAN_ID).expect(404);
-
-      expect(visible(foreign.body)).toEqual(visible(missing.body));
-    });
-
+    // The exhaustive third-party vs missing comparison lives in third-party-not-found.e2e-spec.ts.
     it('should keep 403 for the borrower, a party to the loan, on DELETE', async () => {
       setAuthUser(BORROWER_USER_ID, 'marie@example.com');
       prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN as never);

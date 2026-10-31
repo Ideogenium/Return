@@ -529,11 +529,8 @@ export class LoansService {
       const item = await tx.item.findUnique({
         where: { id: itemInput },
       });
-      if (!item) {
-        throw new NotFoundException('Item', itemInput, '/v1/loans');
-      }
       // FIX-28: someone else's item is reported exactly like a missing one (no existence leak).
-      if (item.userId !== lenderId) {
+      if (!item || item.userId !== lenderId) {
         throw new NotFoundException('Item', itemInput, '/v1/loans');
       }
       return item.id;
@@ -574,11 +571,8 @@ export class LoansService {
     const borrower = await tx.borrower.findUnique({
       where: { id: borrowerId },
     });
-    if (!borrower) {
-      throw new NotFoundException('Borrower', borrowerId, '/v1/loans');
-    }
     // FIX-28: someone else's contact is reported exactly like a missing one.
-    if (borrower.lenderUserId !== lenderId) {
+    if (!borrower || borrower.lenderUserId !== lenderId) {
       throw new NotFoundException('Borrower', borrowerId, '/v1/loans');
     }
     return borrower.id;
