@@ -32,6 +32,7 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
       );
     }
     assertProductionCorsOrigin(raw('CORS_ORIGIN'));
+    assertProductionRedisUrl(raw('REDIS_URL'));
   }
 
   return validated;
@@ -51,6 +52,18 @@ function assertProductionCorsOrigin(origin: string | undefined): void {
     throw new Error(
       'Config validation error:\nCORS_ORIGIN must be set explicitly in production to a single ' +
         'non-local https origin such as https://app.example.com (no path, no trailing slash).',
+    );
+  }
+}
+
+// Same reasoning as CORS: the class default (localhost) must never silently apply in
+// production, where a forgotten secret would leave the app without its Redis.
+function assertProductionRedisUrl(redisUrl: string | undefined): void {
+  const url = redisUrl ? safeUrl(redisUrl) : null;
+  if (url === null || !['redis:', 'rediss:'].includes(url.protocol)) {
+    throw new Error(
+      'Config validation error:\nREDIS_URL must be set explicitly in production to a ' +
+        'redis:// or rediss:// URL.',
     );
   }
 }
