@@ -23,10 +23,10 @@
 | ID      | Titre                                                              | Gravité     | Périmètre                         | Effort              | Statut |
 |---------|--------------------------------------------------------------------|-------------|-----------------------------------|---------------------|--------|
 | CORR-01 | CRON in-process vs Fly.io scale-to-zero                            | 🔴 Critique | Back (Esdras)                     | 5 min / 2-3h        | ☐      |
-| CORR-02 | Stockage photos R2 non implémenté                                  | 🟠 Majeur   | Back (Esdras)                     | 2-3h                | ☐      |
+| CORR-02 | Stockage photos R2 non implémenté                                  | 🟠 Majeur   | Back (Esdras)                     | 2-3h                | ◑ code ✅ (FEAT-01) · recette après D2 |
 | CORR-03 | `expo-notifications` absent des plugins `app.json`                 | 🟠 Majeur   | Front (Ismael)                    | 5 min               | ☐      |
 | CORR-04 | `getExpoPushTokenAsync()` sans `projectId`                         | 🟠 Majeur   | Front (Ismael)                    | 5 min               | ☐      |
-| CORR-05 | Secrets Fly à définir/vérifier                                     | 🟠 Majeur   | Back (Esdras)                     | 15 min              | ☐      |
+| CORR-05 | Secrets Fly à définir/vérifier                                     | 🟠 Majeur   | Back (Esdras)                     | 15 min              | ◑ stagés · effectifs au déploiement D2 |
 | CORR-06 | Type MONEY orphelin (UX)                                           | 🟡 Mineur   | Front (Ismael) + décision produit | 30 min              | ☐      |
 | CORR-07 | Rappels invisibles dans l'UI                                       | 🟡 Mineur   | Front (Ismael)                    | 2-4h                | ☐      |
 | CORR-08 | Endpoints History/Statistics non consommés                         | 🟡 Mineur   | Front (Ismael)                    | 1h                  | ☐      |
@@ -87,7 +87,11 @@
   configurer 5 secrets Fly (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`,
   `R2_PUBLIC_URL`), conditionner `useStaticAssets` à l'absence de R2. **Procédure pas-à-pas complète
   dans `docs/10_ROADMAP_CLOUDFLARE_R2.md`** (l'interface `PhotoStorage` est déjà prête).
-- **Statut** : ☐ À faire
+- **Statut** : ◑ Code livré par FEAT-01 (merge `9a6ca53`, PR #30) — `R2PhotoStorageService`, choix R2/local par
+  `photo-storage.factory.ts` (les 5 `R2_*` ou aucune), **R2 obligatoire en production** (ADR 0008), `/uploads` servi
+  seulement en stockage local, purge des photos à la suppression de compte. Bucket `return-photos-preprod` testé en
+  réel le 26/10 ; les 5 secrets `R2_*` sont posés en `--stage`. Reste : déploiement D2 et preuve qu'une photo survit à
+  un `fly deploy`. Détail à jour : `10_ROADMAP_CLOUDFLARE_R2.md` § « État au 31/10/2026 ».
 
 ### CORR-03 — `expo-notifications` absent des plugins `app.json`
 
@@ -131,7 +135,18 @@
   la valeur par défaut `localhost:8081` s'applique.
 - **Action recommandée** : `fly secrets set EXPO_ACCESS_TOKEN=… CORS_ORIGIN=… -a return-api`, puis
   `fly secrets unset FIREBASE_SERVICE_ACCOUNT_BASE64 -a return-api` et `fly secrets list -a return-api` pour vérifier.
-- **Statut** : ☐ À faire
+- **Statut** : ◑ Fait côté code et secrets, effectif au déploiement D2 (FEAT-02, PR #30) :
+    - **Firebase** : aucun secret Firebase sur Fly (vérifié le 31/10 par `fly secrets list`, noms uniquement).
+    - **`EXPO_ACCESS_TOKEN`** : posé en `--stage` le 26/10 (robot Expo, rôle Viewer — à confirmer suffisant lors du
+      premier envoi après D2, sinon rôle Developer).
+    - **`CORS_ORIGIN`** : fixé dans `fly.toml` à `https://return-api.fly.dev` ; en production l'API refuse de
+      démarrer sans une origine https exacte et non locale (ADR 0009). L'ancien secret `CORS_ORIGIN='*'` est retiré en
+      `--stage`.
+    - **Audit vs `env.validation.ts`** : obligatoires en prod et présents sur Fly — `DATABASE_URL`,
+      `JWT_ACCESS_SECRET`, `REDIS_URL` ; R2 obligatoire (5 `R2_*` stagés) ; `NODE_ENV`, `PORT`, `API_PREFIX`,
+      `LOG_LEVEL`, `CORS_ORIGIN` dans `fly.toml`. Écarts relevés : `REDIS_URL` a une valeur par défaut `localhost` qui
+      n'est pas refusée en prod (remarque de relecture PR #30) ; le secret `JWT_REFRESH_SECRET` existe sur Fly mais
+      n'est lu par aucun code.
 
 ### CORR-13 — Incompatibilité Expo Push Token ↔ Firebase Admin SDK (FCM)
 
