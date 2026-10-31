@@ -12,6 +12,7 @@ import {
 import { AuthNavigator } from './AuthNavigator';
 import { AppNavigator } from './AppNavigator';
 import { navigateToInvitationsFromPush, navigateToLoanDetail } from './navigationRef';
+import type { PushNotificationData } from '../types/api.types';
 
 export function RootNavigator() {
   const { isAuthenticated, isHydrating, user, hydrate } = useAuthStore();
@@ -45,12 +46,17 @@ export function RootNavigator() {
   // Deep-link to the relevant screen when a push notification is tapped
   useEffect(() => {
     const openFromPush = (data: Record<string, unknown> | undefined) => {
-      const loanId = data?.loanId as string | undefined;
+      // Push data is untyped at runtime: only the fields read here are declared, and `type`
+      // is validated by the guard inside navigateToInvitationsFromPush
+      const push = data as
+        | (Partial<Pick<PushNotificationData, 'type'>> & { loanId?: string })
+        | undefined;
+      const loanId = push?.loanId;
       if (loanId) {
         navigateToLoanDetail(loanId);
       } else {
         // Contact-invitation pushes carry no loanId, only a type
-        navigateToInvitationsFromPush(data?.type as string | undefined);
+        navigateToInvitationsFromPush(push?.type);
       }
     };
 

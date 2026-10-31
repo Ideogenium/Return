@@ -9,7 +9,11 @@ jest.mock('@react-navigation/native', () => {
   };
 });
 
-import { navigateToLoanDetail, navigateToInvitationsFromPush } from '../navigationRef';
+import {
+  navigateToLoanDetail,
+  navigateToInvitationsFromPush,
+  isContactInvitationPushType,
+} from '../navigationRef';
 import * as ReactNavigation from '@react-navigation/native';
 
 const mockNavigate = (ReactNavigation as unknown as { __navigate: jest.Mock }).__navigate;
@@ -93,5 +97,21 @@ describe('navigateToInvitationsFromPush', () => {
     navigateToInvitationsFromPush('CONTACT_INVITATION_RECEIVED');
 
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('isContactInvitationPushType', () => {
+  it.each(['CONTACT_INVITATION_RECEIVED', 'CONTACT_INVITATION_ACCEPTED'])('accepts %s', (value) => {
+    expect(isContactInvitationPushType(value)).toBe(true);
+  });
+
+  it.each([
+    ['an unknown type', 'LOAN_CREATED'],
+    ['undefined', undefined],
+    ['null', null],
+    ['a number', 42],
+    ['an object', { type: 'CONTACT_INVITATION_RECEIVED' }],
+  ])('rejects %s', (_label, value) => {
+    expect(isContactInvitationPushType(value)).toBe(false);
   });
 });

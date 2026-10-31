@@ -30,8 +30,8 @@ export const CONTACT_INVITATION_EVENTS = {
 /**
  * Payload émis lors de l'envoi d'une invitation de contact.
  *
- * Le module Notifications écoute cet événement pour notifier le destinataire
- * (CONTACT_INVITATION_RECEIVED).
+ * Le module Notifications écoute cet événement (ContactInvitationNotificationListener)
+ * pour notifier le destinataire (CONTACT_INVITATION_RECEIVED).
  */
 export interface ContactInvitationSentEvent {
   /** ID de l'invitation créée */
@@ -53,8 +53,8 @@ export interface ContactInvitationSentEvent {
 /**
  * Payload émis lors de l'acceptation d'une invitation de contact.
  *
- * Le module Notifications écoutera cet événement pour notifier l'émetteur
- * que son invitation a été acceptée.
+ * Le module Notifications écoute cet événement (ContactInvitationNotificationListener)
+ * pour notifier l'émetteur que son invitation a été acceptée.
  */
 export interface ContactInvitationAcceptedEvent {
   /** ID de l'invitation acceptée */
@@ -76,8 +76,8 @@ export interface ContactInvitationAcceptedEvent {
 /**
  * Payload émis lors du rejet d'une invitation de contact.
  *
- * Le module Notifications écoutera cet événement pour notifier l'émetteur
- * que son invitation a été refusée.
+ * Aucun écouteur n'est volontairement branché sur cet événement : par décision du contrat,
+ * le refus d'une invitation ne déclenche pas de notification à l'émetteur.
  */
 export interface ContactInvitationRejectedEvent {
   /** ID de l'invitation rejetée */
