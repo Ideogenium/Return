@@ -21,7 +21,44 @@ describe('validate (environment)', () => {
     NODE_ENV: 'production',
     CORS_ORIGIN: 'https://return-api.fly.dev',
     REDIS_URL: 'redis://default:pass@return-redis.internal:6379',
+    CLIENT_IP_HEADER: 'fly-client-ip',
+    TRUST_PROXY_HOPS: '1',
   };
+
+  // FIX-37: behind the Fly proxy the socket address is the proxy's. Without a
+  // client IP source, every user would share the same rate-limit buckets.
+  describe('client IP source in production', () => {
+    it('refuses to start when neither CLIENT_IP_HEADER nor TRUST_PROXY_HOPS is set', () => {
+      const env: Record<string, unknown> = { ...PROD_ENV };
+      delete env.CLIENT_IP_HEADER;
+      delete env.TRUST_PROXY_HOPS;
+      expect(() => validate(env)).toThrow(/CLIENT_IP_HEADER/);
+    });
+
+    it('accepts either source alone', () => {
+      const headerOnly: Record<string, unknown> = { ...PROD_ENV };
+      delete headerOnly.TRUST_PROXY_HOPS;
+      const hopsOnly: Record<string, unknown> = { ...PROD_ENV };
+      delete hopsOnly.CLIENT_IP_HEADER;
+      expect(() => validate(headerOnly)).not.toThrow();
+      expect(() => validate(hopsOnly)).not.toThrow();
+    });
+
+    it('does not require a client IP source in development', () => {
+      expect(() => validate(BASE_ENV)).not.toThrow();
+    });
+  });
+
+  it.each(['fly client ip', 'x-real-ip:', ''])(
+    'refuses an invalid CLIENT_IP_HEADER %p',
+    (value) => {
+      expect(() => validate({ ...BASE_ENV, CLIENT_IP_HEADER: value })).toThrow(/CLIENT_IP_HEADER/);
+    },
+  );
+
+  it.each(['-1', '1.5', 'abc'])('refuses an invalid TRUST_PROXY_HOPS %p', (value) => {
+    expect(() => validate({ ...BASE_ENV, TRUST_PROXY_HOPS: value })).toThrow(/TRUST_PROXY_HOPS/);
+  });
 
   describe('REDIS_URL in production', () => {
     const prodWithoutRedis: Record<string, unknown> = { ...PROD_ENV };

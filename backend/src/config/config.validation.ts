@@ -33,6 +33,7 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
     }
     assertProductionCorsOrigin(raw('CORS_ORIGIN'));
     assertProductionRedisUrl(raw('REDIS_URL'));
+    assertProductionClientIpSource(raw('CLIENT_IP_HEADER'), raw('TRUST_PROXY_HOPS'));
   }
 
   return validated;
@@ -64,6 +65,22 @@ function assertProductionRedisUrl(redisUrl: string | undefined): void {
     throw new Error(
       'Config validation error:\nREDIS_URL must be set explicitly in production to a ' +
         'redis:// or rediss:// URL.',
+    );
+  }
+}
+
+// FIX-37: in production the API runs behind the Fly proxy. Without a client IP source,
+// rate limiting would count every request under the proxy's address, and one client
+// could lock the login for every user.
+function assertProductionClientIpSource(
+  header: string | undefined,
+  trustProxyHops: string | undefined,
+): void {
+  if (!header && !(Number(trustProxyHops) > 0)) {
+    throw new Error(
+      'Config validation error:\nCLIENT_IP_HEADER (e.g. fly-client-ip) or TRUST_PROXY_HOPS must be ' +
+        'set in production: behind a proxy, rate limiting would otherwise share one bucket between ' +
+        'all users.',
     );
   }
 }

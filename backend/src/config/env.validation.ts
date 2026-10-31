@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Matches, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export enum Environment {
@@ -40,6 +40,19 @@ export class EnvironmentVariables {
 
   @IsString()
   CORS_ORIGIN: string = 'http://localhost:8081';
+
+  // FIX-37: where the real client IP comes from, for rate limiting. Behind a proxy the
+  // socket address is the proxy's, which would put every user in the same bucket.
+  // CLIENT_IP_HEADER names a header set by the proxy itself (on Fly: fly-client-ip);
+  // TRUST_PROXY_HOPS is Express's `trust proxy` hop count for X-Forwarded-For.
+  // Both are off by default (development, tests); production requires one of them.
+  @IsOptional()
+  @Matches(/^[A-Za-z0-9-]+$/, { message: 'CLIENT_IP_HEADER must be an HTTP header name' })
+  CLIENT_IP_HEADER?: string;
+
+  @IsOptional()
+  @Matches(/^(0|[1-9][0-9]?)$/, { message: 'TRUST_PROXY_HOPS must be an integer from 0 to 99' })
+  TRUST_PROXY_HOPS?: string;
 
   // CORR-13 / Option B: push goes through the Expo Push Service. The access
   // token is optional (it only lifts the anonymous rate limit). The former

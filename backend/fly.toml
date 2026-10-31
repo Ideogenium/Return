@@ -14,6 +14,11 @@ primary_region = 'cdg'
   # The native app is not subject to CORS. No browser front-end is deployed, so
   # only the API's own origin is allowed; set the real web origin here if one is.
   CORS_ORIGIN = 'https://return-api.fly.dev'
+  # FIX-37: the client address for rate limiting. The Fly proxy sets Fly-Client-IP on
+  # every request and is the only way into the app; it is also the one hop of trust
+  # proxy, so req.ip is the client's. Without them every user shares one bucket.
+  CLIENT_IP_HEADER = 'fly-client-ip'
+  TRUST_PROXY_HOPS = '1'
   # Photos are stored on Cloudflare R2: the five R2_* variables are Fly secrets
   # (`fly secrets set`, never here). The app refuses to start in production
   # without them, so set the secrets BEFORE deploying a version that needs them.
