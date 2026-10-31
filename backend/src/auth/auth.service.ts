@@ -131,7 +131,8 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    if (!user) {
+    // Un compte supprimé (pierre tombale, FIX-22) répond comme un compte inexistant.
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException(
         'invalid-credentials',
         'Invalid Credentials',
@@ -227,8 +228,8 @@ export class AuthService {
       where: { id: storedToken.userId },
     });
 
-    // Sécurité : si l'utilisateur a été supprimé entre-temps
-    if (!user) {
+    // Sécurité : si l'utilisateur a été supprimé entre-temps (ou gardé en pierre tombale, FIX-22)
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException(
         'invalid-refresh-token',
         'Invalid Token',

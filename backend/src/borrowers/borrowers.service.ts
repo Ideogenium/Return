@@ -34,10 +34,12 @@ export class BorrowersService {
   async create(lenderUserId: string, dto: CreateBorrowerDto): Promise<BorrowerResponse> {
     // If a registered user already exists with this email, link immediately.
     // This handles the case where the contact is added AFTER the user has registered.
-    const existingUser = await this.prisma.user.findUnique({
+    const registeredUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
+    // A deleted account (tombstone, FIX-22) is never linked to a new contact.
+    const existingUser = registeredUser && !registeredUser.deletedAt ? registeredUser : null;
 
     try {
       const borrower = await this.prisma.borrower.create({

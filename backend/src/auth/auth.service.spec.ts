@@ -291,6 +291,25 @@ describe('AuthService', () => {
       });
     });
 
+    it('answers a deleted account exactly like an unknown one, without checking the password (FIX-22)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, deletedAt: new Date() });
+
+      const error = (await service.login(LOGIN_DTO).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
+
+      expect(error.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({
+          type: 'https://api.return.app/errors/invalid-credentials',
+          detail: 'Email or password is incorrect.',
+        }),
+      );
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
     it('should return AuthResponse for valid credentials', async () => {
       // Act
       const result = await service.login(LOGIN_DTO);
@@ -421,6 +440,19 @@ describe('AuthService', () => {
           user: expect.objectContaining({ id: MOCK_USER.id }),
         }),
       );
+    });
+
+    it('refuses a refresh token of a deleted account and issues no new token (FIX-22)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, deletedAt: new Date() });
+
+      const error = (await service.refreshTokens(RAW_REFRESH_TOKEN).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
+
+      expect(error.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
+      expect(error.getResponse().type).toContain('invalid-refresh-token');
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException for unknown refresh token', async () => {

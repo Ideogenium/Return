@@ -111,6 +111,21 @@ describe('BorrowersService', () => {
       });
     });
 
+    it('does not link the contact to a deleted account (FIX-22)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'deleted-user', deletedAt: new Date() } as never);
+      prisma.borrower.create.mockResolvedValue(MOCK_BORROWER);
+
+      await service.create(LENDER_USER_ID, {
+        firstName: 'Marie',
+        lastName: 'Dupont',
+        email: 'marie.dupont@example.com',
+      });
+
+      expect(prisma.borrower.create).toHaveBeenCalledWith({
+        data: expect.not.objectContaining({ userId: expect.anything() }),
+      });
+    });
+
     it('should create a borrower with userId when a registered user already has the same email', async () => {
       const REGISTERED_USER_ID = '990e8400-e29b-41d4-a716-446655440000';
       prisma.user.findUnique.mockResolvedValue({ id: REGISTERED_USER_ID } as never);
