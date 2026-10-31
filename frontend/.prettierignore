@@ -1,0 +1,5 @@
+# Generated output, never formatted by hand
+coverage/
+.expo/
+dist/
+web-build/

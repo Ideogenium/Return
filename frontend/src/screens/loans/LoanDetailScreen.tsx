@@ -23,7 +23,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useHistoryStore } from '../../stores/useHistoryStore';
 import { useReminderStore } from '../../stores/useReminderStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
-import { formatDate, toLocalIsoDate } from '../../utils/date';
+import { formatDate, parseIsoDate, toLocalIsoDate } from '../../utils/date';
 import { ReturnDateCalendar } from '../../components/loans/ReturnDateCalendar';
 import { getContactForUser } from '../../utils/loan';
 import { ui } from '../../config/theme.config';
@@ -230,7 +230,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     setEditNotes(loan?.notes ?? '');
     const existingDate = loan?.returnDate ?? '';
     setEditReturnDate(existingDate);
-    setEditReturnDateObj(existingDate ? new Date(existingDate) : undefined);
+    setEditReturnDateObj(existingDate ? parseIsoDate(existingDate) : undefined);
     setCalendarExpanded(false);
     setEditDialogVisible(true);
   };

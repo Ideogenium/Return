@@ -5,6 +5,7 @@ jest.mock('../../config/api-modules.config', () => ({
 
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../__mocks__/server';
+import apiClient from '../../api/apiClient';
 import { useNotificationStore } from '../useNotificationStore';
 
 const API_BASE = 'http://localhost:3000/v1';
@@ -139,6 +140,30 @@ describe('useNotificationStore', () => {
       expect(useNotificationStore.getState().isLoading).toBe(false);
       expect(useNotificationStore.getState().error).toBeNull();
     });
+
+    it('keeps the device token once the registration succeeds', async () => {
+      await useNotificationStore.getState().registerDeviceToken('expo-token-123', 'android');
+
+      expect(useNotificationStore.getState().deviceToken).toBe('expo-token-123');
+    });
+
+    it('leaves the device token unchanged when the registration fails', async () => {
+      useNotificationStore.setState({ deviceToken: 'previous-token' });
+      server.use(
+        http.post(`${API_BASE}/notifications/device-token`, () =>
+          HttpResponse.json(
+            { type: 'error', title: 'Error', status: 500, detail: 'fail' },
+            { status: 500 },
+          ),
+        ),
+      );
+
+      await expect(
+        useNotificationStore.getState().registerDeviceToken('expo-token-123', 'android'),
+      ).rejects.toThrow();
+
+      expect(useNotificationStore.getState().deviceToken).toBe('previous-token');
+    });
   });
 
   describe('unregisterDeviceToken', () => {
@@ -157,6 +182,46 @@ describe('useNotificationStore', () => {
       expect(useNotificationStore.getState().isLoading).toBe(false);
       expect(useNotificationStore.getState().error).toBeNull();
     });
+
+    it('sends the unregistration with a short timeout, leaving the client default untouched', async () => {
+      const deleteSpy = jest.spyOn(apiClient, 'delete');
+
+      await useNotificationStore.getState().unregisterDeviceToken('expo-token-123');
+
+      expect(deleteSpy).toHaveBeenCalledWith('/notifications/device-token', {
+        data: { token: 'expo-token-123' },
+        timeout: 5000,
+      });
+      // /auth/logout relies on this default, it must not be shortened
+      expect(apiClient.defaults.timeout).toBe(15000);
+      deleteSpy.mockRestore();
+    });
+
+    it('clears the device token once the unregistration succeeds', async () => {
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+
+      await useNotificationStore.getState().unregisterDeviceToken('expo-token-123');
+
+      expect(useNotificationStore.getState().deviceToken).toBeNull();
+    });
+
+    it('keeps the device token when the unregistration fails', async () => {
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+      server.use(
+        http.delete(`${API_BASE}/notifications/device-token`, () =>
+          HttpResponse.json(
+            { type: 'error', title: 'Error', status: 500, detail: 'fail' },
+            { status: 500 },
+          ),
+        ),
+      );
+
+      await expect(
+        useNotificationStore.getState().unregisterDeviceToken('expo-token-123'),
+      ).rejects.toThrow();
+
+      expect(useNotificationStore.getState().deviceToken).toBe('expo-token-123');
+    });
   });
 
   describe('reset', () => {
@@ -171,6 +236,15 @@ describe('useNotificationStore', () => {
       expect(state.unreadCount).toBe(0);
       expect(state.isLoading).toBe(false);
       expect(state.error).toBeNull();
+    });
+
+    it('starts with no device token and clears it on reset', () => {
+      expect(useNotificationStore.getState().deviceToken).toBeNull();
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+
+      useNotificationStore.getState().reset();
+
+      expect(useNotificationStore.getState().deviceToken).toBeNull();
     });
   });
 

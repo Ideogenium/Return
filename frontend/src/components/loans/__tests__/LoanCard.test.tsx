@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
+import i18n from '../../../config/i18n.config';
 import { LoanCard } from '../LoanCard';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import type { Loan, User, UserSummary, Borrower } from '../../../types/api.types';
@@ -96,5 +97,22 @@ describe('LoanCard — contact field relative to current user (FIX-11)', () => {
     // Assert — lender name visible, borrower name absent from contact line
     expect(screen.getByText(/Alice Martin/)).toBeTruthy();
     expect(screen.queryByText(/Bob Dupont/)).toBeNull();
+  });
+});
+
+describe('LoanCard — return date', () => {
+  it('should display the calendar day sent by the API, whatever the timezone', () => {
+    // Arrange — the API sends the due day as a date-only string
+    const loan = {
+      ...makeLoan(makeLender('user-alice', 'Alice', 'Martin'), makeBorrower('b', 'Bob', 'Dupont')),
+      returnDate: '2026-11-03',
+    };
+    useAuthStore.setState({ user: makeUser('user-alice', 'Alice', 'Martin') });
+
+    // Act
+    renderLoanCard(loan);
+
+    // Assert — read as UTC midnight, this would show Nov 2 west of UTC
+    expect(screen.getByText(new Date(2026, 10, 3).toLocaleDateString(i18n.language))).toBeTruthy();
   });
 });
