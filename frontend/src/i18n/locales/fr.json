@@ -37,7 +37,9 @@
     "registerTitle": "Inscription",
     "noAccount": "Pas de compte ? S'inscrire",
     "hasAccount": "Déjà un compte ? Se connecter",
-    "logout": "Se déconnecter"
+    "logout": "Se déconnecter",
+    "privacyConsent": "En créant un compte, vous acceptez la",
+    "privacyConsentLink": "politique de confidentialité"
   },
   "profile": {
     "title": "Mon profil",
@@ -46,6 +48,7 @@
     "deleteAccount": "Supprimer mon compte",
     "settings": "Paramètres",
     "history": "Historique des prêts",
+    "privacyPolicy": "Politique de confidentialité",
     "currentPassword": "Mot de passe actuel",
     "newPassword": "Nouveau mot de passe",
     "confirmNewPassword": "Confirmer le nouveau mot de passe",

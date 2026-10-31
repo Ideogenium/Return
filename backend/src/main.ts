@@ -64,8 +64,9 @@ async function bootstrap(): Promise<void> {
   });
 
   // Global prefix — exclut les health endpoints (OpenAPI: /health, /ready sans préfixe v1)
+  // et la page publique /privacy (exigence des stores, hors contrat OpenAPI)
   const prefix = config.get<string>('API_PREFIX', 'v1');
-  app.setGlobalPrefix(prefix, { exclude: ['health', 'ready'] });
+  app.setGlobalPrefix(prefix, { exclude: ['health', 'ready', 'privacy'] });
 
   // Validation — avec exceptionFactory pour conserver les noms de champs structurés
   app.useGlobalPipes(

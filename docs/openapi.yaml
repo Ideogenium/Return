@@ -16,6 +16,8 @@ info:
     **Authentification** : JWT (Bearer Token) avec révocation immédiate via Redis
     **Standards** : RFC 7807 pour toutes les erreurs, i18n FR/EN
     **Validation** : class-validator + class-transformer
+    **Politique de confidentialité** : page HTML publique `GET /privacy`, hors du préfixe `/v1` et hors de
+    ce contrat ; FR par défaut, EN avec `?lang=en` ou selon `Accept-Language`
 
     **Règle 404 / 403 (ressources d'un autre utilisateur)** :
     - Quand l'appelant **n'est pas partie** à la ressource (tiers : prêt, objet, photo, contact, rappel,

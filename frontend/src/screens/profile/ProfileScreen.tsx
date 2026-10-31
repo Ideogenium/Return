@@ -13,11 +13,12 @@ import { useHistoryStore } from '../../stores/useHistoryStore';
 import type { AppStackParamList } from '../../navigation/types';
 import type { ProblemDetails } from '../../types/api.types';
 import { extractProblemDetails, getErrorMessage } from '../../utils/error';
+import { openPrivacyPolicy } from '../../utils/privacy';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'Profile'>;
 
 export function ProfileScreen({ navigation }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuthStore();
   const [snackbar, setSnackbar] = useState<{ message: string; type: 'success' | 'error' } | null>(
     null,
@@ -161,6 +162,18 @@ export function ProfileScreen({ navigation }: Props) {
           testID="settings-btn"
         >
           {t('profile.settings')}
+        </Button>
+
+        <Button
+          mode="outlined"
+          icon="shield-lock-outline"
+          onPress={() => openPrivacyPolicy(i18n.language)}
+          style={styles.outlinedButton}
+          labelStyle={styles.outlinedLabel}
+          contentStyle={styles.buttonContent}
+          testID="privacy-policy-link"
+        >
+          {t('profile.privacyPolicy')}
         </Button>
 
         <Button
