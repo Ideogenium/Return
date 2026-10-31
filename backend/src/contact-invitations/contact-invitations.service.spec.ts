@@ -241,6 +241,49 @@ describe('ContactInvitationsService', () => {
       );
     });
 
+    it('should emit SENT after the invitation is created', async () => {
+      prisma.user.findFirst.mockResolvedValue(RECIPIENT_USER);
+      prisma.contactInvitation.findFirst.mockResolvedValue(null);
+      prisma.contactInvitation.create.mockResolvedValue({
+        ...MOCK_INVITATION,
+        senderUser: SENDER_USER,
+        recipientUser: RECIPIENT_USER,
+      } as any);
+
+      await service.sendInvitation(SENDER_USER_ID, { recipientEmail: 'marie.dupont@example.com' });
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(CONTACT_INVITATION_EVENTS.SENT, {
+        invitationId: INVITATION_ID,
+        senderUserId: SENDER_USER_ID,
+        recipientUserId: RECIPIENT_USER_ID,
+        senderFirstName: 'Jean',
+        senderLastName: 'Martin',
+      });
+    });
+
+    it('should not emit SENT when the creation fails', async () => {
+      prisma.user.findFirst.mockResolvedValue(RECIPIENT_USER);
+      prisma.contactInvitation.findFirst.mockResolvedValue(null);
+      prisma.contactInvitation.create.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.sendInvitation(SENDER_USER_ID, { recipientEmail: 'marie.dupont@example.com' }),
+      ).rejects.toThrow('db down');
+
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('should not emit SENT when an invitation is already pending', async () => {
+      prisma.user.findFirst.mockResolvedValue(RECIPIENT_USER);
+      prisma.contactInvitation.findFirst.mockResolvedValue(MOCK_INVITATION as any);
+
+      await expect(
+        service.sendInvitation(SENDER_USER_ID, { recipientEmail: 'marie.dupont@example.com' }),
+      ).rejects.toBeDefined();
+
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
     it('should throw 400 for self-invitation', async () => {
       prisma.user.findFirst.mockResolvedValue(SENDER_USER);
 
