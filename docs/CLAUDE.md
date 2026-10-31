@@ -10,7 +10,7 @@ d'enregistrer des prêts, suivre les échéances et envoyer des rappels diplomat
 **Statut actuel** : phase **pré-production** (octobre 2026). Sprints 1 à 6 livrés (Auth, Borrowers, Items/Photos,
 Loans, Contact Invitations, Notifications, History/Dashboard). Backend déployé sur Fly.io (`return-api.fly.dev`),
 frontend branché dessus, builds EAS Android/iOS. Depuis le 25/10/2026, l'équipe travaille **par fonctionnalité** :
-chacun porte sa feature de bout en bout (back + front + tests + doc). Plan en cours : `16_ROADMAP_FEATURES.md`.
+chacun porte sa feature de bout en bout (back + front + tests + doc). Sprint `16_ROADMAP_FEATURES.md` en prod depuis le D2 (31/10) ; plan en cours : `17_ROADMAP_CORRECTIFS_POST_D2.md`.
 
 ## Stack Technique
 
