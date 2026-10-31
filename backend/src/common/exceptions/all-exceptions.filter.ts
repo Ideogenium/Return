@@ -44,6 +44,30 @@ function classifyBadRequestMessage(msg: string): { field: string; code: string }
   return { field: 'unknown', code: 'VALIDATION_ERROR' };
 }
 
+/**
+ * Client error raised by the Express body parser before any route (http-errors object:
+ * `expose` true, 4xx `status`, a `type` such as `entity.too.large`). Not an HttpException.
+ */
+interface BodyParserClientError {
+  expose: true;
+  status: number;
+  type: string;
+  message: string;
+  limit?: number;
+}
+
+function isBodyParserClientError(exception: unknown): exception is BodyParserClientError {
+  if (typeof exception !== 'object' || exception === null) return false;
+  const { expose, status, type } = exception as Record<string, unknown>;
+  return (
+    expose === true &&
+    typeof status === 'number' &&
+    status >= 400 &&
+    status < 500 &&
+    typeof type === 'string'
+  );
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -165,6 +189,30 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
 
       response.status(status).setHeader('Content-Type', 'application/problem+json').json(body);
+      return;
+    }
+
+    // JSON body refused by the body parser (over its limit, unsupported charset…): a client
+    // error with its own status, never a 500.
+    if (isBodyParserClientError(exception)) {
+      const tooLarge = exception.type === 'entity.too.large';
+      const body: ProblemDetails = {
+        type: `https://api.return.app/errors/${tooLarge ? 'payload-too-large' : 'http-error'}`,
+        title: tooLarge ? 'Payload Too Large' : exception.message,
+        status: exception.status,
+        detail:
+          tooLarge && typeof exception.limit === 'number'
+            ? `The request body is larger than the ${exception.limit}-byte limit.`
+            : exception.message,
+        instance: request.url,
+        timestamp: new Date().toISOString(),
+        requestId: getRequestId(),
+      };
+
+      response
+        .status(exception.status)
+        .setHeader('Content-Type', 'application/problem+json')
+        .json(body);
       return;
     }
 
