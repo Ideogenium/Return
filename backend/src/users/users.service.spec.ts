@@ -4,6 +4,8 @@ import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { UsersService } from './users.service.js';
+import { AccountDeletionService } from './account-deletion.service.js';
+import { ConfigService } from '@nestjs/config';
 import { UserRole } from '@prisma/client';
 import {
   PHOTO_STORAGE,
@@ -59,7 +61,9 @@ describe('UsersService', () => {
   let redisService: {
     blacklistToken: jest.Mock;
     isTokenBlacklisted: jest.Mock;
+    markAccountDeleted: jest.Mock;
   };
+  let accountDeletion: { erase: jest.Mock };
   let photoStorage: {
     upload: jest.Mock;
     delete: jest.Mock;
@@ -74,7 +78,9 @@ describe('UsersService', () => {
     redisService = {
       blacklistToken: jest.fn().mockResolvedValue(undefined),
       isTokenBlacklisted: jest.fn().mockResolvedValue(false),
+      markAccountDeleted: jest.fn().mockResolvedValue(undefined),
     };
+    accountDeletion = { erase: jest.fn().mockResolvedValue('deleted') };
     photoStorage = {
       upload: jest.fn(),
       delete: jest.fn(),
@@ -88,6 +94,8 @@ describe('UsersService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: RedisService, useValue: redisService },
         { provide: PHOTO_STORAGE, useValue: photoStorage },
+        { provide: AccountDeletionService, useValue: accountDeletion },
+        { provide: ConfigService, useValue: { get: (_key: string, fallback: string) => fallback } },
       ],
     }).compile();
 
@@ -230,61 +238,108 @@ describe('UsersService', () => {
   // ===========================================================================
 
   describe('deleteAccount', () => {
+    const DTO = { password: 'StrongPass1!', confirmationText: 'DELETE MY ACCOUNT' as const };
+
     beforeEach(() => {
       prisma.user.findUnique.mockResolvedValue(MOCK_USER);
+      prisma.loan.count.mockResolvedValue(0);
       bcrypt.compare.mockResolvedValue(true);
+      bcrypt.hash.mockResolvedValue('$2b$12$unusable');
+      accountDeletion.erase.mockResolvedValue('pseudonymised');
     });
 
-    it('should verify password and delete user', async () => {
-      // Act
-      await service.deleteAccount(MOCK_USER.id, {
-        password: 'StrongPass1!',
-        confirmationText: 'DELETE MY ACCOUNT',
-      });
+    it('erases the account with a hash nobody can match (FIX-22)', async () => {
+      await service.deleteAccount(MOCK_USER.id, DTO);
 
-      // Assert
       expect(bcrypt.compare).toHaveBeenCalledWith('StrongPass1!', MOCK_USER.password);
-      expect(prisma.user.delete).toHaveBeenCalledWith({
-        where: { id: MOCK_USER.id },
-      });
+      expect(accountDeletion.erase).toHaveBeenCalledWith(MOCK_USER.id, '$2b$12$unusable');
+      // The hashed secret is random: never the password, never a constant.
+      const [secret] = bcrypt.hash.mock.calls[0] as [string, number];
+      expect(secret).not.toBe('StrongPass1!');
+      expect(secret).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it('should throw UnauthorizedException for wrong password', async () => {
-      // Arrange
+    it('checks the password before the in-progress loans (contract order)', async () => {
       bcrypt.compare.mockResolvedValue(false);
+      prisma.loan.count.mockResolvedValue(3);
 
-      // Act & Assert
-      try {
-        await service.deleteAccount(MOCK_USER.id, {
-          password: 'wrong',
-          confirmationText: 'DELETE MY ACCOUNT',
-        });
-        fail('Should have thrown');
-      } catch (error) {
-        const exception = error as {
-          getStatus: () => number;
-          getResponse: () => ProblemDetails;
-        };
-        expect(exception.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
+      const error = (await service.deleteAccount(MOCK_USER.id, DTO).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
 
-        const body = exception.getResponse();
-        expect(body.type).toContain('invalid-current-password');
-      }
+      expect(error.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
+      expect(error.getResponse().type).toContain('invalid-current-password');
+      expect(prisma.loan.count).not.toHaveBeenCalled();
+      expect(accountDeletion.erase).not.toHaveBeenCalled();
+    });
+
+    it('answers 409 active-loans-exist when the password is right and a loan is in progress', async () => {
+      prisma.loan.count.mockResolvedValue(1);
+
+      const error = (await service.deleteAccount(MOCK_USER.id, DTO).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
+
+      expect(error.getStatus()).toBe(HttpStatus.CONFLICT);
+      expect(error.getResponse().type).toContain('active-loans-exist');
+      expect(accountDeletion.erase).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for an account that no longer exists', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      const error = (await service
+        .deleteAccount('non-existent-id', DTO)
+        .catch((e: unknown) => e)) as { getStatus: () => number };
+
+      expect(error.getStatus()).toBe(HttpStatus.NOT_FOUND);
+      expect(accountDeletion.erase).not.toHaveBeenCalled();
+    });
+
+    describe('access tokens still valid (up to the access token lifetime)', () => {
+      it.each(['deleted', 'pseudonymised'] as const)(
+        'marks the account deleted in Redis for the access token lifetime (%s)',
+        async (outcome) => {
+          accountDeletion.erase.mockResolvedValue(outcome);
+
+          await service.deleteAccount(MOCK_USER.id, DTO);
+
+          expect(redisService.markAccountDeleted).toHaveBeenCalledWith(MOCK_USER.id, 900);
+          expect(accountDeletion.erase.mock.invocationCallOrder[0]).toBeLessThan(
+            redisService.markAccountDeleted.mock.invocationCallOrder[0],
+          );
+        },
+      );
+
+      it('still succeeds, and logs an error, when Redis cannot be written: the account is gone', async () => {
+        const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+        redisService.markAccountDeleted.mockRejectedValue(new Error('Redis down'));
+
+        await expect(service.deleteAccount(MOCK_USER.id, DTO)).resolves.toBeUndefined();
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining(MOCK_USER.id));
+        expect(photoStorage.deleteByPrefix).toHaveBeenCalled();
+        logError.mockRestore();
+      });
     });
 
     describe('purge of the stored photos (GDPR right to erasure)', () => {
-      const DTO = { password: 'StrongPass1!', confirmationText: 'DELETE MY ACCOUNT' as const };
+      it.each(['deleted', 'pseudonymised'] as const)(
+        "purges every photo stored under the user's folder (%s)",
+        async (outcome) => {
+          accountDeletion.erase.mockResolvedValue(outcome);
 
-      it("purges every photo stored under the user's folder (avatar and all item photos)", async () => {
+          await service.deleteAccount(MOCK_USER.id, DTO);
+
+          expect(photoStorage.deleteByPrefix).toHaveBeenCalledWith(`users/${MOCK_USER.id}/`);
+        },
+      );
+
+      it('purges only after the account is erased, so a failed deletion never loses photos', async () => {
         await service.deleteAccount(MOCK_USER.id, DTO);
 
-        expect(photoStorage.deleteByPrefix).toHaveBeenCalledWith(`users/${MOCK_USER.id}/`);
-      });
-
-      it('purges only after the account is deleted, so a failed deletion never loses photos', async () => {
-        await service.deleteAccount(MOCK_USER.id, DTO);
-
-        expect(prisma.user.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        expect(accountDeletion.erase.mock.invocationCallOrder[0]).toBeLessThan(
           photoStorage.deleteByPrefix.mock.invocationCallOrder[0],
         );
       });
@@ -293,7 +348,7 @@ describe('UsersService', () => {
         photoStorage.deleteByPrefix.mockRejectedValue(new Error('R2 unavailable'));
 
         await expect(service.deleteAccount(MOCK_USER.id, DTO)).resolves.toBeUndefined();
-        expect(prisma.user.delete).toHaveBeenCalled();
+        expect(accountDeletion.erase).toHaveBeenCalled();
       });
 
       it('logs the account id and how many photos are left when the purge is incomplete, for a manual retry', async () => {
@@ -333,33 +388,15 @@ describe('UsersService', () => {
         expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
       });
 
-      it('does not purge anything when the database deletion fails', async () => {
-        prisma.user.delete.mockRejectedValue(new Error('database unavailable'));
+      it('does not purge anything, nor mark the account in Redis, when the database erasure fails', async () => {
+        accountDeletion.erase.mockRejectedValue(new Error('database unavailable'));
 
         await expect(service.deleteAccount(MOCK_USER.id, DTO)).rejects.toThrow(
           'database unavailable',
         );
         expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
+        expect(redisService.markAccountDeleted).not.toHaveBeenCalled();
       });
-    });
-
-    it('should throw NotFoundException if user does not exist', async () => {
-      // Arrange
-      prisma.user.findUnique.mockResolvedValue(null);
-
-      // Act & Assert
-      try {
-        await service.deleteAccount('non-existent-id', {
-          password: 'StrongPass1!',
-          confirmationText: 'DELETE MY ACCOUNT',
-        });
-        fail('Should have thrown');
-      } catch (error) {
-        const exception = error as {
-          getStatus: () => number;
-        };
-        expect(exception.getStatus()).toBe(HttpStatus.NOT_FOUND);
-      }
     });
   });
 

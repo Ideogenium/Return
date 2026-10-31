@@ -1,4 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -15,6 +17,8 @@ import {
 import { toSafeUser } from '../common/mappers/user.mapper.js';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { isPrismaUniqueConstraintError } from '../common/utils/prisma-errors.util.js';
+import { accessTokenTtlSeconds } from '../common/utils/duration.util.js';
+import { AccountDeletionService } from './account-deletion.service.js';
 import {
   PHOTO_STORAGE,
   PurgeIncompleteError,
@@ -38,7 +42,8 @@ import type { User } from '@prisma/client';
 // Sécurité :
 //   - Le userId vient toujours du JWT (req.user.userId), jamais du body
 //   - Suppression et changement de mot de passe requièrent le mot de passe actuel
-//   - Suppression de compte = Prisma onDelete: Cascade (supprime aussi les refresh tokens)
+//   - Suppression de compte : AccountDeletionService (FIX-22, ADR 0010), puis révocation des
+//     access tokens encore valables (Redis) et purge des photos stockées
 // =============================================================================
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,6 +57,8 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     @Inject(PHOTO_STORAGE) private readonly photoStorage: PhotoStorage,
+    private readonly accountDeletion: AccountDeletionService,
+    private readonly config: ConfigService,
   ) {}
 
   // ===========================================================================
@@ -97,23 +104,33 @@ export class UsersService {
   }
 
   /**
-   * DELETE /users/me — Supprime définitivement le compte utilisateur.
+   * DELETE /users/me — Supprime définitivement le compte (FIX-22, ADR 0010).
    *
-   * Sécurité renforcée :
-   * 1. Vérifie le mot de passe actuel (bcrypt.compare)
-   * 2. Vérifie le texte de confirmation ("DELETE MY ACCOUNT")
-   *    → La validation @Equals est dans le DTO, mais on double-check ici
+   * Contrôles, dans l'ordre du contrat : mot de passe (401), puis prêts en cours du prêteur (409).
+   * Le texte de confirmation est validé par le DTO (@Equals).
    *
-   * La suppression cascade sur les refresh tokens (Prisma onDelete: Cascade), puis les
-   * photos stockées (avatar et objets) sont purgées.
+   * 1. Effacement en base, dans une transaction (AccountDeletionService) : suppression complète,
+   *    ou pierre tombale pseudonymisée si des prêts clos restent visibles pour un emprunteur.
+   * 2. Révocation des access tokens encore valables : clé Redis lue par JwtStrategy.
+   * 3. Purge des photos stockées.
    *
    * @throws NotFoundException (404) si l'utilisateur n'existe plus
    * @throws UnauthorizedException (401) si le mot de passe est incorrect
+   * @throws ConflictException (409) si un prêt en cours existe
    */
   async deleteAccount(userId: string, dto: DeleteAccountDto): Promise<void> {
     const user = await this.findUserOrThrow(userId);
 
-    // Vérification des prêts actifs (OpenAPI: 409 active-loans-exist)
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException(
+        'invalid-current-password',
+        'Invalid Current Password',
+        'The provided password is incorrect.',
+        '/v1/users/me',
+      );
+    }
+
     const activeLoanCount = await this.prisma.loan.count({
       where: {
         lenderId: userId,
@@ -132,23 +149,33 @@ export class UsersService {
       );
     }
 
-    // Vérification du mot de passe
-    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException(
-        'invalid-current-password',
-        'Invalid Current Password',
-        'The provided password is incorrect.',
-        '/v1/users/me',
+    // Hash d'un secret aléatoire jeté : aucun mot de passe ne correspondra jamais.
+    const unusablePasswordHash = await bcrypt.hash(
+      randomBytes(32).toString('hex'),
+      this.BCRYPT_ROUNDS,
+    );
+    const outcome = await this.accountDeletion.erase(userId, unusablePasswordHash);
+
+    this.logger.log(`Account deleted (${outcome}): ${userId}`);
+
+    await this.revokeRemainingAccess(userId);
+    await this.purgeStoredPhotos(userId);
+  }
+
+  /**
+   * Les refresh tokens sont supprimés en base, mais un access token reste valable jusqu'à son
+   * expiration sans lecture de la base : JwtStrategy le refuse grâce à cette clé. Le compte est
+   * déjà effacé : un échec est journalisé (fenêtre résiduelle d'au plus la durée d'un access
+   * token), jamais remonté.
+   */
+  private async revokeRemainingAccess(userId: string): Promise<void> {
+    try {
+      await this.redis.markAccountDeleted(userId, accessTokenTtlSeconds(this.config));
+    } catch (error) {
+      this.logger.error(
+        `Deleted account ${userId} could not be marked in Redis, its access tokens stay valid until they expire: ${(error as Error).message}`,
       );
     }
-
-    // Suppression (cascade → refresh tokens, objets et lignes Photo supprimés automatiquement)
-    await this.prisma.user.delete({ where: { id: userId } });
-
-    this.logger.log(`Account deleted: ${userId}`);
-
-    await this.purgeStoredPhotos(userId);
   }
 
   /**

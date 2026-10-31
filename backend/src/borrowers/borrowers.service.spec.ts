@@ -112,7 +112,10 @@ describe('BorrowersService', () => {
     });
 
     it('does not link the contact to a deleted account (FIX-22)', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'deleted-user', deletedAt: new Date() } as never);
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'deleted-user',
+        deletedAt: new Date(),
+      } as never);
       prisma.borrower.create.mockResolvedValue(MOCK_BORROWER);
 
       await service.create(LENDER_USER_ID, {

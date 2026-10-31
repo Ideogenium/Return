@@ -37,7 +37,7 @@ describe('RedisService — access revocation (FIX-22)', () => {
     ['the token is blacklisted (logout)', ['1', null]],
     ['the account was deleted', [null, '1']],
   ])('revokes the access when %s', async (_case, values) => {
-    jest.spyOn(service.getClient(), 'mget').mockResolvedValue(values as (string | null)[]);
+    jest.spyOn(service.getClient(), 'mget').mockResolvedValue(values);
 
     await expect(service.isAccessRevoked('jti-1', 'user-1')).resolves.toBe(true);
   });
