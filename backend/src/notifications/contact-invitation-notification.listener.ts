@@ -30,6 +30,7 @@ export class ContactInvitationNotificationListener {
       await this.notify(
         event.recipientUserId,
         event.invitationId,
+        event.senderUserId,
         NotificationType.CONTACT_INVITATION_RECEIVED,
         {
           title: 'Nouvelle invitation',
@@ -62,6 +63,7 @@ export class ContactInvitationNotificationListener {
       await this.notify(
         event.senderUserId,
         event.invitationId,
+        event.recipientUserId,
         NotificationType.CONTACT_INVITATION_ACCEPTED,
         {
           title: 'Invitation acceptée',
@@ -78,6 +80,7 @@ export class ContactInvitationNotificationListener {
   private async notify(
     userId: string,
     invitationId: string,
+    actorUserId: string,
     type: NotificationType,
     message: { title: string; body: string },
   ): Promise<void> {
@@ -88,6 +91,8 @@ export class ContactInvitationNotificationListener {
         title: message.title,
         body: message.body,
         relatedLoanId: null,
+        // Le corps nomme l'acteur : permet de purger la notification à la suppression de son compte (ADR 0010)
+        actorUserId,
       },
     });
 

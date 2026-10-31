@@ -56,8 +56,9 @@ model User {
   receivedInvitations ContactInvitation[] @relation("ReceivedInvitations")
 
   // Notifications & Device Tokens (Sprint 5)
-  notifications Notification[]
-  deviceTokens  DeviceToken[]
+  notifications      Notification[] @relation("NotificationRecipient")
+  actedNotifications Notification[] @relation("NotificationActor") // Notifications destinées à d'autres qui nomment cet utilisateur (ADR 0010)
+  deviceTokens       DeviceToken[]
 
   @@map("users")
 }
@@ -360,16 +361,22 @@ model Notification {
   body          String
   isRead        Boolean          @default(false) @map("is_read")
   relatedLoanId String?          @map("related_loan_id") @db.Uuid
+  /// Utilisateur nommé dans le corps (null si aucun). Le destinataire (userId) n'est pas l'acteur :
+  /// permet de purger ces notifications à la suppression du compte de l'acteur (RGPD, ADR 0010).
+  /// Colonne interne, non exposée par l'API.
+  actorUserId String? @map("actor_user_id") @db.Uuid
 
   // Timestamps
   createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
-  user        User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor       User? @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
   relatedLoan Loan? @relation(fields: [relatedLoanId], references: [id], onDelete: SetNull)
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([actorUserId])
   @@map("notifications")
 }
 

@@ -65,6 +65,7 @@ describe('ContactInvitationNotificationListener', () => {
           title: 'Nouvelle invitation',
           body: "Jean Martin vous invite à l'ajouter à ses contacts.",
           relatedLoanId: null,
+          actorUserId: SENDER_USER_ID,
         },
       });
     });
@@ -117,6 +118,7 @@ describe('ContactInvitationNotificationListener', () => {
           title: 'Invitation acceptée',
           body: 'Marie Dupont a accepté votre invitation.',
           relatedLoanId: null,
+          actorUserId: RECIPIENT_USER_ID,
         },
       });
     });
