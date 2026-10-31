@@ -244,6 +244,51 @@ describe('LoanDetailScreen', () => {
     expect(screen.queryByTestId('delete-loan-btn')).toBeNull();
   });
 
+  it('keeps the contest dialog and its typed reason when the backdrop is tapped', async () => {
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+        HttpResponse.json({
+          id: params.id,
+          item: {
+            id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+            name: 'Perceuse Bosch',
+            category: 'TOOLS',
+            createdAt: '2026-02-10T10:00:00Z',
+          },
+          lender: {
+            id: 'other-user-id',
+            firstName: 'Alice',
+            lastName: 'Martin',
+            profilePicture: null,
+          },
+          borrower: {
+            id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+            firstName: 'John',
+            lastName: 'Doe',
+            email: 'test@example.com',
+          },
+          status: 'PENDING_CONFIRMATION',
+          returnDate: '2026-04-15',
+          confirmationDate: null,
+          returnedDate: null,
+          notes: null,
+          contestReason: null,
+          createdAt: '2026-02-01T10:00:00Z',
+          updatedAt: '2026-02-01T10:00:00Z',
+        }),
+      ),
+    );
+    renderDetailScreen();
+    await waitFor(() => expect(screen.getByTestId('contest-loan-btn')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('contest-loan-btn'));
+    fireEvent.changeText(screen.getByTestId('contest-reason-input'), 'Not the right item');
+    fireEvent.press(screen.getByTestId('contest-loan-dialog-backdrop'));
+
+    expect(screen.getByTestId('contest-loan-dialog').props.pointerEvents).toBe('auto');
+    expect(screen.getByTestId('contest-reason-input').props.value).toBe('Not the right item');
+  });
+
   it('should delete and go back on confirm', async () => {
     renderDetailScreen();
 

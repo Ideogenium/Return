@@ -33,4 +33,47 @@ describe('ConfirmationDialog', () => {
     expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
     expect(within(scroll).getByTestId('contest-reason-input')).toBeTruthy();
   });
+
+  it('keeps a typed contest reason when the backdrop is tapped', () => {
+    const onDismiss = jest.fn();
+    render(
+      <PaperProvider>
+        <ConfirmationDialog
+          loan={loan}
+          visible
+          onDismiss={onDismiss}
+          onConfirm={jest.fn()}
+          onContest={jest.fn()}
+          isLoading={false}
+        />
+      </PaperProvider>,
+    );
+
+    fireEvent.press(screen.getByTestId('contest-btn'));
+    fireEvent.changeText(screen.getByTestId('contest-reason-input'), 'Not the right item');
+    fireEvent.press(screen.getByTestId('confirmation-dialog-backdrop'));
+
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.getByTestId('contest-reason-input').props.value).toBe('Not the right item');
+  });
+
+  it('closes on a backdrop tap while nothing is typed', () => {
+    const onDismiss = jest.fn();
+    render(
+      <PaperProvider>
+        <ConfirmationDialog
+          loan={loan}
+          visible
+          onDismiss={onDismiss}
+          onConfirm={jest.fn()}
+          onContest={jest.fn()}
+          isLoading={false}
+        />
+      </PaperProvider>,
+    );
+
+    fireEvent.press(screen.getByTestId('confirmation-dialog-backdrop'));
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
 });
