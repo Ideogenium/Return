@@ -11,6 +11,24 @@ import type { ProblemDetails } from '../common/exceptions/problem-details.except
 import { LoanStatus, ItemCategory, UserRole } from '@prisma/client';
 import type { Loan, Item, Photo, User, Borrower } from '@prisma/client';
 
+/** Runs a call expected to reject and returns the ProblemDetails body. */
+async function problemOf(call: Promise<unknown>): Promise<ProblemDetails> {
+  try {
+    await call;
+  } catch (error) {
+    return (error as { response: ProblemDetails }).response;
+  }
+  throw new Error('Expected the call to reject');
+}
+
+/** The fields a client sees: a foreign resource must be indistinguishable from a missing one (FIX-28). */
+function visibleFields(
+  problem: ProblemDetails,
+): Pick<ProblemDetails, 'status' | 'type' | 'title' | 'detail'> {
+  const { status, type, title, detail } = problem;
+  return { status, type, title, detail };
+}
+
 // =============================================================================
 // Fixtures
 // =============================================================================
@@ -413,16 +431,27 @@ describe('LoansService', () => {
       }
     });
 
-    it('should throw 403 when item belongs to another user', async () => {
-      prisma.item.findUnique.mockResolvedValue({ ...MOCK_ITEM, userId: OTHER_USER_ID });
+    it('should throw the same 404 item-not-found as a missing item when the item belongs to another user (FIX-28)', async () => {
+      prisma.item.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.create(LENDER_USER_ID, CREATE_DTO));
 
-      try {
-        await service.create(LENDER_USER_ID, CREATE_DTO);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      prisma.item.findUnique.mockResolvedValue({ ...MOCK_ITEM, userId: OTHER_USER_ID });
+      const foreign = await problemOf(service.create(LENDER_USER_ID, CREATE_DTO));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(foreign.type).toContain('item-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
+    });
+
+    it('should answer 404 item-not-found before contact-not-accepted when the item is not the lender own (FIX-28)', async () => {
+      contactInvitationsService.hasAcceptedContact.mockResolvedValue(false);
+      prisma.item.findUnique.mockResolvedValue({ ...MOCK_ITEM, userId: OTHER_USER_ID });
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+
+      const problem = await problemOf(service.create(LENDER_USER_ID, CREATE_DTO));
+
+      expect(problem.status).toBe(HttpStatus.NOT_FOUND);
+      expect(problem.type).toContain('item-not-found');
     });
 
     it('should throw 404 when borrower UUID does not exist', async () => {
@@ -438,20 +467,34 @@ describe('LoansService', () => {
       }
     });
 
-    it('should throw 403 when borrower belongs to another user', async () => {
+    it('should throw the same 404 borrower-not-found as a missing contact when the contact belongs to another user (FIX-28)', async () => {
+      prisma.item.findUnique.mockResolvedValue(MOCK_ITEM);
+      prisma.borrower.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.create(LENDER_USER_ID, CREATE_DTO));
+
+      prisma.borrower.findUnique.mockResolvedValue({
+        ...MOCK_BORROWER,
+        lenderUserId: OTHER_USER_ID,
+      });
+      const foreign = await problemOf(service.create(LENDER_USER_ID, CREATE_DTO));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(foreign.type).toContain('borrower-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
+    });
+
+    it('should answer 404 borrower-not-found before contact-not-accepted when the contact is not the lender own (FIX-28)', async () => {
+      contactInvitationsService.hasAcceptedContact.mockResolvedValue(false);
       prisma.item.findUnique.mockResolvedValue(MOCK_ITEM);
       prisma.borrower.findUnique.mockResolvedValue({
         ...MOCK_BORROWER,
         lenderUserId: OTHER_USER_ID,
       });
 
-      try {
-        await service.create(LENDER_USER_ID, CREATE_DTO);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      const problem = await problemOf(service.create(LENDER_USER_ID, CREATE_DTO));
+
+      expect(problem.status).toBe(HttpStatus.NOT_FOUND);
+      expect(problem.type).toContain('borrower-not-found');
     });
   });
 
@@ -704,19 +747,18 @@ describe('LoansService', () => {
       }
     });
 
-    it('should throw 403 when loan belongs to another user', async () => {
+    it('should throw the same 404 as a missing loan when the loan belongs to another user (FIX-28)', async () => {
+      prisma.loan.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.findById(LOAN_ID, LENDER_USER_ID));
+
       prisma.loan.findUnique.mockResolvedValue({
         ...MOCK_LOAN,
         lenderId: OTHER_USER_ID,
       });
+      const foreign = await problemOf(service.findById(LOAN_ID, LENDER_USER_ID));
 
-      try {
-        await service.findById(LOAN_ID, LENDER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
 
     // =========================================================================
@@ -734,19 +776,19 @@ describe('LoansService', () => {
     });
 
     // =========================================================================
-    // INTEG-008 : findById par un tiers → 403
+    // INTEG-008 : findById par un tiers → 404 (FIX-28)
     // =========================================================================
-    it('should throw 403 when third party (neither lender nor borrower) accesses loan (INTEG-008)', async () => {
+    it('should throw the same 404 as a missing loan when a third party accesses it (INTEG-008, FIX-28)', async () => {
+      prisma.loan.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.findById(LOAN_ID, OTHER_USER_ID));
+
       // OTHER_USER_ID is neither lenderId nor borrower.userId
       prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+      const foreign = await problemOf(service.findById(LOAN_ID, OTHER_USER_ID));
 
-      try {
-        await service.findById(LOAN_ID, OTHER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
+      expect(foreign.detail).not.toContain('change this loan status');
     });
   });
 
@@ -778,19 +820,23 @@ describe('LoansService', () => {
       }
     });
 
-    it('should throw 403 when not the owner', async () => {
-      prisma.loan.findUnique.mockResolvedValue({
-        ...MOCK_LOAN,
-        lenderId: OTHER_USER_ID,
-      });
+    it('should throw the same 404 as a missing loan for a third party (FIX-28)', async () => {
+      prisma.loan.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.update(LOAN_ID, OTHER_USER_ID, { notes: 'test' }));
 
-      try {
-        await service.update(LOAN_ID, LENDER_USER_ID, { notes: 'test' });
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+      const foreign = await problemOf(service.update(LOAN_ID, OTHER_USER_ID, { notes: 'test' }));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
+    });
+
+    it('should throw 403 when the borrower (a party) tries to update the loan', async () => {
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+
+      const problem = await problemOf(service.update(LOAN_ID, BORROWER_USER_ID, { notes: 'test' }));
+
+      expect(problem.status).toBe(HttpStatus.FORBIDDEN);
     });
 
     describe('return date lock (409 loan-return-date-locked)', () => {
@@ -1026,19 +1072,23 @@ describe('LoansService', () => {
       }
     });
 
-    it('should throw 403 when not the owner', async () => {
-      prisma.loan.findUnique.mockResolvedValue({
-        ...MOCK_LOAN,
-        lenderId: OTHER_USER_ID,
-      });
+    it('should throw the same 404 as a missing loan for a third party (FIX-28)', async () => {
+      prisma.loan.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.delete(LOAN_ID, OTHER_USER_ID));
 
-      try {
-        await service.delete(LOAN_ID, LENDER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+      const foreign = await problemOf(service.delete(LOAN_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
+    });
+
+    it('should throw 403 when the borrower (a party) tries to delete the loan', async () => {
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+
+      const problem = await problemOf(service.delete(LOAN_ID, BORROWER_USER_ID));
+
+      expect(problem.status).toBe(HttpStatus.FORBIDDEN);
     });
   });
 
@@ -1125,16 +1175,19 @@ describe('LoansService', () => {
       }
     });
 
-    it('should throw 403 when user is neither lender nor borrower', async () => {
-      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+    it('should throw the same 404 as a missing loan when user is neither lender nor borrower (FIX-28)', async () => {
+      prisma.loan.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(
+        service.updateStatus(LOAN_ID, OTHER_USER_ID, LoanStatus.ACTIVE),
+      );
 
-      try {
-        await service.updateStatus(LOAN_ID, OTHER_USER_ID, LoanStatus.ACTIVE);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+      const foreign = await problemOf(
+        service.updateStatus(LOAN_ID, OTHER_USER_ID, LoanStatus.ACTIVE),
+      );
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
 
     it('should include notes when provided', async () => {
@@ -1221,14 +1274,21 @@ describe('LoansService', () => {
     it('should throw 403 when lender tries to confirm (not borrower)', async () => {
       prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
 
-      try {
-        await service.confirm(LOAN_ID, LENDER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-        expect(err.response.type).toContain('forbidden-status-transition');
-      }
+      const problem = await problemOf(service.confirm(LOAN_ID, LENDER_USER_ID));
+
+      expect(problem.status).toBe(HttpStatus.FORBIDDEN);
+      expect(problem.type).toContain('forbidden-status-transition');
+    });
+
+    it('should throw the same 404 as a missing loan when a third party confirms (FIX-28)', async () => {
+      prisma.loan.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.confirm(LOAN_ID, OTHER_USER_ID));
+
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+      const foreign = await problemOf(service.confirm(LOAN_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
   });
 
@@ -1297,16 +1357,27 @@ describe('LoansService', () => {
     it('should throw 403 when lender tries to contest (not borrower)', async () => {
       prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
 
-      try {
-        await service.contest(LOAN_ID, LENDER_USER_ID, {
-          reason: 'Not valid',
-        });
-        fail('Expected ForbiddenException');
-      } catch (error) {
-        const err = error as { response: ProblemDetails };
-        expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
-        expect(err.response.type).toContain('forbidden-status-transition');
-      }
+      const problem = await problemOf(
+        service.contest(LOAN_ID, LENDER_USER_ID, { reason: 'Not valid' }),
+      );
+
+      expect(problem.status).toBe(HttpStatus.FORBIDDEN);
+      expect(problem.type).toContain('forbidden-status-transition');
+    });
+
+    it('should throw the same 404 as a missing loan when a third party contests (FIX-28)', async () => {
+      prisma.loan.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(
+        service.contest(LOAN_ID, OTHER_USER_ID, { reason: 'Not valid' }),
+      );
+
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+      const foreign = await problemOf(
+        service.contest(LOAN_ID, OTHER_USER_ID, { reason: 'Not valid' }),
+      );
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
   });
 

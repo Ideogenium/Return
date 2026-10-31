@@ -55,7 +55,6 @@ const ERROR_TYPE_MAP: Record<string, string> = {
   'https://api.return.app/errors/not-found': 'errors.notFound',
   'https://api.return.app/errors/http-error': 'errors.unknownError',
   'https://api.return.app/errors/invalid-refresh-token': 'errors.unauthorized',
-  'https://api.return.app/errors/notification-access-forbidden': 'errors.forbidden',
   'https://api.return.app/errors/reminder-already-sent': 'errors.reminderAlreadySent',
   'https://api.return.app/errors/reminder-not-found': 'errors.reminderNotFound',
   'https://api.return.app/errors/notification-not-found': 'errors.notificationNotFound',

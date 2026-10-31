@@ -2,9 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ItemsService } from './items.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ItemCategory } from '@prisma/client';
+import type { ProblemDetails } from '../common/exceptions/problem-details.exception.js';
 import {
   NotFoundException,
-  ForbiddenException,
   BadRequestException,
   ConflictException,
 } from '../common/exceptions/problem-details.exception.js';
@@ -13,6 +13,24 @@ import { PHOTO_STORAGE } from '../storage/interfaces/photo-storage.interface.js'
 // =============================================================================
 // ItemsService — Unit Tests (TDD)
 // =============================================================================
+
+/** Runs a call expected to reject and returns the ProblemDetails body. */
+async function problemOf(call: Promise<unknown>): Promise<ProblemDetails> {
+  try {
+    await call;
+  } catch (error) {
+    return (error as { getResponse: () => ProblemDetails }).getResponse();
+  }
+  throw new Error('Expected the call to reject');
+}
+
+/** The fields a client sees: a foreign item must be indistinguishable from a missing one (FIX-28). */
+function visibleFields(
+  problem: ProblemDetails,
+): Pick<ProblemDetails, 'status' | 'type' | 'title' | 'detail'> {
+  const { status, type, title, detail } = problem;
+  return { status, type, title, detail };
+}
 
 describe('ItemsService', () => {
   let service: ItemsService;
@@ -259,10 +277,16 @@ describe('ItemsService', () => {
       await expect(service.findById(ITEM_ID, USER_ID)).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException when user does not own the item', async () => {
-      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+    it('should throw the same 404 as a missing item on findById when the item belongs to another user (FIX-28)', async () => {
+      prisma.item.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.findById(ITEM_ID, OTHER_USER_ID));
 
-      await expect(service.findById(ITEM_ID, OTHER_USER_ID)).rejects.toThrow(ForbiddenException);
+      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+      const foreign = await problemOf(service.findById(ITEM_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(404);
+      expect(foreign.type).toContain('item-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
   });
 
@@ -298,12 +322,16 @@ describe('ItemsService', () => {
       );
     });
 
-    it('should throw ForbiddenException when updating another user item', async () => {
-      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+    it('should throw the same 404 as a missing item on update when the item belongs to another user (FIX-28)', async () => {
+      prisma.item.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.update(ITEM_ID, OTHER_USER_ID, { name: 'Hack' }));
 
-      await expect(service.update(ITEM_ID, OTHER_USER_ID, { name: 'Hack' })).rejects.toThrow(
-        ForbiddenException,
-      );
+      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+      const foreign = await problemOf(service.update(ITEM_ID, OTHER_USER_ID, { name: 'Hack' }));
+
+      expect(foreign.status).toBe(404);
+      expect(foreign.type).toContain('item-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
 
     it('should throw BadRequestException when changing category to MONEY without estimatedValue', async () => {
@@ -356,10 +384,16 @@ describe('ItemsService', () => {
       await expect(service.delete(ITEM_ID, USER_ID)).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException when deleting another user item', async () => {
-      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+    it('should throw the same 404 as a missing item on delete when the item belongs to another user (FIX-28)', async () => {
+      prisma.item.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.delete(ITEM_ID, OTHER_USER_ID));
 
-      await expect(service.delete(ITEM_ID, OTHER_USER_ID)).rejects.toThrow(ForbiddenException);
+      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+      const foreign = await problemOf(service.delete(ITEM_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(404);
+      expect(foreign.type).toContain('item-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
 
     it('should throw 409 ConflictException when item has active loans (LOAN-039)', async () => {
@@ -482,15 +516,20 @@ describe('ItemsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException when user does not own the item', async () => {
-      prisma.item.findUnique.mockResolvedValue({
-        ...mockItem,
-        photos: [],
-      });
-
-      await expect(
+    it('should throw the same 404 as a missing item on addPhoto when the item belongs to another user (FIX-28)', async () => {
+      prisma.item.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(
         service.addPhoto(ITEM_ID, OTHER_USER_ID, Buffer.from('img'), 'pic.jpg'),
-      ).rejects.toThrow(ForbiddenException);
+      );
+
+      prisma.item.findUnique.mockResolvedValue({ ...mockItem, photos: [] });
+      const foreign = await problemOf(
+        service.addPhoto(ITEM_ID, OTHER_USER_ID, Buffer.from('img'), 'pic.jpg'),
+      );
+
+      expect(foreign.status).toBe(404);
+      expect(foreign.type).toContain('item-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
   });
 
@@ -543,12 +582,16 @@ describe('ItemsService', () => {
       );
     });
 
-    it('should throw ForbiddenException when user does not own the item', async () => {
-      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+    it('should throw the same 404 as a missing item on deletePhoto when the item belongs to another user (FIX-28)', async () => {
+      prisma.item.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.deletePhoto(ITEM_ID, PHOTO_ID, OTHER_USER_ID));
 
-      await expect(service.deletePhoto(ITEM_ID, PHOTO_ID, OTHER_USER_ID)).rejects.toThrow(
-        ForbiddenException,
-      );
+      prisma.item.findUnique.mockResolvedValue(mockItemWithPhotos);
+      const foreign = await problemOf(service.deletePhoto(ITEM_ID, PHOTO_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(404);
+      expect(foreign.type).toContain('item-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
 
     it('should throw NotFoundException when photo does not exist on item', async () => {
