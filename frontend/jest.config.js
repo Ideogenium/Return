@@ -9,6 +9,7 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^msw/node$': '<rootDir>/node_modules/msw/lib/node/index.js',
+    '^expo-image-manipulator$': '<rootDir>/__mocks__/expo-image-manipulator.ts',
     '^expo-image-picker$': '<rootDir>/__mocks__/expo-image-picker.ts',
     '^expo-notifications$': '<rootDir>/__mocks__/expo-notifications.ts',
   },

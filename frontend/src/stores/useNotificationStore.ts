@@ -3,11 +3,17 @@ import apiClient from '../api/apiClient';
 import { extractProblemDetails } from '../utils/error';
 import type { Notification, PaginatedResponse, ProblemDetails } from '../types/api.types';
 
+// The unregistration runs before the logout request: with no network it must not leave the
+// user stuck on a frozen app. At worst the backend reattaches the token to the next signed-in account.
+const UNREGISTER_TIMEOUT_MS = 5000;
+
 interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
   isLoading: boolean;
   error: ProblemDetails | null;
+  /** Push token registered for this phone, kept so the logout can unregister it. */
+  deviceToken: string | null;
 
   fetchNotifications: (options?: {
     unreadOnly?: boolean;
@@ -27,6 +33,7 @@ const initialState = {
   unreadCount: 0,
   isLoading: false,
   error: null as ProblemDetails | null,
+  deviceToken: null as string | null,
 };
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -115,7 +122,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await apiClient.post('/notifications/device-token', { token, platform });
-      set({ isLoading: false });
+      set({ isLoading: false, deviceToken: token });
     } catch (err) {
       set({ isLoading: false, error: extractProblemDetails(err) });
       throw err;
@@ -125,8 +132,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   unregisterDeviceToken: async (token) => {
     set({ isLoading: true, error: null });
     try {
-      await apiClient.delete('/notifications/device-token', { data: { token } });
-      set({ isLoading: false });
+      await apiClient.delete('/notifications/device-token', {
+        data: { token },
+        timeout: UNREGISTER_TIMEOUT_MS,
+      });
+      set({ isLoading: false, deviceToken: null });
     } catch (err) {
       set({ isLoading: false, error: extractProblemDetails(err) });
       throw err;

@@ -1,6 +1,8 @@
 import { render, screen, act } from '@testing-library/react-native';
 import { RootNavigator } from '../RootNavigator';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useNotificationStore } from '../../stores/useNotificationStore';
+import { registerForPushNotifications } from '../../services/pushNotifications';
 
 jest.mock('expo-notifications', () => ({
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
@@ -57,5 +59,24 @@ describe('RootNavigator', () => {
     render(<RootNavigator />);
 
     expect(screen.getByTestId('app-navigator')).toBeTruthy();
+  });
+
+  // FIX-23: the unregistration moved into logout (it needs a valid JWT), RootNavigator must not repeat it
+  it('does not unregister the device token when the user becomes unauthenticated, but resets the session stores', async () => {
+    const unregisterDeviceToken = jest.fn(() => Promise.resolve());
+    useNotificationStore.setState({
+      unregisterDeviceToken,
+      fetchNotifications: jest.fn(() => Promise.resolve()),
+    });
+    act(() => useAuthStore.setState({ isHydrating: false, isAuthenticated: true }));
+    render(<RootNavigator />);
+    await act(async () => {});
+    expect(registerForPushNotifications).toHaveBeenCalled();
+    act(() => useNotificationStore.setState({ unreadCount: 3, deviceToken: 'expo-token-123' }));
+
+    act(() => useAuthStore.setState({ isAuthenticated: false }));
+
+    expect(unregisterDeviceToken).not.toHaveBeenCalled();
+    expect(useNotificationStore.getState().unreadCount).toBe(0);
   });
 });

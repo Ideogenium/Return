@@ -3,50 +3,53 @@ import { StyleSheet } from 'react-native';
 import { Button, HelperText, Portal, Dialog } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
+import { convertPhotoForUpload, MAX_PHOTO_BYTES, MAX_PHOTO_DIMENSION } from '../../utils/photo';
 
 interface PhotoPickerProps {
+  /** Receives the URI of the converted photo (JPEG, or PNG for a PNG source), ready to upload. */
   onPhotoPicked: (uri: string) => void;
   currentPhotoCount: number;
   disabled?: boolean;
+  /** Longest side of the converted photo, in pixels (an avatar needs less than an item photo). */
+  maxDimension?: number;
+  /** Upload limit of the target, in bytes (an avatar has a lower limit than an item photo). */
+  maxBytes?: number;
 }
 
-function getMimeType(uri: string): string {
-  const ext = uri.split('.').pop()?.toLowerCase();
-  if (ext === 'png') return 'image/png';
-  return 'image/jpeg';
-}
-
-export function PhotoPicker({ onPhotoPicked, currentPhotoCount, disabled }: PhotoPickerProps) {
+export function PhotoPicker({
+  onPhotoPicked,
+  currentPhotoCount,
+  disabled,
+  maxDimension = MAX_PHOTO_DIMENSION,
+  maxBytes = MAX_PHOTO_BYTES,
+}: PhotoPickerProps) {
   const { t } = useTranslation();
   const [dialogVisible, setDialogVisible] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
   const [validationError, setValidationError] = useState<string | undefined>();
   const isMaxReached = currentPhotoCount >= 5;
 
-  const handleResult = (result: ImagePicker.ImagePickerResult) => {
+  /**
+   * Every picked photo is converted before it leaves the picker (see convertPhotoForUpload):
+   * no format or weight check is needed here, the converted file always meets the contract.
+   */
+  const handleResult = async (result: ImagePicker.ImagePickerResult) => {
     if (result.canceled || !result.assets?.[0]) return;
 
     const asset = result.assets[0];
     setValidationError(undefined);
-
-    // Validate file size
-    if (asset.fileSize && asset.fileSize > MAX_FILE_SIZE) {
-      setValidationError(t('items.photoTooLarge'));
-      return;
+    setIsConverting(true);
+    try {
+      const uri = await convertPhotoForUpload(asset, { maxDimension, maxBytes });
+      onPhotoPicked(uri);
+    } catch {
+      setValidationError(t('items.photoConversionFailed'));
+    } finally {
+      setIsConverting(false);
     }
-
-    // Validate format (JPEG/PNG only per OpenAPI contract)
-    const mimeType = asset.mimeType ?? getMimeType(asset.uri);
-    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-      setValidationError(t('items.photoInvalidFormat'));
-      return;
-    }
-
-    onPhotoPicked(asset.uri);
   };
 
+  // quality 1: the picker hands over the original, the only lossy encoding is the JPEG conversion.
   const handleCamera = async () => {
     setDialogVisible(false);
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -54,9 +57,9 @@ export function PhotoPicker({ onPhotoPicked, currentPhotoCount, disabled }: Phot
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
+      quality: 1,
     });
-    handleResult(result);
+    await handleResult(result);
   };
 
   const handleGallery = async () => {
@@ -66,9 +69,9 @@ export function PhotoPicker({ onPhotoPicked, currentPhotoCount, disabled }: Phot
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
+      quality: 1,
     });
-    handleResult(result);
+    await handleResult(result);
   };
 
   return (
@@ -77,7 +80,8 @@ export function PhotoPicker({ onPhotoPicked, currentPhotoCount, disabled }: Phot
         mode="outlined"
         icon="camera-plus-outline"
         onPress={() => setDialogVisible(true)}
-        disabled={disabled || isMaxReached}
+        disabled={disabled || isMaxReached || isConverting}
+        loading={isConverting}
         testID="photo-picker-btn"
         style={styles.button}
       >
@@ -110,8 +114,6 @@ export function PhotoPicker({ onPhotoPicked, currentPhotoCount, disabled }: Phot
     </>
   );
 }
-
-export { getMimeType };
 
 const styles = StyleSheet.create({
   button: { borderRadius: 12, borderColor: '#C9C4BB' },

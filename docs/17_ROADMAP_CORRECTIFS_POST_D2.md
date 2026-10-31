@@ -49,11 +49,11 @@ Identique au doc 13 :
 | FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —         | ☐      |
 | FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | à décider | ☐      |
 | FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —         | ☐      |
-| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | oui       | ☐      |
+| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ☐      |
 | FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —         | ☐      |
 | FIX-26 | Envoi de fichiers : aucune limite Multer, erreurs étiquetées `INVALID_UUID`           | 🟠 Majeur   | 2   | Ozias   | S      | —         | ☐      |
-| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | oui       | ☐      |
-| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | oui       | ☐      |
+| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | ☐      |
+| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | ☐      |
 | FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
 | FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —         | ☐      |
 | FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
@@ -186,6 +186,16 @@ Identique au doc 13 :
   (`GET /loans`, `GET /loans/{id}`). L'app ne l'affiche pas : la fuite est dans la réponse JSON.
 - **Hors fiche** : le score global sur le profil (`LenderStats`, `GET /users/me/trust-score`) est voulu (FIX-15).
 - **Correctif** : ne renvoyer `statistics` qu'au prêteur ; contrat mis à jour d'abord.
+- **Décision (31/10, Ismael + Ozias)** : `Borrower.statistics` n'est présent que si l'appelant est le prêteur du prêt,
+  omis (pas `null`) sinon ; `GET /borrowers/{borrowerId}/statistics` reste réservé au prêteur (inchangé).
+  **Décision validée en revue de #40** : pour l'emprunteur, `loan.borrower` contient son propre profil (prénom, nom,
+  email de son compte), sans `phoneNumber` ni `statistics` ; `id` reste l'identifiant du contact ; le nom saisi par le
+  prêteur dans ses contacts lui reste réservé.
+- **À faire dans la PR de code** : la réponse d'un prêt dépend désormais de l'appelant, elle ne doit donc pas être
+  partagée en cache entre utilisateurs. Vérifié (31/10) : aucun cache HTTP sur ces routes (pas de `CacheInterceptor`
+  ni de `CacheModule`, aucun en-tête `Cache-Control` posé par l'API ; seul `r2-photo-storage.service.ts` définit un
+  `CacheControl`, pour les photos). Redis ne sert qu'à la blacklist JWT. Rien à changer aujourd'hui ; ne pas
+  introduire de cache de réponse sur `/loans` sans clé par utilisateur (ou `Vary: Authorization`).
 
 ### FIX-25 — Date de retour minimale : J+2 local côté app, J+2 UTC côté API
 
@@ -211,6 +221,13 @@ Identique au doc 13 :
 - **Cause** : `contact-invitations.service.ts:149-217` n'émet aucun événement ; `NotificationType`
   (`schema.prisma:342-350`) n'a pas de type invitation.
 - **Correctif** : inventaire des événements qui méritent une notification, puis contrat, enum, listener, push.
+- **Décision (31/10, Ismael + Ozias)** : notifier la réception (au destinataire) et l'acceptation (à l'auteur) ;
+  ni le refus ni l'expiration. Nouveaux types `CONTACT_INVITATION_RECEIVED` et `CONTACT_INVITATION_ACCEPTED`,
+  `relatedLoanId` reste `null` ; données du push `{ type, invitationId }` (voir `PushNotificationData` dans le
+  contrat). Tap : réception -> Contacts, invitations reçues ; acceptation -> Contacts, invitations envoyées. Les
+  anciens builds ignorent un type inconnu (icône par défaut, tap sans effet). Invitation annulée ou expirée : la
+  notification reste et ouvre la liste des invitations. **Migration Prisma** : ajout de 2 valeurs à l'enum
+  `NotificationType` (`schema.prisma:342-350`).
 
 ### FIX-28 — 403 au lieu de 404 révèle l'existence d'une ressource
 
@@ -219,6 +236,22 @@ Identique au doc 13 :
   identifiants. Le contrat (`openapi.yaml:507-524`) prévoit ce 403. Le message du 403 sur un GET parle de « change
   this loan status » (`loans.service.ts:686`).
 - **Décision** : 404 pour tout ce qui n'appartient pas à l'utilisateur, ou garder 403.
+- **Décision (31/10, Ismael + Ozias)** : 404 quand l'appelant n'est pas partie à la ressource, 403 seulement quand il
+  est partie sans le droit (ex. emprunteur qui tente une action réservée au prêteur). Le 404 est strictement
+  identique (`type`, `title`, `detail`) que la ressource existe ou non. Exception tranchée par Ozias : pour les
+  invitations de contact, seule la personne autorisée à l'action voit la ressource (destinataire pour accepter ou
+  refuser, émetteur pour annuler), tout autre utilisateur, l'autre partie comprise, reçoit le 404 (plus de 403). Le message du 403 sur un GET de prêt
+  (« change this loan status », `loans.service.ts:686`) disparaît avec ce cas (le tiers reçoit un 404).
+  **Décisions validées en revue de #40** : 403 pour l'emprunteur, 404 pour le tiers ; `GET /items/{itemId}` par
+  l'emprunteur d'un prêt : 404 ; contact (`Borrower`) lu par la personne qu'il représente : 404.
+- **À faire dans la PR de code** :
+  - invitations : `contact-invitations.service.ts` lève encore `ForbiddenException` (~l.230 accept, ~334 reject,
+    ~377 cancel) pour un non-autorisé, avant le 409. À remplacer par le 404 `invitation-not-found` ; ordre des
+    contrôles : appartenance (404) puis état (409 `invitation-not-pending` / `invitation-already-accepted`).
+  - création de prêt : `loans.service.ts` lève aujourd'hui `forbidden` (objet ~l.560, contact ~l.609) pour une
+    ressource d'autrui, à remplacer par le 404 `item-not-found` / `borrower-not-found`. L'ordre actuel (objet,
+    409 `item-already-loaned`, contact, puis 403 `contact-not-accepted`) place déjà la propriété avant
+    `contact-not-accepted` : le conserver.
 
 ### FIX-29 — Avertissement `path-to-regexp` sur la route `/v1/*`
 

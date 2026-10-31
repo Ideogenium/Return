@@ -10,6 +10,8 @@ export const launchCameraAsync = jest.fn().mockResolvedValue({
       type: 'image/jpeg',
       fileName: 'camera-photo.jpg',
       fileSize: 1024000,
+      width: 4032,
+      height: 3024,
     },
   ],
 });
@@ -22,6 +24,8 @@ export const launchImageLibraryAsync = jest.fn().mockResolvedValue({
       type: 'image/jpeg',
       fileName: 'gallery-photo.jpg',
       fileSize: 2048000,
+      width: 1600,
+      height: 1200,
     },
   ],
 });
