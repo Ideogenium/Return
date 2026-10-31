@@ -136,6 +136,10 @@ contractuelles types de la Commission européenne ou, le cas échéant, une déc
     prêts) sont vidés. L'objet prêté (nom, catégorie, valeur), les dates et le statut restent visibles pour l'autre
     personne. Le motif de contestation écrit par un emprunteur est conservé pour expliquer le statut du prêt au
     prêteur.
+  - Si vous étiez emprunteur : les fiches contact que des prêteurs avaient créées à votre nom restent chez ces
+    prêteurs (le nom qu'ils avaient saisi et l'historique de leurs prêts), mais l'adresse email et le téléphone de ces
+    fiches sont effacés et elles ne sont plus reliées à aucun compte. Une nouvelle inscription avec la même adresse
+    email ne récupère pas cet historique ; un prêteur qui vous réinvite crée une nouvelle fiche.
   - Les notifications destinées à d'autres utilisateurs et qui vous nomment sont supprimées.
   - Si aucun prêt ne doit être conservé, le compte est supprimé entièrement.
   - Les prêts en cours doivent être clôturés avant de pouvoir supprimer un compte de prêteur.

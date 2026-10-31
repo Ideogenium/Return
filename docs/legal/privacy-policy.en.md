@@ -129,6 +129,10 @@ contractual clauses or, where applicable, an adequacy decision.
     the free text you wrote (item descriptions, loan notes) is emptied. The lent item (name, category, value), the
     dates and the status remain visible to the other person. A contestation reason written by a borrower is kept to
     explain the loan's status to the lender.
+  - If you were a borrower: the contact records that lenders had created in your name remain with those lenders (the
+    name they entered and the history of their loans), but the email address and phone number on those records are
+    erased and they are no longer linked to any account. Signing up again with the same email address does not
+    recover that history; a lender who invites you again creates a new record.
   - Notifications sent to other users that name you are deleted.
   - If no loan needs to be kept, the account is deleted entirely.
   - Ongoing loans must be closed before a lender account can be deleted.

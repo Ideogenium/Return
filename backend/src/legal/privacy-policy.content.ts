@@ -83,6 +83,7 @@ export const PRIVACY_POLICY_BODY = {
 <ul>
 <li>Vos sessions, jetons d'appareil, notifications, invitations, ainsi que vos objets et contacts qui ne servent plus à personne sont supprimés. Les photos stockées sont supprimées.</li>
 <li>Vos prêts terminés dont l'emprunteur a un compte Return sont conservés pour cette personne, de façon pseudonymisée : votre nom devient « Compte supprimé », votre adresse email, votre mot de passe, votre téléphone et votre photo de profil sont effacés, et les textes libres que vous avez écrits (description des objets, notes des prêts) sont vidés. L'objet prêté (nom, catégorie, valeur), les dates et le statut restent visibles pour l'autre personne. Le motif de contestation écrit par un emprunteur est conservé pour expliquer le statut du prêt au prêteur.</li>
+<li>Si vous étiez emprunteur : les fiches contact que des prêteurs avaient créées à votre nom restent chez ces prêteurs (le nom qu'ils avaient saisi et l'historique de leurs prêts), mais l'adresse email et le téléphone de ces fiches sont effacés et elles ne sont plus reliées à aucun compte. Une nouvelle inscription avec la même adresse email ne récupère pas cet historique ; un prêteur qui vous réinvite crée une nouvelle fiche.</li>
 <li>Les notifications destinées à d'autres utilisateurs et qui vous nomment sont supprimées.</li>
 <li>Si aucun prêt ne doit être conservé, le compte est supprimé entièrement.</li>
 <li>Les prêts en cours doivent être clôturés avant de pouvoir supprimer un compte de prêteur.</li>
@@ -191,6 +192,7 @@ export const PRIVACY_POLICY_BODY = {
 <ul>
 <li>Your sessions, device tokens, notifications, invitations, and any items and contacts that no one needs anymore are deleted. Stored photos are deleted.</li>
 <li>Your completed loans whose borrower has a Return account are kept for that person in pseudonymized form: your name becomes "Deleted account", your email address, password, phone number and profile picture are erased, and the free text you wrote (item descriptions, loan notes) is emptied. The lent item (name, category, value), the dates and the status remain visible to the other person. A contestation reason written by a borrower is kept to explain the loan's status to the lender.</li>
+<li>If you were a borrower: the contact records that lenders had created in your name remain with those lenders (the name they entered and the history of their loans), but the email address and phone number on those records are erased and they are no longer linked to any account. Signing up again with the same email address does not recover that history; a lender who invites you again creates a new record.</li>
 <li>Notifications sent to other users that name you are deleted.</li>
 <li>If no loan needs to be kept, the account is deleted entirely.</li>
 <li>Ongoing loans must be closed before a lender account can be deleted.</li>
