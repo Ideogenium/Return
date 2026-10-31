@@ -152,3 +152,32 @@ describe('toLoanResponse (viewer-dependent borrower)', () => {
     expect(res.borrower).not.toHaveProperty('phoneNumber');
   });
 });
+
+describe('toLoanResponse — lender of a deleted account (FIX-22)', () => {
+  it('omits accountDeleted for an active account', () => {
+    const res = toLoanResponse(buildLoan(), BORROWER_USER_ID);
+
+    expect(res.lender).not.toHaveProperty('accountDeleted');
+  });
+
+  it('flags a tombstone lender with accountDeleted: true and its stored fixed names', () => {
+    const loan = buildLoan();
+    loan.lender = {
+      ...LENDER,
+      firstName: 'Compte',
+      lastName: 'supprimé',
+      email: `deleted+${LENDER_USER_ID}@deleted.invalid`,
+      deletedAt: NOW,
+    };
+
+    const res = toLoanResponse(loan, BORROWER_USER_ID);
+
+    expect(res.lender).toEqual({
+      id: LENDER_USER_ID,
+      firstName: 'Compte',
+      lastName: 'supprimé',
+      profilePicture: null,
+      accountDeleted: true,
+    });
+  });
+});

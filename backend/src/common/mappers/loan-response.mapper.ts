@@ -54,12 +54,17 @@ export function toItemResponse(item: Item & { photos: Photo[] }): LoanItemRespon
   };
 }
 
+/**
+ * A deleted lender (tombstone, FIX-22) already stores the fixed names and no picture;
+ * `accountDeleted` lets the app show a translated label instead.
+ */
 export function toLenderResponse(user: User): LoanLenderResponse {
   return {
     id: user.id,
     firstName: user.firstName,
     lastName: user.lastName,
     profilePicture: user.profilePicture,
+    ...(user.deletedAt ? { accountDeleted: true as const } : {}),
   };
 }
 
