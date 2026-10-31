@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
   type HostInstance,
+  type KeyboardMetrics,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type ScrollViewProps,
@@ -45,11 +46,13 @@ function useAndroidKeyboardOverlap(area: React.RefObject<View | null>, enabled: 
 }
 
 /**
- * Scrolls the form when its content grows (a multiline field gaining a line) so the bottom of
- * the focused field stays visible: above the keyboard, and above the bottom of the scroll view
- * itself when that one ends higher (a dialog already moved above the keyboard). Neither
- * platform does it on its own: iOS and Android only bring a field into view when it receives
- * the focus.
+ * Keeps the bottom of the focused field visible: above the keyboard, and above the bottom of
+ * the scroll view itself when that one ends higher (a dialog already moved above the keyboard).
+ * Neither platform does it on its own past the moment a field receives the focus, so it runs:
+ * - when the content grows (a multiline field gaining a line);
+ * - when the scroll view's own frame changes (a dialog shrinking as it moves above the keyboard);
+ * - once the keyboard has opened, the layout having settled.
+ * Only a focused field inside this scroll view is considered.
  */
 function useKeepFocusedFieldVisible(scroll: React.RefObject<ScrollView | null>) {
   const offsetY = useRef(0);
@@ -58,29 +61,40 @@ function useKeepFocusedFieldVisible(scroll: React.RefObject<ScrollView | null>) 
     offsetY.current = event.nativeEvent.contentOffset.y;
   }, []);
 
-  const keepFocusedFieldVisible = useCallback(() => {
-    const keyboard = Keyboard.isVisible() ? Keyboard.metrics() : undefined;
-    const input = TextInput.State.currentlyFocusedInput();
-    const scrollView = scroll.current;
-    if (!keyboard || !input || !scrollView) return;
-    // At runtime the ScrollView ref is its native host view, which the class type does not show.
-    const scrollHost = scrollView as unknown as HostInstance;
+  const keepFocusedFieldVisible = useCallback(
+    (shownKeyboard?: KeyboardMetrics) => {
+      const keyboard = shownKeyboard ?? (Keyboard.isVisible() ? Keyboard.metrics() : undefined);
+      const input = TextInput.State.currentlyFocusedInput();
+      const scrollView = scroll.current;
+      if (!keyboard || !input || !scrollView) return;
+      // At runtime the ScrollView ref is its native host view, which the class type does not show.
+      const scrollHost = scrollView as unknown as HostInstance;
 
-    // Measuring against this scroll view fails when the focused field belongs to another view.
-    input.measureLayout(
-      scrollHost,
-      () => {
-        scrollHost.measureInWindow((_sx, scrollTop, _sw, scrollHeight) => {
-          const visibleBottom = Math.min(keyboard.screenY, scrollTop + scrollHeight);
-          input.measureInWindow((_x, y, _width, height) => {
-            const hidden = y + height + FIELD_KEYBOARD_MARGIN - visibleBottom;
-            if (hidden > 0) scrollView.scrollTo({ y: offsetY.current + hidden, animated: true });
+      // Measuring against this scroll view fails when the focused field belongs to another view.
+      input.measureLayout(
+        scrollHost,
+        () => {
+          scrollHost.measureInWindow((_sx, scrollTop, _sw, scrollHeight) => {
+            const visibleBottom = Math.min(keyboard.screenY, scrollTop + scrollHeight);
+            input.measureInWindow((_x, y, _width, height) => {
+              const hidden = y + height + FIELD_KEYBOARD_MARGIN - visibleBottom;
+              if (hidden > 0) scrollView.scrollTo({ y: offsetY.current + hidden, animated: true });
+            });
           });
-        });
-      },
-      () => undefined,
+        },
+        () => undefined,
+      );
+    },
+    [scroll],
+  );
+
+  useEffect(() => {
+    // The event's coordinates: Keyboard.metrics() may not be updated yet when it fires.
+    const show = Keyboard.addListener('keyboardDidShow', ({ endCoordinates }) =>
+      keepFocusedFieldVisible(endCoordinates),
     );
-  }, [scroll]);
+    return () => show.remove();
+  }, [keepFocusedFieldVisible]);
 
   return { trackOffset, keepFocusedFieldVisible };
 }
@@ -110,6 +124,7 @@ export const FormScrollView = forwardRef<ScrollView, FormScrollViewProps>(functi
     testID,
     onScroll,
     onContentSizeChange,
+    onLayout,
     scrollEventThrottle = 16,
     keyboardAvoidance = true,
     ...props
@@ -138,6 +153,10 @@ export const FormScrollView = forwardRef<ScrollView, FormScrollViewProps>(functi
       onContentSizeChange={(width, height) => {
         keepFocusedFieldVisible();
         onContentSizeChange?.(width, height);
+      }}
+      onLayout={(event) => {
+        keepFocusedFieldVisible();
+        onLayout?.(event);
       }}
     />
   );
