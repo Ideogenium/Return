@@ -55,6 +55,7 @@ export class RemindersController {
       loan,
       req.user.userId,
       `/v1/loans/${loanId}/reminders`,
+      { name: 'Loan', id: loanId },
     );
 
     return this.remindersService.findByLoanId(loanId);
@@ -79,6 +80,7 @@ export class RemindersController {
       reminder.loan,
       req.user.userId,
       `/v1/reminders/${reminderId}`,
+      { name: 'Reminder', id: reminderId },
     );
 
     return this.remindersService.toReminderResponse(reminder);
@@ -104,6 +106,7 @@ export class RemindersController {
       reminder.loan,
       req.user.userId,
       `/v1/reminders/${reminderId}/cancel`,
+      { name: 'Reminder', id: reminderId },
     );
 
     if (reminder.status === ReminderStatus.SENT) {

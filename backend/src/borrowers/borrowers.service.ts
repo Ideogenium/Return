@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   ConflictException,
-  ForbiddenException,
   NotFoundException,
 } from '../common/exceptions/problem-details.exception.js';
 import {
@@ -102,7 +101,7 @@ export class BorrowersService {
 
   async getStatistics(borrowerId: string, lenderUserId: string): Promise<BorrowerStatistics> {
     const borrower = await this.findBorrowerOrFail(borrowerId);
-    this.assertOwnership(borrower, lenderUserId, `/v1/borrowers/${borrowerId}/statistics`);
+    this.assertOwnership(borrower, lenderUserId);
 
     // FIX-15: trustScore is the GLOBAL score of the linked user (aggregated
     // across all lenders), not the per-relation value. The per-lender counters
@@ -128,7 +127,7 @@ export class BorrowersService {
 
   async findById(borrowerId: string, lenderUserId: string): Promise<BorrowerResponse> {
     const borrower = await this.findBorrowerOrFail(borrowerId);
-    this.assertOwnership(borrower, lenderUserId, `/v1/borrowers/${borrowerId}`);
+    this.assertOwnership(borrower, lenderUserId);
 
     return this.toBorrowerResponse(borrower);
   }
@@ -143,7 +142,7 @@ export class BorrowersService {
     dto: UpdateBorrowerDto,
   ): Promise<BorrowerResponse> {
     const borrower = await this.findBorrowerOrFail(borrowerId);
-    this.assertOwnership(borrower, lenderUserId, `/v1/borrowers/${borrowerId}`);
+    this.assertOwnership(borrower, lenderUserId);
 
     try {
       const updated = await this.prisma.borrower.update({
@@ -164,7 +163,7 @@ export class BorrowersService {
 
   async delete(borrowerId: string, lenderUserId: string): Promise<void> {
     const borrower = await this.findBorrowerOrFail(borrowerId);
-    this.assertOwnership(borrower, lenderUserId, `/v1/borrowers/${borrowerId}`);
+    this.assertOwnership(borrower, lenderUserId);
 
     // LOAN-038: Cannot delete a borrower with active loans
     const activeLoanCount = await this.prisma.loan.count({
@@ -202,14 +201,10 @@ export class BorrowersService {
     return borrower;
   }
 
-  private assertOwnership(borrower: Borrower, lenderUserId: string, path: string): void {
+  /** FIX-28: someone else's contact is reported exactly like a missing one (no existence leak). */
+  private assertOwnership(borrower: Borrower, lenderUserId: string): void {
     if (borrower.lenderUserId !== lenderUserId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'You do not have permission to access this borrower.',
-        path,
-      );
+      throw new NotFoundException('Borrower', borrower.id, `/v1/borrowers/${borrower.id}`);
     }
   }
 

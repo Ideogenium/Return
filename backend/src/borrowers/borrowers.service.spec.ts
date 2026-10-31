@@ -7,6 +7,24 @@ import { TrustScoreService } from '../trust-score/trust-score.service.js';
 import type { ProblemDetails } from '../common/exceptions/problem-details.exception.js';
 import type { Borrower } from '@prisma/client';
 
+/** Runs a call expected to reject and returns the ProblemDetails body. */
+async function problemOf(call: Promise<unknown>): Promise<ProblemDetails> {
+  try {
+    await call;
+  } catch (error) {
+    return (error as { getResponse: () => ProblemDetails }).getResponse();
+  }
+  throw new Error('Expected the call to reject');
+}
+
+/** The fields a client sees: a foreign contact must be indistinguishable from a missing one (FIX-28). */
+function visibleFields(
+  problem: ProblemDetails,
+): Pick<ProblemDetails, 'status' | 'type' | 'title' | 'detail'> {
+  const { status, type, title, detail } = problem;
+  return { status, type, title, detail };
+}
+
 // =============================================================================
 // Fixtures
 // =============================================================================
@@ -380,17 +398,16 @@ describe('BorrowersService', () => {
       }
     });
 
-    it('should throw 403 if borrower belongs to another user', async () => {
-      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+    it('should throw the same 404 as a missing contact on getStatistics when it belongs to another user (FIX-28)', async () => {
+      prisma.borrower.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.getStatistics(BORROWER_ID, OTHER_USER_ID));
 
-      try {
-        await service.getStatistics(BORROWER_ID, OTHER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error: unknown) {
-        const body = (error as { getResponse: () => ProblemDetails }).getResponse();
-        expect(body.status).toBe(HttpStatus.FORBIDDEN);
-        expect(body.type).toContain('forbidden');
-      }
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      const foreign = await problemOf(service.getStatistics(BORROWER_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(foreign.type).toContain('borrower-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
   });
 
@@ -441,17 +458,16 @@ describe('BorrowersService', () => {
       }
     });
 
-    it('should throw 403 if borrower belongs to another user', async () => {
-      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+    it('should throw the same 404 as a missing contact on findById when it belongs to another user (FIX-28)', async () => {
+      prisma.borrower.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.findById(BORROWER_ID, OTHER_USER_ID));
 
-      try {
-        await service.findById(BORROWER_ID, OTHER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error: unknown) {
-        const body = (error as { getResponse: () => ProblemDetails }).getResponse();
-        expect(body.status).toBe(HttpStatus.FORBIDDEN);
-        expect(body.type).toContain('forbidden');
-      }
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      const foreign = await problemOf(service.findById(BORROWER_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(foreign.type).toContain('borrower-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
   });
 
@@ -488,16 +504,20 @@ describe('BorrowersService', () => {
       }
     });
 
-    it('should throw 403 if borrower belongs to another user', async () => {
-      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+    it('should throw the same 404 as a missing contact on update when it belongs to another user (FIX-28)', async () => {
+      prisma.borrower.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(
+        service.update(BORROWER_ID, OTHER_USER_ID, { firstName: 'X' }),
+      );
 
-      try {
-        await service.update(BORROWER_ID, OTHER_USER_ID, { firstName: 'X' });
-        fail('Expected ForbiddenException');
-      } catch (error: unknown) {
-        const body = (error as { getResponse: () => ProblemDetails }).getResponse();
-        expect(body.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      const foreign = await problemOf(
+        service.update(BORROWER_ID, OTHER_USER_ID, { firstName: 'X' }),
+      );
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(foreign.type).toContain('borrower-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
 
     // FIX-09: email is no longer part of UpdateBorrowerDto, so a borrower update
@@ -535,16 +555,16 @@ describe('BorrowersService', () => {
       }
     });
 
-    it('should throw 403 if borrower belongs to another user', async () => {
-      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+    it('should throw the same 404 as a missing contact on delete when it belongs to another user (FIX-28)', async () => {
+      prisma.borrower.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.delete(BORROWER_ID, OTHER_USER_ID));
 
-      try {
-        await service.delete(BORROWER_ID, OTHER_USER_ID);
-        fail('Expected ForbiddenException');
-      } catch (error: unknown) {
-        const body = (error as { getResponse: () => ProblemDetails }).getResponse();
-        expect(body.status).toBe(HttpStatus.FORBIDDEN);
-      }
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      const foreign = await problemOf(service.delete(BORROWER_ID, OTHER_USER_ID));
+
+      expect(foreign.status).toBe(HttpStatus.NOT_FOUND);
+      expect(foreign.type).toContain('borrower-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
     });
 
     // NOTE: 409 active-loans-exist test will be added when Loans module is implemented.

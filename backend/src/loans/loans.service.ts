@@ -246,7 +246,7 @@ export class LoansService {
 
   async findById(loanId: string, userId: string): Promise<LoanResponse> {
     const loan = await this.findLoanOrFail(loanId);
-    this.resolveUserRole(loan, userId, `/v1/loans/${loanId}`);
+    this.resolveUserRole(loan, userId);
     return toLoanResponse(loan, userId);
   }
 
@@ -396,7 +396,7 @@ export class LoansService {
     const loan = await this.findLoanOrFail(loanId);
 
     // Determine user role relative to this loan (lender or borrower)
-    const role = this.resolveUserRole(loan, userId, `/v1/loans/${loanId}/status`);
+    const role = this.resolveUserRole(loan, userId);
 
     if (!isValidTransition(loan.status, newStatus)) {
       throw new ConflictException(
@@ -529,16 +529,9 @@ export class LoansService {
       const item = await tx.item.findUnique({
         where: { id: itemInput },
       });
-      if (!item) {
+      // FIX-28: someone else's item is reported exactly like a missing one (no existence leak).
+      if (!item || item.userId !== lenderId) {
         throw new NotFoundException('Item', itemInput, '/v1/loans');
-      }
-      if (item.userId !== lenderId) {
-        throw new ForbiddenException(
-          'forbidden',
-          'Forbidden',
-          'You do not have permission to use this item.',
-          '/v1/loans',
-        );
       }
       return item.id;
     }
@@ -578,16 +571,9 @@ export class LoansService {
     const borrower = await tx.borrower.findUnique({
       where: { id: borrowerId },
     });
-    if (!borrower) {
+    // FIX-28: someone else's contact is reported exactly like a missing one.
+    if (!borrower || borrower.lenderUserId !== lenderId) {
       throw new NotFoundException('Borrower', borrowerId, '/v1/loans');
-    }
-    if (borrower.lenderUserId !== lenderId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'You do not have permission to use this borrower.',
-        '/v1/loans',
-      );
     }
     return borrower.id;
   }
@@ -633,31 +619,32 @@ export class LoansService {
     return loan as LoanWithRelations;
   }
 
-  private assertOwnership(loan: LoanWithRelations, lenderId: string, path: string): void {
-    if (loan.lenderId !== lenderId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'You can only access or modify loans you created.',
-        path,
-      );
+  /**
+   * Lender-only actions. A third party gets the same 404 as for a missing loan (FIX-28);
+   * the borrower is a party to the loan, so they get a 403.
+   */
+  private assertOwnership(loan: LoanWithRelations, userId: string, path: string): void {
+    if (loan.lenderId === userId) return;
+    if (loan.borrower.userId !== userId) {
+      throw new NotFoundException('Loan', loan.id, `/v1/loans/${loan.id}`);
     }
+    throw new ForbiddenException(
+      'forbidden',
+      'Forbidden',
+      'You can only access or modify loans you created.',
+      path,
+    );
   }
 
   /**
    * Determines the user's role relative to a loan.
-   * Throws 403 if the user is neither the lender nor the borrower.
+   * Throws the uniform 404 if the user is neither the lender nor the borrower (FIX-28).
    */
-  private resolveUserRole(loan: LoanWithRelations, userId: string, path: string): LoanRole {
+  private resolveUserRole(loan: LoanWithRelations, userId: string): LoanRole {
     if (loan.lenderId === userId) return 'lender';
     if (loan.borrower.userId === userId) return 'borrower';
 
-    throw new ForbiddenException(
-      'forbidden',
-      'Forbidden',
-      'You do not have permission to change this loan status.',
-      path,
-    );
+    throw new NotFoundException('Loan', loan.id, `/v1/loans/${loan.id}`);
   }
 
   /**
@@ -666,6 +653,10 @@ export class LoansService {
    */
   private assertBorrowerRole(loan: LoanWithRelations, userId: string, path: string): void {
     if (loan.borrower.userId !== userId) {
+      // A third party must not learn the loan exists; the lender is a party, hence 403.
+      if (loan.lenderId !== userId) {
+        throw new NotFoundException('Loan', loan.id, `/v1/loans/${loan.id}`);
+      }
       throw new ForbiddenException(
         'forbidden-status-transition',
         'Forbidden Status Transition',

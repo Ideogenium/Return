@@ -4,6 +4,25 @@ import { NotificationType, ReminderType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FirebaseService } from '../firebase/firebase.service.js';
 import { NotificationsService } from './notifications.service.js';
+import type { ProblemDetails } from '../common/exceptions/problem-details.exception.js';
+
+/** Runs a call expected to reject and returns the ProblemDetails body. */
+async function problemOf(call: Promise<unknown>): Promise<ProblemDetails> {
+  try {
+    await call;
+  } catch (error) {
+    return (error as { getResponse: () => ProblemDetails }).getResponse();
+  }
+  throw new Error('Expected the call to reject');
+}
+
+/** The fields a client sees: a foreign notification must be indistinguishable from a missing one (FIX-28). */
+function visibleFields(
+  problem: ProblemDetails,
+): Pick<ProblemDetails, 'status' | 'type' | 'title' | 'detail'> {
+  const { status, type, title, detail } = problem;
+  return { status, type, title, detail };
+}
 
 // =============================================================================
 // Fixtures
@@ -332,16 +351,21 @@ describe('NotificationsService', () => {
       );
     });
 
-    it('should throw ForbiddenException when notification belongs to another user', async () => {
+    it('should throw the same 404 as a missing notification when it belongs to another user (FIX-28)', async () => {
+      prisma.notification.findUnique.mockResolvedValueOnce(null);
+      const missing = await problemOf(service.markAsRead(NOTIFICATION_ID, BORROWER_USER_ID));
+
       prisma.notification.findUnique.mockResolvedValue({
         id: NOTIFICATION_ID,
         userId: 'other-user-id',
         isRead: false,
       } as never);
+      const foreign = await problemOf(service.markAsRead(NOTIFICATION_ID, BORROWER_USER_ID));
 
-      await expect(service.markAsRead(NOTIFICATION_ID, BORROWER_USER_ID)).rejects.toThrow(
-        'Forbidden',
-      );
+      expect(foreign.status).toBe(404);
+      expect(foreign.type).toContain('notification-not-found');
+      expect(visibleFields(foreign)).toEqual(visibleFields(missing));
+      expect(prisma.notification.update).not.toHaveBeenCalled();
     });
   });
 
