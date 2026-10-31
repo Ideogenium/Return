@@ -331,6 +331,8 @@ export interface HistoryOverview {
   returnedLoans: number;
   notReturnedLoans: number;
   contestedLoans: number;
+  /** Prêts ouverts dont l'échéance est dépassée (aussi comptés dans activeLoans) */
+  overdueLoans: number;
   averageReturnDelay: number;
 }
 
@@ -374,9 +376,25 @@ export interface HistoryStatistics {
 
 // --- Erreurs RFC 7807 ---
 
+export type ValidationErrorCode =
+  | 'REQUIRED'
+  | 'INVALID_TYPE'
+  | 'INVALID_EMAIL'
+  | 'INVALID_ENUM'
+  | 'INVALID_UUID'
+  | 'INVALID_FORMAT'
+  | 'INVALID_VALUE'
+  | 'TOO_SHORT'
+  | 'TOO_LONG'
+  | 'TOO_SMALL'
+  | 'TOO_LARGE'
+  | 'UNKNOWN_FIELD'
+  | 'FILE_REQUIRED'
+  | 'VALIDATION_ERROR';
+
 export interface ErrorDetail {
   field: string;
-  code: string;
+  code: ValidationErrorCode;
   message: string;
 }
 

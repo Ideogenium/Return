@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { mkdir, writeFile, unlink, access } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { mkdir, writeFile, unlink, access, readdir, rm } from 'node:fs/promises';
+import { join, dirname, resolve, sep } from 'node:path';
 import { ConfigService } from '@nestjs/config';
 
 import type { PhotoStorage, PhotoUploadResult } from './interfaces/photo-storage.interface.js';
+import { assertPurgePrefix } from './purge-prefix.js';
 
 // =============================================================================
 // LocalPhotoStorage — Implémentation disque local (dev / tests)
@@ -57,6 +58,34 @@ export class LocalPhotoStorageService implements PhotoStorage {
       // Fichier inexistant → idempotent, pas d'erreur
       this.logger.debug(`Photo not found locally (idempotent delete): ${key}`);
     }
+  }
+
+  async deleteByPrefix(prefix: string): Promise<number> {
+    assertPurgePrefix(prefix);
+
+    // Defense in depth: the resolved folder must stay strictly inside uploadDir.
+    const root = resolve(this.uploadDir);
+    const folder = resolve(root, prefix);
+    if (!folder.startsWith(root + sep)) {
+      throw new Error(`Refusing to purge a prefix outside the upload directory: "${prefix}"`);
+    }
+
+    let files: string[];
+    try {
+      const entries = await readdir(folder, { recursive: true, withFileTypes: true });
+      files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
+    } catch (error) {
+      // Absent folder → idempotent, nothing to delete. Any other failure must surface.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 0;
+      this.logger.error(
+        `Local purge failed for ${prefix}: ${(error as NodeJS.ErrnoException).code ?? 'unknown'}`,
+      );
+      throw error;
+    }
+
+    await rm(folder, { recursive: true, force: true });
+    this.logger.debug(`Purged ${files.length} photo(s) locally under ${prefix}`);
+    return files.length;
   }
 
   getUrl(key: string): Promise<string> {

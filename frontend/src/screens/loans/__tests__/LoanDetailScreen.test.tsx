@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { PaperProvider } from 'react-native-paper';
+import { MD3LightTheme, PaperProvider, Dialog } from 'react-native-paper';
 import { server } from '../../../../__mocks__/server';
 import { http, HttpResponse } from 'msw';
 import { Text } from 'react-native';
@@ -10,6 +10,18 @@ import { useLoanStore } from '../../../stores/useLoanStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { LoanStackParamList } from '../../../navigation/types';
+
+jest.mock('react-native-paper-dates', () => {
+  const React = require('react');
+  const { Pressable } = require('react-native');
+  return {
+    Calendar: ({ onChange }: { onChange: (params: { date: Date }) => void }) =>
+      React.createElement(Pressable, {
+        testID: 'mock-calendar-select',
+        onPress: () => onChange({ date: new Date('2026-12-31T12:00:00Z') }),
+      }),
+  };
+});
 
 const Stack = createNativeStackNavigator<LoanStackParamList>();
 
@@ -21,9 +33,13 @@ function DummyConfirmLoan() {
   return <Text>ConfirmLoanScreen</Text>;
 }
 
+// Paper scales every animation duration by theme.animation.scale: 0 opens dialogs
+// instantly, keeping these tests fast on a loaded machine.
+const instantTheme = { ...MD3LightTheme, animation: { ...MD3LightTheme.animation, scale: 0 } };
+
 function renderDetailScreen(loanId = '7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d') {
   return render(
-    <PaperProvider>
+    <PaperProvider theme={instantTheme}>
       <NavigationContainer>
         <Stack.Navigator>
           <Stack.Screen
@@ -240,6 +256,227 @@ describe('LoanDetailScreen', () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId('loan-detail')).toBeNull();
+    });
+  });
+});
+
+describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', () => {
+  let servedStatus = 'ACTIVE';
+
+  const loanFixture = (id: string, status: string) => ({
+    id,
+    item: {
+      id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+      name: 'Perceuse Bosch',
+      category: 'TOOLS',
+      createdAt: '2026-02-10T10:00:00Z',
+    },
+    lender: {
+      id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+      firstName: 'John',
+      lastName: 'Doe',
+      profilePicture: null,
+    },
+    borrower: {
+      id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+      firstName: 'Marie',
+      lastName: 'Dupont',
+      email: 'marie@example.com',
+    },
+    status,
+    returnDate: '2026-04-15',
+    confirmationDate: '2026-02-02T10:00:00Z',
+    returnedDate: null,
+    notes: 'old notes',
+    contestReason: null,
+    createdAt: '2026-02-01T10:00:00Z',
+    updatedAt: '2026-02-02T10:00:00Z',
+  });
+
+  function serveLoanWithStatus(status: string) {
+    servedStatus = status;
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+        HttpResponse.json(loanFixture(String(params.id), status), { status: 200 }),
+      ),
+    );
+  }
+
+  function capturePatchBody(): { body?: Record<string, unknown> } {
+    const captured: { body?: Record<string, unknown> } = {};
+    server.use(
+      http.patch('http://localhost:3000/v1/loans/:id', async ({ params, request }) => {
+        captured.body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { ...loanFixture(String(params.id), servedStatus), ...captured.body },
+          { status: 200 },
+        );
+      }),
+    );
+    return captured;
+  }
+
+  const editDialog = () =>
+    screen.UNSAFE_getAllByType(Dialog).find((d) => d.props.testID === 'edit-loan-dialog');
+
+  async function openEditDialog() {
+    renderDetailScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-loan-btn')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByTestId('edit-loan-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    });
+  }
+
+  it('lets the lender change the return date of an open loan', async () => {
+    serveLoanWithStatus('ACTIVE');
+
+    await openEditDialog();
+
+    expect(screen.getByTestId('edit-return-date-input')).toBeTruthy();
+    expect(screen.queryByTestId('return-date-locked-hint')).toBeNull();
+  });
+
+  it('hides the return date and explains why for an overdue loan', async () => {
+    serveLoanWithStatus('AWAITING_RETURN');
+
+    await openEditDialog();
+
+    expect(screen.queryByTestId('edit-return-date-input')).toBeNull();
+    expect(screen.getByTestId('return-date-locked-hint')).toBeTruthy();
+  });
+
+  it('saves only the notes of an overdue loan, without sending a return date', async () => {
+    serveLoanWithStatus('AWAITING_RETURN');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toBeDefined();
+    });
+    expect(captured.body).toEqual({ notes: 'new notes' });
+  });
+
+  it('does not send an unchanged return date when only the notes of an open loan change', async () => {
+    serveLoanWithStatus('ACTIVE');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toBeDefined();
+    });
+    expect(captured.body).not.toHaveProperty('returnDate');
+  });
+
+  it('keeps the edit open, preserves the notes and refreshes the loan when the date is refused with 409', async () => {
+    serveLoanWithStatus('ACTIVE');
+    server.use(
+      http.patch('http://localhost:3000/v1/loans/:id', ({ params }) => {
+        // The loan turned overdue while the lender was editing it.
+        serveLoanWithStatus('AWAITING_RETURN');
+        return HttpResponse.json(
+          {
+            type: 'https://api.return.app/errors/loan-return-date-locked',
+            title: 'Return Date Locked',
+            status: 409,
+            detail: 'The return date can only be changed while the loan is pending or active.',
+            instance: `/v1/loans/${params.id}`,
+            timestamp: '2026-10-28T10:00:00Z',
+            requestId: 'req-mock',
+          },
+          { status: 409 },
+        );
+      }),
+    );
+
+    await openEditDialog();
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-api-error')).toBeTruthy();
+    });
+    expect(
+      screen.getByText('The return date can no longer be changed for this loan.'),
+    ).toBeTruthy();
+    expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    expect(screen.getByTestId('edit-notes-input').props.value).toBe('new notes');
+    await waitFor(() => {
+      expect(screen.getByTestId('return-date-locked-hint')).toBeTruthy();
+    });
+    expect(screen.queryByTestId('edit-return-date-input')).toBeNull();
+  });
+
+  it('closes the edit dialog once the changes are saved', async () => {
+    serveLoanWithStatus('ACTIVE');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    // Asserts our screen's decision (the dialog is asked to hide once the save resolved),
+    // not Paper's hide animation, which does not advance while RNTL waits inside act().
+    await waitFor(() => {
+      expect(captured.body).toEqual({ notes: 'new notes' });
+      expect(editDialog()?.props.visible).toBe(false);
+    });
+  });
+});
+
+describe('LoanDetailScreen — actions never unmount the screen', () => {
+  /** A request that stays pending until `release()` is called. */
+  function gate() {
+    let release!: () => void;
+    const opened = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return { opened, release };
+  }
+
+  it('keeps the screen and the edit dialog mounted while the change is being saved', async () => {
+    const { opened, release } = gate();
+    server.use(
+      http.patch('http://localhost:3000/v1/loans/:id', async ({ request }) => {
+        await opened;
+        const body = (await request.json()) as Record<string, unknown>;
+        // The API answers with the full updated loan.
+        return HttpResponse.json(
+          { ...useLoanStore.getState().selectedLoan, ...body },
+          { status: 200 },
+        );
+      }),
+    );
+    renderDetailScreen();
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-loan-btn')).toBeTruthy();
+    });
+    fireEvent.press(screen.getByTestId('edit-loan-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    });
+
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(useLoanStore.getState().isLoading).toBe(true);
+    });
+    expect(screen.queryByTestId('loading')).toBeNull();
+    expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
+    release();
+    await waitFor(() => {
+      expect(useLoanStore.getState().isLoading).toBe(false);
     });
   });
 });

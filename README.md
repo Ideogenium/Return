@@ -43,4 +43,14 @@ Gardez une trace de tous vos prêts passés et rendus. Voyez en un coup d'œil q
 - **Infrastructure** : Fly.io, Cloudflare R2, Docker, GitHub Actions
 - **API** : REST (OpenAPI 3.1), JWT, RFC 7807
 
+### Installation (une fois par poste)
+
+```bash
+npm install              # à la racine : installe commitlint et active les hooks Git (husky)
+cd backend && npm install
+cd ../frontend && npm install
+```
+
+Le `npm install` de la racine lance `npm run prepare`, qui active les hooks Git : sans lui, les messages de commit ne sont pas vérifiés par commitlint et le lint des fichiers indexés ne tourne pas. Si les dépendances racine sont déjà installées, `npm run prepare` suffit. Guides détaillés : [backend](docs/07_GUIDE_LANCEMENT_BACKEND.md), [frontend](docs/FRONTEND.md).
+
 *Projet en phase de spécifications — développement à venir.*

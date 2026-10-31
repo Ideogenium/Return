@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, Button, HelperText } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
+import { PASSWORD_SPECIAL_CHARACTERS, validatePasswordRules } from '../../utils/password';
+import { normalizeEmail, validateRequiredEmail } from '../../utils/email';
 
 interface RegisterFormData {
   email: string;
@@ -22,17 +24,19 @@ interface RegisterFormProps {
   }) => void;
   isLoading: boolean;
   error?: string;
+  /** Field-level messages derived from an API validation error. */
+  fieldErrors?: Partial<Record<'email' | 'password' | 'firstName' | 'lastName', string>>;
 }
 
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/;
-
-export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) {
+export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: RegisterFormProps) {
   const { t } = useTranslation();
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
     watch,
+    setError,
   } = useForm<RegisterFormData>({
     defaultValues: {
       firstName: '',
@@ -47,13 +51,25 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
 
+  useEffect(() => {
+    Object.entries(fieldErrors ?? {}).forEach(([field, message]) => {
+      if (message) setError(field as keyof RegisterFormData, { type: 'server', message });
+    });
+  }, [fieldErrors, setError]);
+
   const handleFormSubmit = (data: RegisterFormData) => {
     onSubmit({
-      email: data.email,
+      email: normalizeEmail(data.email),
       password: data.password,
       firstName: data.firstName,
       lastName: data.lastName,
     });
+  };
+
+  const submitForm = handleSubmit(handleFormSubmit);
+  // The return key of the last field submits like the button, never while it is disabled.
+  const submitFromKeyboard = () => {
+    if (!isLoading) void submitForm();
   };
 
   return (
@@ -67,7 +83,7 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
               required: t('auth.firstNameRequired'),
               maxLength: { value: 50, message: t('auth.nameMaxLength') },
             }}
-            render={({ field: { onChange, onBlur, value } }) => (
+            render={({ field: { onChange, onBlur, value, ref } }) => (
               <TextInput
                 label={t('auth.firstName')}
                 mode="outlined"
@@ -76,6 +92,10 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
                 onChangeText={onChange}
                 value={value}
                 error={!!errors.firstName}
+                ref={ref}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => setFocus('lastName')}
                 testID="firstName-input"
                 style={[styles.input, ui.input]}
                 outlineStyle={styles.outline}
@@ -96,7 +116,7 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
               required: t('auth.lastNameRequired'),
               maxLength: { value: 50, message: t('auth.nameMaxLength') },
             }}
-            render={({ field: { onChange, onBlur, value } }) => (
+            render={({ field: { onChange, onBlur, value, ref } }) => (
               <TextInput
                 label={t('auth.lastName')}
                 mode="outlined"
@@ -105,6 +125,10 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
                 onChangeText={onChange}
                 value={value}
                 error={!!errors.lastName}
+                ref={ref}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => setFocus('email')}
                 testID="lastName-input"
                 style={[styles.input, ui.input]}
                 outlineStyle={styles.outline}
@@ -122,11 +146,8 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
       <Controller
         control={control}
         name="email"
-        rules={{
-          required: t('auth.emailRequired'),
-          pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t('auth.emailInvalid') },
-        }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        rules={{ validate: (value) => validateRequiredEmail(value, t) }}
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.email')}
             mode="outlined"
@@ -137,6 +158,10 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
             onChangeText={onChange}
             value={value}
             error={!!errors.email}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('password')}
             testID="email-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -156,9 +181,9 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
           required: t('auth.passwordRequired'),
           minLength: { value: 8, message: t('auth.passwordMinLength') },
           maxLength: { value: 100, message: t('auth.passwordMaxLength') },
-          pattern: { value: PASSWORD_REGEX, message: t('auth.passwordStrength') },
+          validate: (value) => validatePasswordRules(value, t),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.password')}
             mode="outlined"
@@ -174,15 +199,23 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
             onChangeText={onChange}
             value={value}
             error={!!errors.password}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('confirmPassword')}
             testID="password-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
           />
         )}
       />
-      {errors.password && (
+      {errors.password ? (
         <HelperText type="error" testID="password-error">
           {errors.password.message}
+        </HelperText>
+      ) : (
+        <HelperText type="info" testID="password-rules">
+          {t('auth.passwordRules', { allowed: PASSWORD_SPECIAL_CHARACTERS })}
         </HelperText>
       )}
 
@@ -193,7 +226,7 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
           required: t('auth.confirmPasswordRequired'),
           validate: (value) => value === password || t('auth.passwordsMismatch'),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.confirmPassword')}
             mode="outlined"
@@ -209,6 +242,9 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
             onChangeText={onChange}
             value={value}
             error={!!errors.confirmPassword}
+            ref={ref}
+            returnKeyType="done"
+            onSubmitEditing={submitFromKeyboard}
             testID="confirmPassword-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -230,7 +266,7 @@ export function RegisterForm({ onSubmit, isLoading, error }: RegisterFormProps) 
       <Button
         mode="contained"
         icon="account-plus-outline"
-        onPress={handleSubmit(handleFormSubmit)}
+        onPress={submitForm}
         loading={isLoading}
         disabled={isLoading}
         testID="register-btn"

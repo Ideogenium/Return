@@ -1,17 +1,24 @@
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RegisterForm } from '../../components/auth/RegisterForm';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getErrorMessage } from '../../utils/error';
+import { getErrorMessage, getFieldErrors } from '../../utils/error';
 import type { AuthStackParamList } from '../../navigation/types';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
+/** Fields displayed by RegisterForm: API errors on any other field fall back to the banner. */
+const REGISTER_FIELDS = ['email', 'password', 'firstName', 'lastName'] as const;
+
 export function RegisterScreen({ navigation }: Props) {
   const { t } = useTranslation();
-  const { isLoading, error, register } = useAuthStore();
+  const { isLoading, error, register, clearError } = useAuthStore();
+  // A field validation error is shown under its field; anything else as a form message.
+  const fieldErrors = error ? getFieldErrors(error, t, REGISTER_FIELDS) : {};
+  const hasFieldErrors = Object.keys(fieldErrors).length > 0;
 
   const handleSubmit = async (data: {
     email: string;
@@ -27,7 +34,7 @@ export function RegisterScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <View style={styles.logoRow}>
         <Image
           source={require('../../../assets/branding/return-logo-horizontal.png')}
@@ -44,19 +51,23 @@ export function RegisterScreen({ navigation }: Props) {
       <RegisterForm
         onSubmit={handleSubmit}
         isLoading={isLoading}
-        error={error ? getErrorMessage(error, t) : undefined}
+        error={error && !hasFieldErrors ? getErrorMessage(error, t) : undefined}
+        fieldErrors={hasFieldErrors ? fieldErrors : undefined}
       />
 
       <Button
         mode="text"
-        onPress={() => navigation.navigate('Login')}
+        onPress={() => {
+          clearError();
+          navigation.navigate('Login');
+        }}
         testID="go-login"
         textColor="#6B8E7B"
         labelStyle={styles.linkLabel}
       >
         {t('auth.hasAccount')}
       </Button>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

@@ -70,7 +70,12 @@ export const useLoanStore = create<LoanState>((set) => ({
   },
 
   fetchLoan: async (id) => {
-    set({ isLoading: true, error: null, selectedLoan: null });
+    // Keep the loan on screen while it is refreshed; never show another loan in its place.
+    set((state) => ({
+      isLoading: true,
+      error: null,
+      selectedLoan: state.selectedLoan?.id === id ? state.selectedLoan : null,
+    }));
     try {
       const { data } = await apiClient.get<Loan>(`/loans/${id}`);
       set({ selectedLoan: data, isLoading: false });

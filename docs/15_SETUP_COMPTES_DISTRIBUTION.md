@@ -24,21 +24,29 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
 
 | ID | Tâche | Resp. | Coût | Dépend de | Statut |
 |---|---|---|---|---|---|
-| ACC-A1 | Créer le compte Apple Developer (Individual) | Ozias | 99 $/an | — | ☐ |
-| ACC-A2 | Créer + uploader la clé APNs .p8 (= PUSH-P1) | Ozias + natismael | — | ACC-A1 | ☐ |
-| ACC-A3 | Configurer TestFlight (testeurs internes) | Ozias | — | ACC-A1, build iOS | ☐ |
-| ACC-G1 | Extraire le compte de service FCM V1 du projet Firebase existant (= prérequis PUSH-P2) | natismael | gratuit | — | ☐ |
-| ACC-G2 | Créer le compte Google Play Console (Individual) | natismael | 25 $ une fois | — | ☐ |
-| ACC-G3 | Créer l'app "Return" + piste "Test interne" + liste testeurs | natismael | — | ACC-G2 | ☐ |
-| ACC-E1 | Profil de distribution EAS dans `eas.json` (Android AAB / iOS store) | Ismael | — | — | ☐ |
-| ACC-E2 | Uploader credentials APNs + FCM dans EAS (`eas credentials`) (= PUSH-P1/P2) | Ismael + binôme | — | ACC-A2, ACC-G1 | ☐ |
-| ACC-E3 | Builds EAS iOS + Android (= PUSH-F5) | Ismael | — | ACC-E1, ACC-E2 | ☐ |
-| ACC-E4 | `eas submit` → TestFlight + Play test interne | Ismael | — | ACC-E3, ACC-A3, ACC-G3 | ☐ |
-| ACC-E5 | Test e2e : push reçu sur device iOS + Android (cf. `docs/14` § E) | Binôme | — | ACC-E4 | ☐ |
+| ACC-A1 | Créer le compte Apple Developer (Individual) | Ozias | 99 $/an | — | ✅ |
+| ACC-A2 | Créer + uploader la clé APNs .p8 (= PUSH-P1) | Ozias + natismael | — | ACC-A1 | ✅ (clé gérée par EAS) |
+| ACC-A3 | Configurer TestFlight (testeurs internes) | Ozias | — | ACC-A1, build iOS | ✅ (Ozias seul testeur) |
+| ACC-G1 | Extraire le compte de service FCM V1 du projet Firebase existant (= prérequis PUSH-P2) | natismael | gratuit | — | ✅ (doc 16 : « FCM EAS fait ») |
+| ACC-G2 | Créer le compte Google Play Console (Individual) | natismael | 25 $ une fois | — | ✅ (doc 16 : « Play Console OK ») |
+| ACC-G3 | Créer l'app "Return" + piste "Test interne" + liste testeurs | natismael | — | ACC-G2 | ☐ (FEAT-05) |
+| ACC-E1 | Profil de distribution EAS dans `eas.json` (Android AAB / iOS store) | Ismael | — | — | ✅ |
+| ACC-E2 | Uploader credentials APNs + FCM dans EAS (`eas credentials`) (= PUSH-P1/P2) | Ismael + binôme | — | ACC-A2, ACC-G1 | ✅ |
+| ACC-E3 | Builds EAS iOS + Android (= PUSH-F5) | Ismael | — | ACC-E1, ACC-E2 | ◑ iOS ✅ · Android : FEAT-05 |
+| ACC-E4 | `eas submit` → TestFlight + Play test interne | Ismael | — | ACC-E3, ACC-A3, ACC-G3 | ◑ iOS ✅ · Android : FEAT-05 |
+| ACC-E5 | Test e2e : push reçu sur device iOS + Android (cf. `docs/14` § E) | Binôme | — | ACC-E4 | ◑ iOS ✅ (31/10) · Android : FEAT-05 |
 
 ---
 
 ## 🍎 Chantier Ozias — Apple Developer (Individual)
+
+> **État au 31/10/2026 (FEAT-03)** — compte Apple Developer Individual actif (Team `WA935JW2DV`) sur l'Apple ID
+> personnel d'Ozias (pas d'Apple ID dédié Ideogen). Le premier `eas build --platform ios --profile production` a
+> généré et stocké dans EAS le certificat de distribution, le profil de provisionnement et la clé APNs ; `eas submit`
+> utilise une clé API App Store Connect (rôle App Manager) gérée par EAS. Fiche App Store Connect : identifiant
+> `6828146094`, nom « Return - Suivi de vos prêts » (FR) / « Return - Track What You Lend » (EN) — « Return » était
+> pris. Builds 1.0.0 (1), (2) et (3) envoyés sur TestFlight ; push reçu sur iPhone physique le 31/10. **L'app n'est
+> pas publiée sur l'App Store** : test interne uniquement, Ozias seul testeur iOS.
 
 ### ACC-A1 — Créer le compte Apple Developer
 
@@ -51,11 +59,11 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   sur iPhone, souvent plus fluide pour la vérification d'identité). Choisir le type **Individual**. Aucun numéro D-U-N-S
   requis. La vérification d'identité (pièce d'identité gouvernementale) peut prendre quelques heures à 48 h.
 - **Critères d'acceptation** :
-    - [ ] Apple ID dédié Ideogen créé, 2FA activée
-    - [ ] Enrôlement soumis sur developer.apple.com (Individual)
-    - [ ] Vérification d'identité complétée (pièce gouvernementale acceptée)
-    - [ ] Paiement de 99 $/an effectué
-    - [ ] Compte actif (email de confirmation Apple reçu)
+    - [x] Apple ID avec 2FA — Apple ID personnel d'Ozias, pas d'Apple ID dédié Ideogen
+    - [x] Enrôlement soumis sur developer.apple.com (Individual)
+    - [x] Vérification d'identité complétée (pièce gouvernementale acceptée)
+    - [x] Paiement de 99 $/an effectué
+    - [x] Compte actif (confirmé le 25/10 ; contrat de licence Apple accepté le 28/10)
 
 ---
 
@@ -78,9 +86,9 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   (iOS > Production > Push Notifications Key). Cette étape nécessite que **Ozias et natismael soient disponibles
   ensemble** (ou qu'Ozias ajoute natismael comme membre de son équipe Apple pour lui déléguer l'accès).
 - **Critères d'acceptation** :
-    - [ ] Clé `.p8` créée sur developer.apple.com (type Key → Apple Push Notifications service)
-    - [ ] Fichier `.p8` sauvegardé en lieu sûr (gestionnaire de mots de passe ou stockage chiffré partagé)
-    - [ ] Clé uploadée et référencée dans EAS (`eas credentials` confirme la présence côté iOS)
+    - [x] Clé APNs créée sur le compte Apple Developer — générée par EAS au premier build iOS
+    - [x] Clé conservée en lieu sûr — stockée par EAS (aucune copie `.p8` locale à protéger)
+    - [x] Clé référencée dans EAS côté iOS (push reçu sur iPhone physique le 31/10)
 
 ---
 
@@ -99,10 +107,10 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   > par Apple (1 à 2 jours). Pour le re-test terrain initial, les testeurs internes suffisent et sont disponibles
   > immédiatement.
 - **Critères d'acceptation** :
-    - [ ] App "Return" créée dans App Store Connect (si pas déjà présente)
-    - [ ] Build iOS soumis visible dans l'onglet TestFlight
-    - [ ] Testeurs internes ajoutés (emails) et invitations envoyées
-    - [ ] Au moins un testeur a installé l'app via TestFlight sur device iOS
+    - [x] App créée dans App Store Connect (identifiant `6828146094`)
+    - [x] Build iOS soumis visible dans l'onglet TestFlight (1.0.0 (1), (2), (3))
+    - [x] Testeurs internes ajoutés et invitation envoyée (Ozias ; aucun autre utilisateur iOS dans l'équipe)
+    - [x] Au moins un testeur a installé l'app via TestFlight sur device iOS (Ozias, iPhone physique)
 
 ---
 
@@ -124,9 +132,10 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   Vérifier au passage que l'application Android `com.ideogen.returnapp` est bien enregistrée dans ce projet Firebase
   (onglet "Vue d'ensemble du projet" → liste des apps).
 - **Critères d'acceptation** :
-    - [ ] Fichier JSON du compte de service FCM V1 généré depuis la console Firebase
-    - [ ] Fichier JSON sauvegardé en lieu sûr (ne pas commiter dans le dépôt)
-    - [ ] App Android `com.ideogen.returnapp` confirmée comme enregistrée dans le projet Firebase
+    - [x] Fichier JSON du compte de service FCM V1 généré depuis la console Firebase (doc 16 : « FCM EAS fait »)
+    - [ ] Fichier JSON sauvegardé en lieu sûr (ne pas commiter dans le dépôt) — à confirmer par natismael
+    - [x] App Android `com.ideogen.returnapp` enregistrée dans le projet Firebase (`google-services.json`, commit
+      `1063ec9`)
 
 ---
 
@@ -140,10 +149,10 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   **Individual** (pas d'entreprise). Aucun D-U-N-S requis. La vérification d'identité demande le nom légal, l'adresse
   et un numéro de téléphone. Le paiement de 25 $ est unique (pas d'abonnement annuel).
 - **Critères d'acceptation** :
-    - [ ] Compte Google Play Console créé (Individual)
-    - [ ] Vérification d'identité complétée (nom légal, adresse, téléphone)
-    - [ ] Paiement de 25 $ effectué
-    - [ ] Accès au dashboard Play Console confirmé
+    - [x] Compte Google Play Console créé (Individual) — doc 16 : « Play Console OK (fait) »
+    - [x] Vérification d'identité complétée (nom légal, adresse, téléphone)
+    - [x] Paiement de 25 $ effectué
+    - [x] Accès au dashboard Play Console confirmé
 
 ---
 
@@ -181,8 +190,9 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   pour le Google Play) et iOS en distribution store. Ismael s'en charge côté front en s'alignant sur la config EAS
   existante du projet `natismael`.
 - **Critères d'acceptation** :
-    - [ ] Profil de distribution défini dans `eas.json` (Android : `buildType: "app-bundle"`, iOS : distribution)
-    - [ ] Bundle IDs confirmés : `com.ideogen.returnapp` Android et iOS
+    - [x] Profil de distribution défini dans `eas.json` (`production` : Android `app-bundle`, iOS store ;
+      `submit.production.ios` avec `ascAppId` et `appleTeamId`, commit `9168429`)
+    - [x] Bundle IDs confirmés : `com.ideogen.returnapp` Android et iOS
 
 ---
 
@@ -199,8 +209,8 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
     - **Android** : `cd frontend && eas credentials` → Android → FCM V1 Service Account Key → uploader le fichier JSON
       généré en ACC-G1.
 - **Critères d'acceptation** :
-    - [ ] Clé APNs `.p8` uploadée et référencée dans EAS (iOS push notifications key confirmée)
-    - [ ] Clé FCM V1 JSON uploadée et référencée dans EAS (Android FCM V1 service account key confirmée)
+    - [x] Clé APNs référencée dans EAS (générée par EAS au premier build iOS)
+    - [x] Clé FCM V1 JSON uploadée et référencée dans EAS (doc 16 : « FCM EAS fait »)
 
 ---
 
@@ -215,7 +225,7 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   la file EAS.
 - **Critères d'acceptation** :
     - [ ] Build EAS Android déclenché et terminé sans erreur (artefact AAB généré)
-    - [ ] Build EAS iOS déclenché et terminé sans erreur (artefact IPA généré)
+    - [x] Build EAS iOS déclenché et terminé sans erreur (artefact IPA généré — builds 1→3, profil `production`)
     - [ ] Les builds incorporent les plugins `expo-notifications` (vérifiable dans les logs EAS)
     - [ ] L'app installée sur device demande la permission de notifications au premier lancement
 
@@ -230,7 +240,7 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
     - **iOS** : `eas submit --platform ios` → soumet l'IPA vers App Store Connect (TestFlight).
     - **Android** : `eas submit --platform android` → soumet l'AAB vers le Play Console (piste "Test interne").
 - **Critères d'acceptation** :
-    - [ ] Build iOS soumis et visible dans l'onglet TestFlight d'App Store Connect
+    - [x] Build iOS soumis et visible dans l'onglet TestFlight d'App Store Connect
     - [ ] Build Android soumis et visible dans la piste "Test interne" du Play Console
     - [ ] Testeurs notifiés (invitation TestFlight + lien opt-in Android)
 
@@ -246,7 +256,7 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   visible en base, push reçu sur les deux plateformes, CRON reminder, logout + purge token).
 - **Critères d'acceptation** :
     - [ ] Push reçu sur device Android standalone (app installée via Play test interne)
-    - [ ] Push reçu sur device iOS standalone (app installée via TestFlight)
+    - [x] Push reçu sur device iOS standalone (app installée via TestFlight) — 31/10, build 1.0.0 (2), tap → bon prêt
     - [ ] Les 5 critères e2e de `docs/14` § E validés
 
 ---

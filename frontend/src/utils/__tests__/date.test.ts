@@ -1,4 +1,4 @@
-import { getMinReturnDate, formatDate } from '../date';
+import { getMinReturnDate, formatDate, toLocalIsoDate } from '../date';
 
 describe('getMinReturnDate', () => {
   beforeEach(() => {
@@ -142,5 +142,15 @@ describe('formatDate', () => {
     // Assert — a Date object input is accepted and produces a non-empty result
     expect(result).not.toBe('');
     expect(typeof result).toBe('string');
+  });
+});
+
+describe('toLocalIsoDate', () => {
+  it('formats the calendar day the user picked as YYYY-MM-DD', () => {
+    expect(toLocalIsoDate(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+
+  it('keeps the local day late in the evening, where toISOString would roll over to UTC', () => {
+    expect(toLocalIsoDate(new Date(2026, 11, 31, 23, 30))).toBe('2026-12-31');
   });
 });

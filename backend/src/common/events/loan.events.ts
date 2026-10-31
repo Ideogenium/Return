@@ -26,7 +26,26 @@ export const LOAN_EVENTS = {
 
   /** Émis quand un prêt est supprimé */
   DELETED: 'loan.deleted',
+
+  /** Émis quand la date de retour d'un prêt ouvert change (les rappels sont replanifiés) */
+  RETURN_DATE_CHANGED: 'loan.return-date.changed',
 } as const;
+
+/**
+ * Payload émis lors du changement de la date de retour d'un prêt ouvert.
+ *
+ * Le module Reminders écoute cet événement pour replanifier les rappels.
+ */
+export interface LoanReturnDateChangedEvent {
+  /** ID du prêt concerné */
+  loanId: string;
+
+  /** Nouvelle date de retour (null si l'échéance est supprimée) */
+  returnDate: Date | null;
+
+  /** Instant du changement : base de la nouvelle planification */
+  changedAt: Date;
+}
 
 /**
  * Payload émis lors de la création d'un prêt.

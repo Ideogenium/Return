@@ -30,6 +30,7 @@ describe('navigateToLoanDetail', () => {
       params: {
         screen: 'LoanDetail',
         params: { id: 'loan-123' },
+        initial: false,
       },
     });
   });

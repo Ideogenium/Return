@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BorrowerForm } from '../../components/borrowers/BorrowerForm';
@@ -8,6 +8,7 @@ import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import type { BorrowerStackParamList } from '../../navigation/types';
 import type { CreateBorrowerDto } from '../../types/api.types';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<BorrowerStackParamList, 'CreateBorrower'>;
 
@@ -31,7 +32,7 @@ export function CreateBorrowerScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <BorrowerForm
         mode="create"
         onSubmit={handleSubmit}
@@ -39,7 +40,7 @@ export function CreateBorrowerScreen({ navigation }: Props) {
         error={apiError}
         submitLabel={t('borrowers.addContact')}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

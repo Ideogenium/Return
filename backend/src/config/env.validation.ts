@@ -47,4 +47,27 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   EXPO_ACCESS_TOKEN?: string;
+
+  // Cloudflare R2 photo storage: all set → R2, none set → local disk.
+  // Completeness, https public URL and "required in production" are enforced
+  // by readR2Settings() in config.validation.ts.
+  @IsOptional()
+  @IsString()
+  R2_ACCOUNT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_ACCESS_KEY_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_SECRET_ACCESS_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_BUCKET_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  R2_PUBLIC_URL?: string;
 }

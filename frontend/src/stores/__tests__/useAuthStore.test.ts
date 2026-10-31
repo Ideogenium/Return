@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../__mocks__/server';
 import { useAuthStore } from '../useAuthStore';
+import apiClient, { UPLOAD_TIMEOUT_MS } from '../../api/apiClient';
 import {
   getAccessToken,
   getRefreshToken,
@@ -151,6 +152,82 @@ describe('useAuthStore', () => {
     });
   });
 
+  describe('isHydrating (session restore) vs isLoading (user actions)', () => {
+    it('flags only the session restore as hydrating', async () => {
+      await setAccessToken('stored-access-token');
+      const pending = useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().isHydrating).toBe(true);
+      await pending;
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+
+    it('never flags a registration as hydrating, so the navigation is not torn down', async () => {
+      const pending = useAuthStore
+        .getState()
+        .register('new@example.com', 'Retour2026!', 'Jo', 'Do');
+
+      expect(useAuthStore.getState().isLoading).toBe(true);
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+      await pending.catch(() => {});
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+
+    it('never flags a login as hydrating', async () => {
+      const pending = useAuthStore.getState().login('test@example.com', 'password');
+
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+      await pending.catch(() => {});
+    });
+  });
+
+  describe('app start and profile refresh', () => {
+    it('starts on the splash screen (hydrating) until the stored session is restored', () => {
+      jest.isolateModules(() => {
+        const { useAuthStore: freshStore } = require('../useAuthStore');
+        expect(freshStore.getState().isHydrating).toBe(true);
+      });
+    });
+
+    it('never stays on the splash screen after a logout reset', () => {
+      useAuthStore.setState({ isHydrating: true });
+
+      useAuthStore.getState().reset();
+
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+
+    it('refreshes the profile without flagging the session restore', async () => {
+      await setAccessToken('stored-access-token');
+      const pending = useAuthStore.getState().refreshUser();
+
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+      await pending;
+      expect(useAuthStore.getState().user?.email).toBe('test@example.com');
+      expect(useAuthStore.getState().isHydrating).toBe(false);
+    });
+  });
+
+  describe('clearError', () => {
+    it('clears the last auth error, so it does not follow the user to another screen', async () => {
+      useAuthStore.setState({
+        error: {
+          type: 'https://api.return.app/errors/validation-failed',
+          title: 'Validation Failed',
+          status: 400,
+          detail: 'The request contains invalid data.',
+          instance: '/v1/auth/register',
+          timestamp: '2026-10-28T10:00:00Z',
+          requestId: 'req-mock',
+        },
+      });
+
+      useAuthStore.getState().clearError();
+
+      expect(useAuthStore.getState().error).toBeNull();
+    });
+  });
+
   describe('hydrate', () => {
     it('should restore session from stored token', async () => {
       await setAccessToken('stored-access-token');
@@ -198,6 +275,19 @@ describe('useAuthStore', () => {
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(false);
       expect(await getAccessToken()).toBeNull();
+    });
+  });
+
+  describe('updateAvatar', () => {
+    it('gives the upload the photo timeout, not the default one', async () => {
+      const put = jest.spyOn(apiClient, 'put');
+
+      await useAuthStore.getState().updateAvatar(new FormData());
+
+      expect(put.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({ timeout: UPLOAD_TIMEOUT_MS }),
+      );
+      put.mockRestore();
     });
   });
 });

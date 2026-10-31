@@ -35,21 +35,30 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
 
 | ID      | Titre                                                         | Resp.     | Effort | Dépend de                 | Statut |
 |---------|---------------------------------------------------------------|-----------|--------|---------------------------|--------|
-| PUSH-P1 | Créer et uploader la clé APNs (iOS)                           | natismael | 20 min | —                         | ☐      |
+| PUSH-P1 | Créer et uploader la clé APNs (iOS)                           | natismael | 20 min | —                         | ✅ (FEAT-03, 31/10) |
 | PUSH-P2 | Uploader le compte de service FCM V1 (Android)                | natismael | 15 min | —                         | ☐      |
 | PUSH-F1 | Ajouter `projectId` à `getExpoPushTokenAsync`                 | Ismael    | 15 min | —                         | ✅     |
 | PUSH-F2 | Déclarer `expo-notifications` dans `app.json > plugins`       | Ismael    | 5 min  | —                         | ✅     |
 | PUSH-F3 | Canal Android `setNotificationChannelAsync`                   | Ismael    | 20 min | PUSH-F1                   | ✅     |
 | PUSH-F4 | Listeners de tap + navigation vers `LoanDetailScreen`         | Ismael    | 1h     | PUSH-F1, PUSH-F2          | ✅     |
-| PUSH-F5 | Rebuild EAS preview (Android + iOS)                           | Ismael    | 30 min | PUSH-F1, PUSH-F2, PUSH-F3 | ☐      |
+| PUSH-F5 | Rebuild EAS preview (Android + iOS)                           | Ismael    | 30 min | PUSH-F1, PUSH-F2, PUSH-F3 | ◑ iOS ✅ (FEAT-03) · Android : FEAT-05 |
 | PUSH-B1 | Installer `expo-server-sdk`, retirer `firebase-admin`         | Ozias     | 10 min | —                         | ✅ Fait |
 | PUSH-B2 | Réécrire `firebase.service.ts` avec `expo-server-sdk`         | Ozias     | 1h30   | PUSH-B1                   | ✅ Fait |
 | PUSH-B3 | Vérifier compat `isAvailable()` — `notifications.service.ts`  | Ozias     | 15 min | PUSH-B2                   | ✅ Fait |
 | PUSH-B4 | Réécrire les specs back (`firebase.service.spec.ts` + notifs) | Ozias     | 1h     | PUSH-B2                   | ✅ Fait |
-| PUSH-B5 | Secrets Fly : set `EXPO_ACCESS_TOKEN`, unset Firebase         | Ozias     | 10 min | PUSH-B1                   | ◑ doc faite — secrets Fly = ops |
+| PUSH-B5 | Secrets Fly : set `EXPO_ACCESS_TOKEN`, unset Firebase         | Ozias     | 10 min | PUSH-B1                   | ◑ Firebase absent ✅ · `EXPO_ACCESS_TOKEN` stagé (effectif au déploiement D2) |
 | PUSH-B6 | Receipts Phase 2 : CRON + migration Prisma (POST-MVP)         | Ozias     | +2h    | PUSH-B2, PUSH-B5          | ⏸ POST-MVP |
 
-> **Suivi front** (24/06/2026) — PUSH-F1/F2/F3/F4 livrés et testés (20 tests front ajoutés, suite verte 259/259), commits `dc6f4a0` (F1-F3) + `0781cd5` (F4). Reste front : **PUSH-F5** (rebuild EAS preview Android + iOS), bloqué par les credentials **PUSH-P1/P2** (natismael).
+> **Suivi iOS** (31/10/2026, FEAT-03) — la clé APNs a été générée et est stockée par EAS au premier build iOS
+> `production` (pas de `.p8` manuel). Builds iOS 1.0.0 (1), (2) et (3) envoyés sur TestFlight. Le 31/10, avec le
+> build (2) installé via TestFlight sur un iPhone physique, une contestation de prêt a déclenché un push reçu, et le
+> tap a ouvert le bon prêt. Reste : un testeur iOS autre qu'Ozias, et le volet Android (FEAT-05).
+>
+> **Suivi back** (31/10/2026) — PUSH-B1→B4 vérifiés dans le code (`backend/src/firebase/firebase.service.ts`, commit
+> `b3a7cc8`). PUSH-B5 : aucun secret Firebase sur Fly (vérifié par `fly secrets list`, noms uniquement) ;
+> `EXPO_ACCESS_TOKEN` posé en `--stage`, il s'appliquera au déploiement D2.
+
+> **Suivi front** (24/06/2026) — PUSH-F1/F2/F3/F4 livrés et testés (20 tests front ajoutés, suite verte 259/259), commits `6d6c799` (F1-F3) + `8e2b287` (F4). Reste front : **PUSH-F5** (rebuild EAS preview Android + iOS), bloqué par les credentials **PUSH-P1/P2** (natismael).
 
 ---
 
@@ -73,9 +82,9 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
   `cd frontend && eas credentials` (iOS > Production > Push Notifications Key). Sans cette clé, **aucun push iOS**
   n'est possible en build standalone.
 - **Critères d'acceptation** :
-    - [ ] Clé `.p8` créée sur developer.apple.com (type Key > Apple Push Notifications service)
-    - [ ] Clé uploadée et référencée dans EAS (`eas credentials` confirme la présence)
-    - [ ] Le build iOS suivant (PUSH-F5) inclut les entitlements APNs
+    - [x] Clé APNs créée sur le compte Apple Developer — générée par EAS au premier build iOS (31/10 : push reçu)
+    - [x] Clé référencée dans EAS (stockée par EAS, utilisée par les builds iOS 1→3)
+    - [x] Le build iOS inclut les entitlements APNs (push reçu sur iPhone physique, build 1.0.0 (2))
 
 ---
 
@@ -122,7 +131,7 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
 - **Critères d'acceptation** :
     - [x] `projectId` passé explicitement à `getExpoPushTokenAsync`
     - [x] `expo-constants` présent dans `frontend/package.json` (dépendance directe)
-    - [ ] Le token retourné commence bien par `ExponentPushToken[` (vérifiable via log ou debugger)
+    - [x] Le token retourné commence bien par `ExponentPushToken[` (vérifié indirectement : push Expo reçu sur iPhone le 31/10)
 
 ---
 
@@ -196,7 +205,7 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
   ce rebuild, les corrections F1/F2/F3 sont sans effet sur les builds existants.
 - **Critères d'acceptation** :
     - [ ] Build EAS Android preview déclenché et terminé sans erreur
-    - [ ] Build EAS iOS preview déclenché et terminé sans erreur
+    - [x] Build EAS iOS déclenché et terminé sans erreur (profil `production` au lieu de `preview` — FEAT-03, builds 1→3)
     - [ ] Les builds incorporent bien les plugins `expo-notifications` (vérifiable dans les logs EAS)
     - [ ] L'APK/IPA installé sur device demande bien la permission de notifications au premier lancement
 
@@ -221,10 +230,10 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
 - **Description** : `npm install expo-server-sdk` + retirer `firebase-admin` du `package.json` backend. Vérifier
   qu'aucun autre module n'importe directement `firebase-admin` hors `firebase.service.ts`.
 - **Critères d'acceptation** :
-    - [ ] `expo-server-sdk` présent dans les dépendances backend
-    - [ ] `firebase-admin` absent de `package.json` et de `node_modules`
-    - [ ] `npm ci` passe sans erreur
-    - [ ] Aucun import résiduel de `firebase-admin` dans la base de code backend
+    - [x] `expo-server-sdk` présent dans les dépendances backend
+    - [x] `firebase-admin` absent de `package.json` et de `node_modules`
+    - [x] `npm ci` passe sans erreur
+    - [x] Aucun import résiduel de `firebase-admin` dans la base de code backend
 
 ---
 
@@ -252,13 +261,13 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
 
   Ces signatures sont consommées par `notifications.service.ts:188/201` qui reste inchangé.
 - **Critères d'acceptation** :
-    - [ ] `firebase.service.ts` n'importe plus aucun module `firebase-admin`
-    - [ ] `Expo.isExpoPushToken(token)` appelé avant l'envoi (tokens invalides filtrés)
-    - [ ] Messages construits avec `channelId: 'default'` et `priority: 'high'`
-    - [ ] Chunking via `chunkPushNotifications` en place (gestion des gros volumes)
-    - [ ] Purge des `DeviceNotRegistered` implémentée sur les tickets en erreur immédiate
-    - [ ] Signatures `isAvailable()` et `sendToMultipleTokens()` inchangées (contrat vers `notifications.service.ts`)
-    - [ ] `notifications.service.ts` ne nécessite aucune modification
+    - [x] `firebase.service.ts` n'importe plus aucun module `firebase-admin`
+    - [x] `Expo.isExpoPushToken(token)` appelé avant l'envoi (tokens invalides filtrés)
+    - [x] Messages construits avec `channelId: 'default'` et `priority: 'high'`
+    - [x] Chunking via `chunkPushNotifications` en place (gestion des gros volumes)
+    - [x] Purge des `DeviceNotRegistered` implémentée sur les tickets en erreur immédiate
+    - [x] Signatures `isAvailable()` et `sendToMultipleTokens()` inchangées (contrat vers `notifications.service.ts`)
+    - [x] `notifications.service.ts` ne nécessite aucune modification
 
 ---
 
@@ -276,9 +285,9 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
   nécessitait `FIREBASE_SERVICE_ACCOUNT_BASE64`). Vérifier que les guards `if (this.isAvailable())` dans
   `notifications.service.ts:188/201` se comportent bien.
 - **Critères d'acceptation** :
-    - [ ] `isAvailable()` retourne `true` même si `EXPO_ACCESS_TOKEN` est absent (non bloquant)
-    - [ ] Les chemins `if (!this.isAvailable())` dans `notifications.service.ts` ne sont plus empruntés inutilement
-    - [ ] Tests de `notifications.service.ts` passent sans modification du service lui-même
+    - [x] `isAvailable()` retourne `true` même si `EXPO_ACCESS_TOKEN` est absent (non bloquant)
+    - [x] Les chemins `if (!this.isAvailable())` dans `notifications.service.ts` ne sont plus empruntés inutilement
+    - [x] Tests de `notifications.service.ts` passent sans modification du service lui-même
 
 ---
 
@@ -299,9 +308,9 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
     - `notifications.service.spec.ts` : remplacer toutes les fixtures de tokens fictifs par le format
       `ExponentPushToken[XXXXXXXX]` pour correspondre à la réalité Expo.
 - **Critères d'acceptation** :
-    - [ ] `firebase.service.spec.ts` : 9 tests passent (aucun import de `firebase-admin`)
-    - [ ] `notifications.service.spec.ts` : 10 tests passent avec fixtures `ExponentPushToken[...]`
-    - [ ] `npm run test` backend global vert (pas de régression sur les autres specs)
+    - [x] `firebase.service.spec.ts` : 9 tests passent (aucun import de `firebase-admin`) — 10 au 31/10
+    - [x] `notifications.service.spec.ts` : 10 tests passent avec fixtures `ExponentPushToken[...]` — 17 au 31/10
+    - [x] `npm run test` backend global vert (pas de régression sur les autres specs)
 
 ---
 
@@ -321,10 +330,11 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
     3. Mettre à jour le commentaire/log CORR-05 dans `11_CORRECTIFS_PREPROD.md` : libellé `« FIREBASE... disabled »`
        à remplacer par `« EXPO_ACCESS_TOKEN configured »`.
 - **Critères d'acceptation** :
-    - [ ] `EXPO_ACCESS_TOKEN` défini comme secret Fly (ou documenté comme délibérément absent pour les tests)
-    - [ ] `FIREBASE_SERVICE_ACCOUNT_BASE64` supprimé des secrets Fly
-    - [ ] CORR-05 mis à jour dans `11_CORRECTIFS_PREPROD.md`
-    - [ ] `fly deploy` redémarre sans erreur liée aux variables d'environnement
+    - [ ] `EXPO_ACCESS_TOKEN` défini comme secret Fly (ou documenté comme délibérément absent pour les tests) — posé
+      en `--stage` le 26/10 (robot Expo, rôle Viewer), effectif au déploiement D2
+    - [x] `FIREBASE_SERVICE_ACCOUNT_BASE64` supprimé des secrets Fly (absent de `fly secrets list` au 31/10)
+    - [x] CORR-05 mis à jour dans `11_CORRECTIFS_PREPROD.md`
+    - [ ] `fly deploy` redémarre sans erreur liée aux variables d'environnement — après le déploiement D2
 
 ---
 

@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { LoginForm } from '../LoginForm';
+import i18n from '../../../config/i18n.config';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -56,5 +58,80 @@ describe('LoginForm', () => {
     );
 
     expect(screen.getByTestId('form-error')).toBeTruthy();
+  });
+
+  it('only requires the password to be filled in: it is verified by the API, not created', async () => {
+    renderWithProvider(<LoginForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+    fireEvent.changeText(screen.getByTestId('email-input'), 'test@example.com');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'short');
+    fireEvent.press(screen.getByTestId('login-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith({ email: 'test@example.com', password: 'short' });
+    });
+  });
+
+  it('trims the email before sending it (iOS autocomplete adds a trailing space)', async () => {
+    renderWithProvider(<LoginForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+    fireEvent.changeText(screen.getByTestId('email-input'), 'test@example.com ');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'P@ssw0rd!');
+    fireEvent.press(screen.getByTestId('login-btn'));
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        password: 'P@ssw0rd!',
+      });
+    });
+  });
+
+  it('asks for the email (not "invalid") when it is made only of spaces', async () => {
+    renderWithProvider(<LoginForm onSubmit={mockOnSubmit} isLoading={false} />);
+
+    fireEvent.changeText(screen.getByTestId('email-input'), '   ');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'P@ssw0rd!');
+    fireEvent.press(screen.getByTestId('login-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
+    });
+    expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('LoginForm keyboard', () => {
+  it('moves from the email to the password with the return key', async () => {
+    renderWithProvider(<LoginForm onSubmit={jest.fn()} isLoading={false} />);
+
+    expect(returnKeyOf('email-input')).toEqual({ returnKeyType: 'next', submitBehavior: 'submit' });
+    expect(await pressReturnIn('email-input')).toBe('password-input');
+  });
+
+  it('signs in from the password field', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<LoginForm onSubmit={onSubmit} isLoading={false} />);
+    fireEvent.changeText(screen.getByTestId('email-input'), 'john@example.com');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'secret');
+
+    expect(returnKeyOf('password-input').returnKeyType).toBe('done');
+    await pressReturnIn('password-input');
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ email: 'john@example.com', password: 'secret' }),
+    );
+  });
+
+  it('does not sign in again while signing in', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<LoginForm onSubmit={onSubmit} isLoading />);
+    fireEvent.changeText(screen.getByTestId('email-input'), 'john@example.com');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'secret');
+
+    await pressReturnIn('password-input');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

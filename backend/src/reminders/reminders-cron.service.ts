@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReminderStatus, ReminderType } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
+import { REMINDABLE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { REMINDER_EVENTS } from '../common/events/reminder.events.js';
 import type { AllRemindersExhaustedEvent } from '../common/events/reminder.events.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -26,6 +27,8 @@ export class RemindersCronService {
       where: {
         status: ReminderStatus.SCHEDULED,
         scheduledFor: { lte: now },
+        // Defense in depth: event-driven cancellation can be missed (in-process events).
+        loan: { deletedAt: null, status: { in: REMINDABLE_LOAN_STATUSES } },
       },
       include: {
         loan: {
@@ -39,9 +42,9 @@ export class RemindersCronService {
       },
     });
 
+    // One line per run, even when idle: a silent job is indistinguishable from a dead one.
+    this.logger.log(`Reminders tick: ${reminders.length} due`);
     if (reminders.length === 0) return;
-
-    this.logger.log(`Processing ${reminders.length} scheduled reminder(s)`);
 
     for (const reminder of reminders) {
       try {
@@ -53,8 +56,9 @@ export class RemindersCronService {
           reminder.loan.borrower?.userId ?? null,
         );
 
-        await this.prisma.reminder.update({
-          where: { id: reminder.id },
+        // Conditional on SCHEDULED: never overwrite a cancellation made meanwhile.
+        await this.prisma.reminder.updateMany({
+          where: { id: reminder.id, status: ReminderStatus.SCHEDULED },
           data: { status: ReminderStatus.SENT, sentAt: new Date() },
         });
 
@@ -69,8 +73,8 @@ export class RemindersCronService {
         }
       } catch (error) {
         this.logger.error(`Failed to send reminder ${reminder.id}: ${String(error)}`);
-        await this.prisma.reminder.update({
-          where: { id: reminder.id },
+        await this.prisma.reminder.updateMany({
+          where: { id: reminder.id, status: ReminderStatus.SCHEDULED },
           data: { status: ReminderStatus.FAILED },
         });
       }

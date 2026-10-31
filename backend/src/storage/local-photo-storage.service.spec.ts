@@ -110,6 +110,48 @@ describe('LocalPhotoStorageService', () => {
     });
   });
 
+  describe('deleteByPrefix', () => {
+    const write = async (key: string) => {
+      const filePath = join(TEST_UPLOAD_DIR, key);
+      await mkdir(join(filePath, '..'), { recursive: true });
+      await writeFile(filePath, Buffer.from('x'));
+      return filePath;
+    };
+
+    it('deletes every file under the prefix, recursively, and returns how many', async () => {
+      const avatar = await write('users/purge-me/avatar-1.jpg');
+      const photo = await write('users/purge-me/items/item-1/a.jpg');
+      const other = await write('users/keep-me/avatar-2.jpg');
+
+      await expect(service.deleteByPrefix('users/purge-me/')).resolves.toBe(2);
+
+      await expect(access(avatar)).rejects.toThrow();
+      await expect(access(photo)).rejects.toThrow();
+      await expect(access(other)).resolves.toBeUndefined();
+    });
+
+    it('is idempotent: an absent prefix deletes nothing', async () => {
+      await expect(service.deleteByPrefix('users/never-existed/')).resolves.toBe(0);
+    });
+
+    it('reports a storage failure other than an absent folder instead of pretending nothing was there', async () => {
+      // A file where the folder should be makes readdir fail with ENOTDIR, not ENOENT.
+      await write('users/not-a-folder');
+
+      await expect(service.deleteByPrefix('users/not-a-folder/')).rejects.toThrow();
+    });
+
+    it.each(['', 'users', '../', 'users/../../', 'users/x/../../'])(
+      'refuses a prefix that could reach beyond one folder of the upload directory (%p)',
+      async (prefix) => {
+        const outside = await write('users/guard/avatar.jpg');
+
+        await expect(service.deleteByPrefix(prefix)).rejects.toThrow(/prefix/i);
+        await expect(access(outside)).resolves.toBeUndefined();
+      },
+    );
+  });
+
   describe('getUrl', () => {
     it('should return the URL for a given key', async () => {
       const key = 'items/some-id/photo.jpg';

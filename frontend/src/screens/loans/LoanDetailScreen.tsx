@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import {
   Text,
   Button,
@@ -11,19 +11,22 @@ import {
   Icon,
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { Calendar } from 'react-native-paper-dates';
 import i18n from '../../config/i18n.config';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LoanTimeline } from '../../components/loans/LoanTimeline';
 import { CATEGORY_I18N } from '../../components/items/ItemCard';
 import { useLoanStore } from '../../stores/useLoanStore';
+import { RefreshError } from '../../components/common/RefreshError';
+import { useEntityLoad } from '../../hooks/useEntityLoad';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
-import { getMinReturnDate, formatDate } from '../../utils/date';
+import { formatDate, toLocalIsoDate } from '../../utils/date';
+import { ReturnDateCalendar } from '../../components/loans/ReturnDateCalendar';
 import { getContactForUser } from '../../utils/loan';
 import { ui } from '../../config/theme.config';
 import type { LoanStackParamList } from '../../navigation/types';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<LoanStackParamList, 'LoanDetail'>;
 
@@ -34,13 +37,18 @@ const EDITABLE_STATUSES = [
   'AWAITING_RETURN',
   'CONTESTED',
 ];
+// The API answers 409 loan-return-date-locked outside these statuses (notes stay editable).
+const RETURN_DATE_EDITABLE_STATUSES = ['PENDING_CONFIRMATION', 'ACTIVE', 'ACTIVE_BY_DEFAULT'];
+const isReturnDateEditable = (status: string | undefined): boolean =>
+  status !== undefined && RETURN_DATE_EDITABLE_STATUSES.includes(status);
 const RETURNABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 const ABANDONABLE_STATUSES = ['ACTIVE', 'ACTIVE_BY_DEFAULT', 'AWAITING_RETURN'];
 
 export function LoanDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { t } = useTranslation();
-  const { selectedLoan, isLoading, error, fetchLoan } = useLoanStore();
+  const { selectedLoan, fetchLoan } = useLoanStore();
+  const { loadError, reload } = useEntityLoad(id, fetchLoan);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [abandonDialogVisible, setAbandonDialogVisible] = useState(false);
@@ -54,10 +62,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [editReturnDateObj, setEditReturnDateObj] = useState<Date | undefined>();
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [apiError, setApiError] = useState<string | undefined>();
-
-  useEffect(() => {
-    fetchLoan(id).catch(() => {});
-  }, [id, fetchLoan]);
+  const [editApiError, setEditApiError] = useState<string | undefined>();
 
   const handleDelete = async () => {
     setDeleteDialogVisible(false);
@@ -118,20 +123,30 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   };
 
   const handleEdit = async () => {
-    setEditDialogVisible(false);
-    setApiError(undefined);
+    setEditApiError(undefined);
+    const originalReturnDate = selectedLoan?.returnDate?.slice(0, 10) ?? '';
+    const returnDateChanged = editReturnDate.slice(0, 10) !== originalReturnDate;
     try {
       await useLoanStore.getState().updateLoan(id, {
         notes: editNotes || null,
-        returnDate: editReturnDate || null,
+        ...(isReturnDateEditable(selectedLoan?.status) && returnDateChanged
+          ? { returnDate: editReturnDate || null }
+          : {}),
       });
+      setEditDialogVisible(false);
     } catch (err) {
+      // Keep the dialog (and the typed notes) open so the lender can retry.
       const problem = parseProblemDetails(err as AxiosError);
-      setApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+      setEditApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+      if (problem?.type?.endsWith('/loan-return-date-locked')) {
+        // The loan left the editable statuses meanwhile: reload it to lock the date field.
+        void reload();
+      }
     }
   };
 
   const openEditDialog = () => {
+    setEditApiError(undefined);
     setEditNotes(selectedLoan?.notes ?? '');
     const existingDate = selectedLoan?.returnDate ?? '';
     setEditReturnDate(existingDate);
@@ -140,19 +155,20 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     setEditDialogVisible(true);
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
-      </View>
-    );
-  }
-
-  if (!selectedLoan) {
+  // Full-screen states only while nothing is displayable for this id: actions and
+  // refreshes keep the screen (and its open dialogs) mounted.
+  if (!selectedLoan || selectedLoan.id !== id) {
+    if (!loadError) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#6B8E7B" testID="loading" />
+        </View>
+      );
+    }
     return (
       <View style={styles.centerContainer} testID="loan-error">
         <Text variant="titleMedium" style={styles.errorText}>
-          {error?.type?.includes('loan-not-found')
+          {loadError.type?.includes('loan-not-found')
             ? t('errors.loanNotFound')
             : t('errors.unknownError')}
         </Text>
@@ -167,13 +183,15 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const contact = getContactForUser(selectedLoan, currentUserId);
 
   const canEdit = isLender && EDITABLE_STATUSES.includes(selectedLoan.status);
+  const canEditReturnDate = isReturnDateEditable(selectedLoan.status);
   const canReturn = isLender && RETURNABLE_STATUSES.includes(selectedLoan.status);
   const canAbandon = isLender && ABANDONABLE_STATUSES.includes(selectedLoan.status);
   const canDelete = isLender && selectedLoan.status !== 'RETURNED';
   const canConfirm = !isLender && selectedLoan.status === 'PENDING_CONFIRMATION';
 
   return (
-    <ScrollView contentContainerStyle={styles.container} testID="loan-detail">
+    <FormScrollView contentContainerStyle={styles.container} testID="loan-detail">
+      {loadError && <RefreshError problem={loadError} onRetry={reload} />}
       {/* Info card */}
       <View style={[styles.infoCard, ui.card]}>
         <View style={styles.header}>
@@ -469,37 +487,40 @@ export function LoanDetailScreen({ route, navigation }: Props) {
         >
           <Dialog.Title>{t('loans.editLoan')}</Dialog.Title>
           <Dialog.ScrollArea style={styles.editScrollArea}>
-            <ScrollView>
+            <FormScrollView>
               <View style={styles.editContent}>
-                <Button
-                  mode="outlined"
-                  icon="calendar"
-                  onPress={() => setCalendarExpanded((v) => !v)}
-                  style={styles.editInput}
-                  testID="edit-return-date-input"
-                >
-                  {editReturnDateObj
-                    ? formatDate(editReturnDateObj, i18n.language)
-                    : t('loans.returnDate')}
-                </Button>
-                {calendarExpanded && (
-                  <Calendar
+                {canEditReturnDate ? (
+                  <Button
+                    mode="outlined"
+                    icon="calendar"
+                    onPress={() => setCalendarExpanded((v) => !v)}
+                    style={styles.editInput}
+                    testID="edit-return-date-input"
+                  >
+                    {editReturnDateObj
+                      ? formatDate(editReturnDateObj, i18n.language)
+                      : t('loans.returnDate')}
+                  </Button>
+                ) : (
+                  <HelperText type="info" testID="return-date-locked-hint">
+                    {t('loans.returnDateLocked')}
+                  </HelperText>
+                )}
+                {canEditReturnDate && calendarExpanded && (
+                  <ReturnDateCalendar
                     locale={i18n.language}
-                    mode="single"
                     date={editReturnDateObj}
-                    onChange={({ date }) => {
+                    onChange={(date) => {
                       if (date) {
                         setEditReturnDateObj(date);
-                        setEditReturnDate(
-                          `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
-                        );
+                        setEditReturnDate(toLocalIsoDate(date));
                       }
                       setCalendarExpanded(false);
                     }}
-                    validRange={{ startDate: getMinReturnDate() }}
+                    testID="edit-return-date-calendar"
                   />
                 )}
-                {calendarExpanded && (
+                {canEditReturnDate && calendarExpanded && (
                   <HelperText type="info">{t('loans.returnDateTooSoon')}</HelperText>
                 )}
                 <TextInput
@@ -511,8 +532,13 @@ export function LoanDetailScreen({ route, navigation }: Props) {
                   testID="edit-notes-input"
                   contentStyle={{ textAlignVertical: 'top' }}
                 />
+                {editApiError && (
+                  <HelperText type="error" testID="edit-api-error">
+                    {editApiError}
+                  </HelperText>
+                )}
               </View>
-            </ScrollView>
+            </FormScrollView>
           </Dialog.ScrollArea>
           <Dialog.Actions>
             <Button onPress={() => setEditDialogVisible(false)} testID="cancel-edit-btn">
@@ -524,7 +550,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

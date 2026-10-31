@@ -14,11 +14,14 @@
     },
     "ios": {
       "bundleIdentifier": "com.ideogen.returnapp",
-      "buildNumber": "1",
+      "buildNumber": "3",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Return needs access to your camera to take photos of loaned items.",
         "NSPhotoLibraryUsageDescription": "Return needs access to your photo library to attach photos to loaned items."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {

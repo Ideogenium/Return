@@ -19,10 +19,12 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "test:tz:west": "TEST_TZ=America/Los_Angeles jest src/loans src/reminders src/history src/common",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1156.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
@@ -99,7 +101,16 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 88,
+        "branches": 74,
+        "functions": 82,
+        "lines": 89
+      }
+    },
     "testEnvironment": "node",
+    "globalSetup": "<rootDir>/../test/jest.timezone.global-setup.js",
     "coveragePathIgnorePatterns": [
       "node_modules",
       "dist",

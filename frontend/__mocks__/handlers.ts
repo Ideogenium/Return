@@ -690,6 +690,7 @@ export const handlers = [
           returnedLoans: 2,
           notReturnedLoans: 0,
           contestedLoans: 0,
+          overdueLoans: 0,
           averageReturnDelay: 1.5,
         },
         byCategory: [],

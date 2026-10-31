@@ -149,6 +149,110 @@ describe('LoansService', () => {
   // CREATE
   // ===========================================================================
 
+  describe('J+2 minimum return date is counted on the UTC calendar day (startOfUtcDay)', () => {
+    // The suite runs in Europe/Paris (test/jest.timezone.global-setup.js): a server
+    // there must apply the same day boundary as one in UTC — at 23:30Z on Oct 28 it is
+    // already Oct 29 in Paris, but still Oct 28 in UTC. `npm run test:tz:west` re-runs
+    // these tests behind UTC, where the "behind UTC" cases below become discriminating.
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const at = (iso: string) =>
+      jest.useFakeTimers({
+        now: new Date(iso),
+        doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'],
+      });
+
+    const createDto = (returnDate: string) => ({
+      item: ITEM_ID,
+      borrowerId: BORROWER_ID,
+      returnDate,
+      notes: 'Test loan',
+    });
+
+    it('accepts J+2 at creation late in the UTC day (2026-10-28T23:30Z → 2026-10-30)', async () => {
+      at('2026-10-28T23:30:00Z');
+      prisma.item.findUnique.mockResolvedValue(MOCK_ITEM);
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      prisma.loan.create.mockResolvedValue(MOCK_LOAN);
+
+      await expect(service.create(LENDER_USER_ID, createDto('2026-10-30'))).resolves.toBeDefined();
+    });
+
+    it('refuses J+1 at creation once the UTC day has changed (2026-10-29T00:30Z → 2026-10-30)', async () => {
+      at('2026-10-29T00:30:00Z');
+
+      await expect(service.create(LENDER_USER_ID, createDto('2026-10-30'))).rejects.toMatchObject({
+        response: expect.objectContaining({
+          type: expect.stringContaining('return-date-too-soon'),
+        }),
+      });
+    });
+
+    it('accepts J+2 on update late in the UTC day (2026-10-28T23:30Z → 2026-10-30)', async () => {
+      at('2026-10-28T23:30:00Z');
+      const loan = { ...MOCK_LOAN, status: LoanStatus.ACTIVE };
+      prisma.loan.findUnique.mockResolvedValue(loan);
+      prisma.loan.update.mockResolvedValue({ ...loan, returnDate: new Date('2026-10-30') });
+
+      await expect(
+        service.update(LOAN_ID, LENDER_USER_ID, { returnDate: '2026-10-30' }),
+      ).resolves.toBeDefined();
+    });
+
+    it('refuses J+1 on update once the UTC day has changed (2026-10-29T00:30Z → 2026-10-30)', async () => {
+      at('2026-10-29T00:30:00Z');
+      prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+
+      await expect(
+        service.update(LOAN_ID, LENDER_USER_ID, { returnDate: '2026-10-30' }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          type: expect.stringContaining('return-date-too-soon'),
+        }),
+      });
+    });
+
+    describe('on a server behind UTC (run with npm run test:tz:west)', () => {
+      // In America/Los_Angeles local midnight is 07:00Z: a local "today + 2" compared
+      // with a return date stored at 00:00Z refused a valid J+2 all day long.
+      it('accepts J+2 at creation in the middle of the day (2026-10-28T12:00Z → 2026-10-30)', async () => {
+        at('2026-10-28T12:00:00Z');
+        prisma.item.findUnique.mockResolvedValue(MOCK_ITEM);
+        prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+        prisma.loan.create.mockResolvedValue(MOCK_LOAN);
+
+        await expect(
+          service.create(LENDER_USER_ID, createDto('2026-10-30')),
+        ).resolves.toBeDefined();
+      });
+
+      it('accepts J+2 on update in the middle of the day (2026-10-28T12:00Z → 2026-10-30)', async () => {
+        at('2026-10-28T12:00:00Z');
+        const loan = { ...MOCK_LOAN, status: LoanStatus.ACTIVE };
+        prisma.loan.findUnique.mockResolvedValue(loan);
+        prisma.loan.update.mockResolvedValue({ ...loan, returnDate: new Date('2026-10-30') });
+
+        await expect(
+          service.update(LOAN_ID, LENDER_USER_ID, { returnDate: '2026-10-30' }),
+        ).resolves.toBeDefined();
+      });
+
+      it('still refuses J+1 (2026-10-28T12:00Z → 2026-10-29)', async () => {
+        at('2026-10-28T12:00:00Z');
+
+        await expect(service.create(LENDER_USER_ID, createDto('2026-10-29'))).rejects.toMatchObject(
+          {
+            response: expect.objectContaining({
+              type: expect.stringContaining('return-date-too-soon'),
+            }),
+          },
+        );
+      });
+    });
+  });
+
   describe('create', () => {
     const CREATE_DTO = {
       item: ITEM_ID,
@@ -618,6 +722,187 @@ describe('LoansService', () => {
         const err = error as { response: ProblemDetails };
         expect(err.response.status).toBe(HttpStatus.FORBIDDEN);
       }
+    });
+
+    describe('return date lock (409 loan-return-date-locked)', () => {
+      const inTenDays = (): string => {
+        const date = new Date();
+        date.setUTCHours(0, 0, 0, 0);
+        date.setUTCDate(date.getUTCDate() + 10);
+        return date.toISOString().slice(0, 10);
+      };
+
+      const expectReturnDateLocked = async (promise: Promise<unknown>) => {
+        try {
+          await promise;
+          fail('Expected ConflictException');
+        } catch (error) {
+          const err = error as { response: ProblemDetails };
+          expect(err.response.status).toBe(HttpStatus.CONFLICT);
+          expect(err.response.type).toBe('https://api.return.app/errors/loan-return-date-locked');
+        }
+      };
+
+      it.each([
+        LoanStatus.AWAITING_RETURN,
+        LoanStatus.RETURNED,
+        LoanStatus.NOT_RETURNED,
+        LoanStatus.ABANDONED,
+        LoanStatus.CONTESTED,
+      ])('refuses to change the return date of a %s loan', async (status) => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status });
+
+        await expectReturnDateLocked(
+          service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() }),
+        );
+        expect(prisma.loan.update).not.toHaveBeenCalled();
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
+
+      it('refuses to remove the return date of an overdue loan (it would never reach NOT_RETURNED)', async () => {
+        prisma.loan.findUnique.mockResolvedValue({
+          ...MOCK_LOAN,
+          status: LoanStatus.AWAITING_RETURN,
+        });
+
+        await expectReturnDateLocked(service.update(LOAN_ID, LENDER_USER_ID, { returnDate: null }));
+        expect(prisma.loan.update).not.toHaveBeenCalled();
+      });
+
+      it('still lets the lender edit the notes of a closed loan', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.RETURNED });
+        prisma.loan.update.mockResolvedValue({
+          ...MOCK_LOAN,
+          status: LoanStatus.RETURNED,
+          notes: 'n',
+        });
+
+        const result = await service.update(LOAN_ID, LENDER_USER_ID, { notes: 'n' });
+
+        expect(result.notes).toBe('n');
+        expect(prisma.loan.update).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: LOAN_ID } }),
+        );
+      });
+
+      it('makes the date update conditional on the loan still being open', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() });
+
+        expect(prisma.loan.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              id: LOAN_ID,
+              status: {
+                in: [
+                  LoanStatus.PENDING_CONFIRMATION,
+                  LoanStatus.ACTIVE,
+                  LoanStatus.ACTIVE_BY_DEFAULT,
+                ],
+              },
+            },
+          }),
+        );
+      });
+
+      it('returns 409 when the loan stops being open between the read and the update (race)', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockRejectedValue(
+          Object.assign(new Error('Record to update not found.'), { code: 'P2025' }),
+        );
+
+        await expectReturnDateLocked(
+          service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() }),
+        );
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
+
+      it('propagates any other database error', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        const dbError = Object.assign(new Error('connection lost'), { code: 'P1001' });
+        prisma.loan.update.mockRejectedValue(dbError);
+
+        await expect(
+          service.update(LOAN_ID, LENDER_USER_ID, { returnDate: inTenDays() }),
+        ).rejects.toBe(dbError);
+      });
+    });
+
+    describe('return date change → reminders rescheduling', () => {
+      const inDays = (days: number): string => {
+        const date = new Date();
+        date.setUTCHours(0, 0, 0, 0);
+        date.setUTCDate(date.getUTCDate() + days);
+        return date.toISOString().slice(0, 10);
+      };
+
+      it.each([LoanStatus.PENDING_CONFIRMATION, LoanStatus.ACTIVE, LoanStatus.ACTIVE_BY_DEFAULT])(
+        'emits RETURN_DATE_CHANGED when the return date of an open %s loan changes',
+        async (status) => {
+          const newDate = inDays(10);
+          prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status });
+          prisma.loan.update.mockResolvedValue({
+            ...MOCK_LOAN,
+            status,
+            returnDate: new Date(newDate),
+          });
+
+          await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: newDate });
+
+          expect(eventEmitter.emit).toHaveBeenCalledWith(LOAN_EVENTS.RETURN_DATE_CHANGED, {
+            loanId: LOAN_ID,
+            returnDate: new Date(newDate),
+            changedAt: expect.any(Date),
+          });
+        },
+      );
+
+      it('emits the date-only value stored on the loan when a datetime is sent', async () => {
+        const day = inDays(10);
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, returnDate: new Date(day) });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: `${day}T23:30:00+01:00` });
+
+        expect(eventEmitter.emit).toHaveBeenCalledWith(
+          LOAN_EVENTS.RETURN_DATE_CHANGED,
+          expect.objectContaining({ returnDate: new Date(day) }),
+        );
+      });
+
+      it('emits RETURN_DATE_CHANGED with a null date when the return date is removed', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, returnDate: null });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: null });
+
+        expect(eventEmitter.emit).toHaveBeenCalledWith(
+          LOAN_EVENTS.RETURN_DATE_CHANGED,
+          expect.objectContaining({ loanId: LOAN_ID, returnDate: null }),
+        );
+      });
+
+      it('does not touch reminders when only the notes change', async () => {
+        prisma.loan.findUnique.mockResolvedValue({ ...MOCK_LOAN, status: LoanStatus.ACTIVE });
+        prisma.loan.update.mockResolvedValue({ ...MOCK_LOAN, notes: 'n' });
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { notes: 'n' });
+
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
+
+      it('does not touch reminders when the return date is unchanged', async () => {
+        const sameDate = inDays(10);
+        const loan = { ...MOCK_LOAN, status: LoanStatus.ACTIVE, returnDate: new Date(sameDate) };
+        prisma.loan.findUnique.mockResolvedValue(loan);
+        prisma.loan.update.mockResolvedValue(loan);
+
+        await service.update(LOAN_ID, LENDER_USER_ID, { returnDate: sameDate });
+
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+      });
     });
   });
 
