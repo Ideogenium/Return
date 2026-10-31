@@ -92,7 +92,8 @@ export function FormDialog({
     <Dialog visible={visible} onDismiss={handleDismiss} style={aboveKeyboard} testID={testID}>
       <Dialog.Title>{title}</Dialog.Title>
       <Dialog.ScrollArea style={styles.scrollArea}>
-        <FormScrollView testID={scrollTestID}>
+        {/* The dialog already moves above the keyboard: its scroll view must not avoid it too. */}
+        <FormScrollView testID={scrollTestID} keyboardAvoidance={false}>
           <View style={styles.content}>{children}</View>
         </FormScrollView>
       </Dialog.ScrollArea>

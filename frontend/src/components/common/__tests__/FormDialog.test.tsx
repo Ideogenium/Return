@@ -82,6 +82,16 @@ describe('FormDialog', () => {
       expect(screen.getByTestId('action-btn')).toBeTruthy();
     });
 
+    it('leaves the keyboard to the dialog: its scroll view does not avoid it a second time', () => {
+      captureKeyboardListeners();
+      renderDialog();
+
+      expect(screen.getByTestId('dialog-scroll').props.automaticallyAdjustKeyboardInsets).toBe(
+        false,
+      );
+      expect(screen.queryByTestId('dialog-scroll-keyboard-area')).toBeNull();
+    });
+
     it('closes on a backdrop tap while the keyboard is closed', () => {
       captureKeyboardListeners();
       const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss');
