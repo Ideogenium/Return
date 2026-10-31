@@ -7,7 +7,6 @@ import { LoansCronService } from './loans-cron.service.js';
 import { LOAN_EVENTS } from '../common/events/loan.events.js';
 import { LoanStatus, ReminderStatus, ReminderType } from '@prisma/client';
 import { ReminderExhaustedListener } from './reminder-exhausted.listener.js';
-import { Logger } from '@nestjs/common';
 
 // =============================================================================
 // Fixtures
