@@ -7,6 +7,7 @@ import {
   getRefreshToken,
   clearTokens,
 } from '../utils/storage';
+import { resetSessionStores } from './resetSessionStores';
 import { extractProblemDetails } from '../utils/error';
 import type { User, AuthResponse, ProblemDetails } from '../types/api.types';
 
@@ -96,6 +97,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       // On déconnecte même si l'appel échoue (token expiré, réseau, etc.)
     }
     await clearTokens();
+    resetSessionStores();
     set({ ...initialState });
   },
 
@@ -103,6 +105,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const currentRefreshToken = await getRefreshToken();
     if (!currentRefreshToken) {
       await clearTokens();
+      resetSessionStores();
       set({ ...initialState });
       return;
     }
@@ -120,6 +123,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
     } catch {
       await clearTokens();
+      resetSessionStores();
       set({ ...initialState });
     }
   },
@@ -152,6 +156,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
     } catch {
       await clearTokens();
+      resetSessionStores();
       set({ ...initialState });
     }
   },
