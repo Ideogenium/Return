@@ -1,3 +1,4 @@
+import { Image } from 'react-native';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { PhotoGallery } from '../PhotoGallery';
@@ -30,6 +31,25 @@ describe('PhotoGallery', () => {
     expect(['imagebutton', 'button']).toContain(thumb.props.accessibilityRole);
     expect(typeof thumb.props.accessibilityLabel).toBe('string');
     expect(thumb.props.accessibilityLabel).not.toBe('');
+  });
+
+  it('should give each thumbnail a distinct numbered label', () => {
+    renderGallery();
+    const labels = photos.map(
+      (photo) => screen.getByTestId(`photo-thumb-${photo.id}`).props.accessibilityLabel,
+    );
+    expect(new Set(labels).size).toBe(3);
+    // FR "Agrandir la photo n sur 3" / EN "Open photo n of 3"
+    labels.forEach((label, index) => {
+      expect(label).toMatch(new RegExp(`^(Agrandir la photo|Open photo) ${index + 1} (sur|of) 3$`));
+    });
+  });
+
+  it('should decode thumbnails at their displayed size', () => {
+    renderGallery();
+    const thumb = screen.getByTestId('photo-thumb-photo-1');
+    const image = thumb.findByType(Image);
+    expect(image.props.resizeMethod).toBe('resize');
   });
 
   it('should open the viewer when tapping a thumbnail', () => {

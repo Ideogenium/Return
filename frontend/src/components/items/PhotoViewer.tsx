@@ -57,22 +57,36 @@ export function PhotoViewer({ photos, initialIndex, visible, onClose }: PhotoVie
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           keyExtractor={(photo) => photo.id}
+          // Thumbnails fall back to full-size URLs in prod (no thumbnailUrl), so render only the
+          // visible page and its neighbours; initialScrollIndex/getItemLayout keep this safe
+          initialNumToRender={1}
+          windowSize={3}
           initialScrollIndex={initialIndex}
           getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           onMomentumScrollEnd={handleMomentumScrollEnd}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <View style={[styles.page, { width }]}>
               <Image
                 source={{ uri: item.url }}
                 style={styles.image}
                 resizeMode="contain"
                 testID={`photo-viewer-image-${item.id}`}
+                accessibilityLabel={t('items.photoViewerImage', {
+                  current: index + 1,
+                  total: photos.length,
+                })}
               />
             </View>
           )}
         />
         <View style={[styles.header, { top: (insets?.top ?? 0) + 8 }]} pointerEvents="box-none">
-          <Text variant="titleMedium" style={styles.counter} testID="photo-viewer-counter">
+          <Text
+            variant="titleMedium"
+            style={styles.counter}
+            testID="photo-viewer-counter"
+            // Android announces the change; on iOS the visible image label does
+            accessibilityLiveRegion="polite"
+          >
             {t('items.photoViewerCounter', { current: currentIndex + 1, total: photos.length })}
           </Text>
           <IconButton

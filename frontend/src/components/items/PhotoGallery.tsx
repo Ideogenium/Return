@@ -40,10 +40,18 @@ export function PhotoGallery({
               <Pressable
                 onPress={() => setViewerIndex(index)}
                 accessibilityRole="imagebutton"
-                accessibilityLabel={t('items.openPhoto')}
+                accessibilityLabel={t('items.openPhotoNumbered', {
+                  current: index + 1,
+                  total: photos.length,
+                })}
                 testID={`photo-thumb-${photo.id}`}
               >
-                <Image source={{ uri: photo.thumbnailUrl ?? photo.url }} style={styles.thumbnail} />
+                <Image
+                  source={{ uri: photo.thumbnailUrl ?? photo.url }}
+                  style={styles.thumbnail}
+                  // Android: decode at displayed size, thumbnails may be full-res photos
+                  resizeMethod="resize"
+                />
               </Pressable>
               {!readOnly && onDeletePress && (
                 <IconButton

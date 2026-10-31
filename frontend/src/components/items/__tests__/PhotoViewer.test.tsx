@@ -41,6 +41,25 @@ describe('PhotoViewer', () => {
     expect(list.props.pagingEnabled).toBe(true);
   });
 
+  it('should label the rendered image with its position', () => {
+    // Only the visible page is rendered (initialNumToRender=1), so start on the 2nd photo
+    renderViewer({ initialIndex: 1 });
+    const label = screen.getByTestId('photo-viewer-image-photo-2').props.accessibilityLabel;
+    expect(label).toMatch(/^Photo 2 (sur|of) 3$/);
+  });
+
+  it('should announce photo changes through a polite live region on the counter', () => {
+    renderViewer();
+    expect(screen.getByTestId('photo-viewer-counter').props.accessibilityLiveRegion).toBe('polite');
+  });
+
+  it('should limit rendered pages to keep memory low', () => {
+    renderViewer();
+    const list = screen.getByTestId('photo-viewer-list');
+    expect(list.props.initialNumToRender).toBe(1);
+    expect(list.props.windowSize).toBe(3);
+  });
+
   it('should start on the initial index', () => {
     renderViewer({ initialIndex: 1 });
     expect(screen.getByTestId('photo-viewer-list').props.initialScrollIndex).toBe(1);
