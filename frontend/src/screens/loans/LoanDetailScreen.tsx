@@ -31,6 +31,7 @@ import type { LoanStackParamList } from '../../navigation/types';
 import type { AxiosError } from 'axios';
 import { FormScrollView } from '../../components/common/FormScrollView';
 import { FormDialog } from '../../components/common/FormDialog';
+import { PhotoGallery } from '../../components/items/PhotoGallery';
 
 type Props = NativeStackScreenProps<LoanStackParamList, 'LoanDetail'>;
 
@@ -279,6 +280,13 @@ export function LoanDetailScreen({ route, navigation }: Props) {
             {loan.item.name}
           </Text>
         </View>
+
+        {/* Both roles see the item photos, display-only; money loans have none. */}
+        {loan.item?.photos?.length ? (
+          <View style={styles.photos}>
+            <PhotoGallery photos={loan.item.photos} readOnly />
+          </View>
+        ) : null}
 
         <View style={styles.field}>
           <Text variant="labelMedium" style={styles.label}>
@@ -662,6 +670,7 @@ const styles = StyleSheet.create({
   infoCard: { margin: 16, padding: 24 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   name: { color: '#2D3748', fontWeight: '700', flex: 1 },
+  photos: { marginBottom: 12 },
   field: { marginBottom: 12 },
   label: { color: '#A8B5BF', marginBottom: 2 },
   value: { color: '#2D3748' },

@@ -102,4 +102,60 @@ describe('ConfirmationDialog', () => {
       expect.objectContaining({ disabled: true }),
     );
   });
+
+  describe('item photos', () => {
+    const loanWithPhotos = {
+      ...loan,
+      item: {
+        name: 'Perceuse',
+        photos: [
+          {
+            id: 'ph-1',
+            url: 'https://storage.return.app/items/ph-1.jpg',
+            thumbnailUrl: 'https://storage.return.app/items/ph-1_thumb.jpg',
+            uploadedAt: '2026-02-20T14:00:00Z',
+          },
+        ],
+      },
+    } as unknown as Loan;
+
+    const renderDialog = (l: Loan) =>
+      render(
+        <PaperProvider>
+          <ConfirmationDialog
+            loan={l}
+            visible
+            onDismiss={jest.fn()}
+            onConfirm={jest.fn()}
+            onContest={jest.fn()}
+            isLoading={false}
+          />
+        </PaperProvider>,
+      );
+
+    it('shows the read-only photo gallery of the item inside the dialog content', () => {
+      renderDialog(loanWithPhotos);
+
+      const scroll = screen.getByTestId('confirmation-dialog-scroll');
+      expect(within(scroll).getByTestId('photo-gallery')).toBeTruthy();
+      expect(within(scroll).getByTestId('photo-thumb-ph-1')).toBeTruthy();
+      expect(screen.queryByTestId('photo-delete-ph-1')).toBeNull();
+      expect(screen.queryByTestId('photo-gallery-add')).toBeNull();
+    });
+
+    it('opens the full-screen viewer when a thumbnail is tapped', () => {
+      renderDialog(loanWithPhotos);
+
+      expect(screen.queryByTestId('photo-viewer')).toBeNull();
+      fireEvent.press(screen.getByTestId('photo-thumb-ph-1'));
+
+      expect(screen.getByTestId('photo-viewer')).toBeTruthy();
+    });
+
+    it('renders no gallery when the item has no photo', () => {
+      renderDialog({ ...loan, item: { name: 'Perceuse', photos: [] } } as unknown as Loan);
+
+      expect(screen.queryByTestId('photo-gallery')).toBeNull();
+    });
+  });
 });

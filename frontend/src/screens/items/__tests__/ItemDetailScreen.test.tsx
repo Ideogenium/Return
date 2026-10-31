@@ -57,6 +57,27 @@ describe('ItemDetailScreen', () => {
     expect(screen.getByText('Perceuse Bosch')).toBeTruthy();
   });
 
+  it('should open the photo viewer when tapping a thumbnail', async () => {
+    renderDetailScreen();
+
+    // Photo id comes from the MSW mockItem (single photo)
+    const thumb = await screen.findByTestId('photo-thumb-p1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c');
+    expect(screen.queryByTestId('photo-viewer')).toBeNull();
+
+    fireEvent.press(thumb);
+
+    expect(screen.getByTestId('photo-viewer')).toBeTruthy();
+    expect(screen.getByTestId('photo-viewer-counter')).toHaveTextContent('1 / 1');
+  });
+
+  it('should keep the delete photo button for the owner', async () => {
+    renderDetailScreen();
+
+    expect(
+      await screen.findByTestId('photo-delete-p1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c'),
+    ).toBeTruthy();
+  });
+
   it('should show delete confirmation dialog', async () => {
     renderDetailScreen();
 
