@@ -6,7 +6,9 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { normalizedUri } from '../../../../__mocks__/expo-image-manipulator';
 import {
   deletedFiles,
-  resetFileSizes,
+  resetFileSystemMock,
+  setDeleteError,
+  setFileConstructorError,
   setFileSize,
 } from '../../../../__mocks__/expoFileSystemMock';
 
@@ -56,7 +58,7 @@ function mockGalleryAsset(asset: Partial<ImagePicker.ImagePickerAsset>) {
 describe('PhotoPicker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    resetFileSizes();
+    resetFileSystemMock();
   });
 
   it('should render add photo button', () => {
@@ -335,6 +337,50 @@ describe('PhotoPicker', () => {
 
       await waitFor(() => {
         expect(onPhotoPicked).toHaveBeenCalledWith(normalizedUri('file:///tmp/cutout.png', 'jpg'));
+      });
+    });
+
+    describe('when the PNG size cannot be checked, the photo is sent as JPEG and the pick never fails', () => {
+      const pngUri = normalizedUri('file:///tmp/cutout.png', 'png');
+      const jpegUri = normalizedUri('file:///tmp/cutout.png', 'jpg');
+
+      async function expectJpegWithoutError() {
+        mockGalleryAsset({ uri: 'file:///tmp/cutout.png', mimeType: 'image/png' });
+        const { onPhotoPicked } = renderPicker();
+
+        await pickFrom('gallery');
+
+        await waitFor(() => {
+          expect(onPhotoPicked).toHaveBeenCalledWith(jpegUri);
+        });
+        expect(screen.queryByTestId('photo-validation-error')).toBeNull();
+      }
+
+      it('on Expo web, where the File constructor throws', async () => {
+        setFileConstructorError();
+        await expectJpegWithoutError();
+      });
+
+      it('when reading the size throws (iOS)', async () => {
+        setFileSize(pngUri, new Error('Unable to read the file size'));
+        await expectJpegWithoutError();
+      });
+
+      it('when the size is null (Android)', async () => {
+        setFileSize(pngUri, null);
+        await expectJpegWithoutError();
+      });
+
+      it('when deleting the temporary PNG throws', async () => {
+        setFileSize(pngUri, 6 * MB);
+        setDeleteError(pngUri);
+        await expectJpegWithoutError();
+      });
+
+      it('when the size is null and deleting the PNG throws', async () => {
+        setFileSize(pngUri, null);
+        setDeleteError(pngUri);
+        await expectJpegWithoutError();
       });
     });
   });

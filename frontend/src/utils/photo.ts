@@ -45,6 +45,29 @@ export interface PhotoConversionOptions {
 }
 
 /**
+ * Size of a local file in bytes, or null when it cannot be known. Every way the read can fail
+ * ends here: the File constructor throws on Expo web (no file system), `size` can throw on iOS,
+ * be null on Android, or be 0 when the file cannot be read.
+ */
+function readFileSize(uri: string): number | null {
+  try {
+    const size = new DeviceFile(uri).size;
+    return typeof size === 'number' && size > 0 ? size : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Deletes a temporary file; a file that is already gone, or cannot be deleted, is not an error. */
+function deleteQuietly(uri: string): void {
+  try {
+    new DeviceFile(uri).delete();
+  } catch {
+    // The file stays in the app cache, which the system clears.
+  }
+}
+
+/**
  * Re-encodes a picked photo on the device, before any upload.
  *
  * - Any format the phone can decode is accepted: iPhone photos are HEIC by default, some
@@ -52,7 +75,8 @@ export interface PhotoConversionOptions {
  *   takes JPEG or PNG.
  * - A PNG stays a PNG, so a transparent background (an iPhone subject cut-out, a logo) does
  *   not turn black. PNG is lossless and can stay heavy: when the result is over `maxBytes`,
- *   or its size cannot be read, the photo is sent as JPEG instead.
+ *   or its size cannot be read (always the case on Expo web), the photo is sent as JPEG
+ *   instead, and checking the PNG never fails the conversion.
  * - The photo is scaled down to `maxDimension` on its longest side, which keeps a JPEG under
  *   the API size limits whatever the original weighs.
  * - Re-encoding drops the metadata, including the GPS position where the photo was taken.
@@ -72,11 +96,9 @@ export async function convertPhotoForUpload(
     try {
       if (isPng) {
         const png = await image.saveAsync({ format: SaveFormat.PNG });
-        const pngFile = new DeviceFile(png.uri);
-        // size is 0 when the file cannot be read: the JPEG fallback is the safe choice.
-        const size = pngFile.size;
-        if (size > 0 && size <= maxBytes) return png.uri;
-        pngFile.delete();
+        const size = readFileSize(png.uri);
+        if (size !== null && size <= maxBytes) return png.uri;
+        deleteQuietly(png.uri);
       }
       const jpeg = await image.saveAsync({ format: SaveFormat.JPEG, compress: PHOTO_JPEG_QUALITY });
       return jpeg.uri;

@@ -12,7 +12,7 @@ import type { ProfileStackParamList } from '../../../navigation/types';
 import i18n from '../../../config/i18n.config';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator } from 'expo-image-manipulator';
-import { resetFileSizes, setFileSize } from '../../../../__mocks__/expoFileSystemMock';
+import { resetFileSystemMock, setFileSize } from '../../../../__mocks__/expoFileSystemMock';
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
 
@@ -163,7 +163,7 @@ describe('ProfileScreen', () => {
         expect.objectContaining({ type: 'image/jpeg', name: 'photo.jpg' }),
       );
       append.mockRestore();
-      resetFileSizes();
+      resetFileSystemMock();
       act(() => useAuthStore.setState({ updateAvatar: authDefaults.updateAvatar }));
     });
   });
