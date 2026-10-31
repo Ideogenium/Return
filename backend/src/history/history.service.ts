@@ -151,7 +151,7 @@ export class HistoryService {
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
 
     return {
-      data: loans.map((loan) => toLoanResponse(loan as LoanWithRelations)),
+      data: loans.map((loan) => toLoanResponse(loan as LoanWithRelations, userId)),
       pagination: {
         currentPage: page,
         totalPages,
