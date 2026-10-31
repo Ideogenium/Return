@@ -10,6 +10,64 @@ import { Request, Response } from 'express';
 import { ProblemDetailsException, ProblemDetails } from './problem-details.exception.js';
 import { getRequestId } from '../middleware/request-context.middleware.js';
 
+/** Message of Multer's LIMIT_FILE_SIZE, turned by NestJS into a 413 PayloadTooLargeException. */
+const MULTER_FILE_TOO_LARGE = 'File too large';
+
+/** Multer and busboy messages for a malformed or abusive multipart body (see their limits). */
+const MULTIPART_ERROR =
+  /^(Too many (parts|files|fields)|Field (name|value) too long|Unexpected field|Field name missing|Multipart: |Malformed part header|Unexpected end of (form|file))/;
+
+/**
+ * Field and contract error code (ErrorDetail.code) of a 400 that only carries a message.
+ * The messages are the ones of NestJS 11 (ParseFilePipe validators, ParseUUIDPipe) and Multer.
+ */
+function classifyBadRequestMessage(msg: string): { field: string; code: string } {
+  if (
+    msg === MULTER_FILE_TOO_LARGE ||
+    /^Validation failed \((current file size is \d+, )?expected size is less than/.test(msg)
+  ) {
+    return { field: 'file', code: 'TOO_LARGE' };
+  }
+  // Contract: FILE_REQUIRED covers a missing file and a refused type.
+  if (
+    msg.includes('File is required') ||
+    /^Validation failed \((current file type is .+, )?expected type is/.test(msg)
+  ) {
+    return { field: 'file', code: 'FILE_REQUIRED' };
+  }
+  if (MULTIPART_ERROR.test(msg)) {
+    return { field: 'file', code: 'VALIDATION_ERROR' };
+  }
+  if (/^Validation failed \(uuid( v \d+)? is expected\)$/.test(msg)) {
+    return { field: 'id', code: 'INVALID_UUID' };
+  }
+  return { field: 'unknown', code: 'VALIDATION_ERROR' };
+}
+
+/**
+ * Client error raised by the Express body parser before any route (http-errors object:
+ * `expose` true, 4xx `status`, a `type` such as `entity.too.large`). Not an HttpException.
+ */
+interface BodyParserClientError {
+  expose: true;
+  status: number;
+  type: string;
+  message: string;
+  limit?: number;
+}
+
+function isBodyParserClientError(exception: unknown): exception is BodyParserClientError {
+  if (typeof exception !== 'object' || exception === null) return false;
+  const { expose, status, type } = exception as Record<string, unknown>;
+  return (
+    expose === true &&
+    typeof status === 'number' &&
+    status >= 400 &&
+    status < 500 &&
+    typeof type === 'string'
+  );
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -73,36 +131,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return;
       }
 
-      // Handle ParseFilePipe errors (file upload validation)
-      if (status === 400) {
-        let msg = exception.message;
-        if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-          const messageField = (exceptionResponse as Record<string, unknown>).message;
-          if (typeof messageField === 'string') {
-            msg = messageField;
-          }
-        }
-        if (
-          msg.includes('File is required') ||
-          msg.includes('Validation failed (expected type is')
-        ) {
-          const body: ProblemDetails = {
-            type: 'https://api.return.app/errors/validation-failed',
-            title: 'Validation Failed',
-            status,
-            detail: 'The request contains invalid data.',
-            instance: request.url,
-            timestamp: new Date().toISOString(),
-            requestId: getRequestId(),
-            errors: [{ field: 'file', code: 'FILE_REQUIRED', message: msg }],
-          };
-          response.status(status).setHeader('Content-Type', 'application/problem+json').json(body);
-          return;
-        }
-      }
-
-      // Handle ParseUUIDPipe and other 400 string-message errors
-      if (status === 400) {
+      // 400 with a plain message (ParseFilePipe, Multer, ParseUUIDPipe…) and Multer's 413 for a
+      // file over its limit: the contract answers both with a 400 and a stable error code.
+      if (status === 400 || (status === 413 && exception.message === MULTER_FILE_TOO_LARGE)) {
         let msg = exception.message;
         if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
           const messageField = (exceptionResponse as Record<string, unknown>).message;
@@ -113,15 +144,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
         const body: ProblemDetails = {
           type: 'https://api.return.app/errors/validation-failed',
           title: 'Validation Failed',
-          status,
+          status: 400,
           detail: 'The request contains invalid data.',
           instance: request.url,
           timestamp: new Date().toISOString(),
           requestId: getRequestId(),
-          errors: [{ field: 'id', code: 'INVALID_UUID', message: msg }],
+          errors: [{ ...classifyBadRequestMessage(msg), message: msg }],
         };
 
-        response.status(status).setHeader('Content-Type', 'application/problem+json').json(body);
+        response.status(400).setHeader('Content-Type', 'application/problem+json').json(body);
         return;
       }
 
@@ -158,6 +189,30 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
 
       response.status(status).setHeader('Content-Type', 'application/problem+json').json(body);
+      return;
+    }
+
+    // JSON body refused by the body parser (over its limit, unsupported charset…): a client
+    // error with its own status, never a 500.
+    if (isBodyParserClientError(exception)) {
+      const tooLarge = exception.type === 'entity.too.large';
+      const body: ProblemDetails = {
+        type: `https://api.return.app/errors/${tooLarge ? 'payload-too-large' : 'http-error'}`,
+        title: tooLarge ? 'Payload Too Large' : exception.message,
+        status: exception.status,
+        detail:
+          tooLarge && typeof exception.limit === 'number'
+            ? `The request body is larger than the ${exception.limit}-byte limit.`
+            : exception.message,
+        instance: request.url,
+        timestamp: new Date().toISOString(),
+        requestId: getRequestId(),
+      };
+
+      response
+        .status(exception.status)
+        .setHeader('Content-Type', 'application/problem+json')
+        .json(body);
       return;
     }
 
