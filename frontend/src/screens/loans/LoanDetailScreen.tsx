@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import {
   Text,
   Button,
@@ -26,6 +26,7 @@ import { getContactForUser } from '../../utils/loan';
 import { ui } from '../../config/theme.config';
 import type { LoanStackParamList } from '../../navigation/types';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<LoanStackParamList, 'LoanDetail'>;
 
@@ -189,7 +190,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const canConfirm = !isLender && selectedLoan.status === 'PENDING_CONFIRMATION';
 
   return (
-    <ScrollView contentContainerStyle={styles.container} testID="loan-detail">
+    <FormScrollView contentContainerStyle={styles.container} testID="loan-detail">
       {loadError && <RefreshError problem={loadError} onRetry={reload} />}
       {/* Info card */}
       <View style={[styles.infoCard, ui.card]}>
@@ -486,7 +487,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
         >
           <Dialog.Title>{t('loans.editLoan')}</Dialog.Title>
           <Dialog.ScrollArea style={styles.editScrollArea}>
-            <ScrollView>
+            <FormScrollView>
               <View style={styles.editContent}>
                 {canEditReturnDate ? (
                   <Button
@@ -537,7 +538,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
                   </HelperText>
                 )}
               </View>
-            </ScrollView>
+            </FormScrollView>
           </Dialog.ScrollArea>
           <Dialog.Actions>
             <Button onPress={() => setEditDialogVisible(false)} testID="cancel-edit-btn">
@@ -549,7 +550,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

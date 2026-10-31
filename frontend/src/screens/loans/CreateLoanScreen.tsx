@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { ActivityIndicator } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,6 +11,7 @@ import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import type { LoanStackParamList } from '../../navigation/types';
 import type { CreateLoanDto } from '../../types/api.types';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<LoanStackParamList, 'CreateLoan'>;
 
@@ -56,9 +57,9 @@ export function CreateLoanScreen({ navigation }: Props) {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} testID="create-loan-screen">
+    <FormScrollView contentContainerStyle={styles.container} testID="create-loan-screen">
       <LoanWizard onSubmit={handleSubmit} isLoading={isLoading} error={apiError} />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

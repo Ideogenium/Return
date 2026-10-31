@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text, TextInput, Button, HelperText, Icon } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { ui } from '../../config/theme.config';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 interface DeleteFormData {
   password: string;
@@ -43,7 +44,7 @@ export function DeleteAccountScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <View style={styles.warningCard}>
         <View style={styles.warningHeader}>
           <Icon source="alert-circle-outline" size={22} color="#D97A6B" />
@@ -132,7 +133,7 @@ export function DeleteAccountScreen() {
       >
         {t('profile.deleteAccount')}
       </Button>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, FlatList, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, FlatList, Pressable, StyleSheet } from 'react-native';
 import {
   Text,
   Button,
@@ -20,6 +20,7 @@ import { ItemForm } from '../items/ItemForm';
 import { formatDate, toLocalIsoDate } from '../../utils/date';
 import { ReturnDateCalendar } from './ReturnDateCalendar';
 import type { CreateLoanDto, CreateItemDto } from '../../types/api.types';
+import { FormScrollView } from '../common/FormScrollView';
 
 type LoanType = 'OBJECT' | 'MONEY';
 
@@ -146,6 +147,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
       {loanType === 'OBJECT' ? (
         <>
           <FlatList
+            keyboardShouldPersistTaps="handled"
             data={items.filter((i) => i.category !== 'MONEY')}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
@@ -210,6 +212,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
       </Text>
 
       <FlatList
+        keyboardShouldPersistTaps="handled"
         data={borrowers}
         keyExtractor={(b) => b.id}
         renderItem={({ item: b }) => (
@@ -421,7 +424,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
         >
           <Dialog.Title>{t('items.addItem')}</Dialog.Title>
           <Dialog.ScrollArea>
-            <ScrollView>
+            <FormScrollView>
               <ItemForm
                 mode="create"
                 onSubmit={handleInlineItemCreate}
@@ -429,7 +432,7 @@ export function LoanWizard({ onSubmit, isLoading, error }: LoanWizardProps) {
                 error={itemDialogError}
                 submitLabel={t('common.save')}
               />
-            </ScrollView>
+            </FormScrollView>
           </Dialog.ScrollArea>
         </Dialog>
       </Portal>

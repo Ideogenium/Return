@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ChangePasswordForm } from '../../components/profile/ChangePasswordForm';
 import apiClient from '../../api/apiClient';
@@ -8,6 +8,7 @@ import type { AxiosError } from 'axios';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AppStackParamList } from '../../navigation/types';
 import type { ChangePasswordDto } from '../../types/api.types';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<AppStackParamList, 'ChangePassword'>;
 
@@ -41,14 +42,14 @@ export function ChangePasswordScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <ChangePasswordForm
         onSubmit={handleSubmit}
         isLoading={isLoading}
         error={error}
         fieldErrors={fieldErrors}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 
