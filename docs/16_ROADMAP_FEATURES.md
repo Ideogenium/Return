@@ -169,12 +169,14 @@ distincts).
       existantes
       du module vertes.
 - **Critères d'acceptation**
-    - [ ] Upload photo objet et avatar OK sur `return-api.fly.dev`, URL publique R2 renvoyée
-    - [ ] Une photo uploadée **survit à un `fly deploy`** (preuve : redeploy puis GET de l'URL)
-    - [ ] Suppression d'une photo supprime l'objet R2
-    - [ ] Dev local (sans variables R2) fonctionne toujours avec le stockage local
-    - [ ] Tests back verts, lint + typecheck OK
-    - [ ] Doc : FIX-01/02 → ✅ (doc 13), CORR-02 → ✅ (doc 11), secrets R2 documentés (doc 10)
+    - [ ] Upload photo objet et avatar OK sur `return-api.fly.dev`, URL publique R2 renvoyée — après le déploiement D2
+    - [ ] Une photo uploadée **survit à un `fly deploy`** (preuve : redeploy puis GET de l'URL) — après D2
+    - [x] Suppression d'une photo supprime l'objet R2 (test réel sur `return-photos-preprod` le 26/10 : 404 après
+      suppression)
+    - [x] Dev local (sans variables R2) fonctionne toujours avec le stockage local (`/uploads` vérifié en 200)
+    - [x] Tests back verts, lint + typecheck OK
+    - [ ] Doc : FIX-01/02 → ✅ (doc 13), CORR-02 → ✅ (doc 11), secrets R2 documentés (doc 10) — doc 10 à jour,
+      FIX-01/02 et CORR-02 « code livré », passeront ✅ après la recette D2
 
 ---
 
@@ -195,9 +197,12 @@ distincts).
     - Vérifier dans `fly logs` que les **4 CRON** s'exécutent, y compris `handleOverdueLoans` (FEAT-10). Garder
       l'attention sur la double exécution si plus d'une machine tourne.
 - **Critères d'acceptation**
-    - [ ] `fly secrets list` : `EXPO_ACCESS_TOKEN` présent, secrets Firebase absents
-    - [ ] `CORS_ORIGIN` explicite en prod (fly.toml ou secret), plus de défaut localhost en prod
-    - [ ] Exactement 1 machine Fly en service, confirmé (`fly status`)
+    - [ ] `fly secrets list` : `EXPO_ACCESS_TOKEN` présent, secrets Firebase absents — Firebase absent ✅ (31/10),
+      `EXPO_ACCESS_TOKEN` stagé, effectif au déploiement D2
+    - [ ] `CORS_ORIGIN` explicite en prod (fly.toml ou secret), plus de défaut localhost en prod — `fly.toml` +
+      validation stricte livrés (ADR 0009), effectifs au déploiement D2
+    - [x] Exactement 1 machine Fly en service, confirmé (`fly machines list` le 31/10 : 1 machine) ; règle « jamais
+      plus d'1 machine tant que CORR-09 n'est pas fait » écrite dans le doc 08 § « Exploitation Fly »
     - [ ] Logs montrant au moins un tick de chacun des **4 CRON**, y compris `handleOverdueLoans` (vérifié après le
       déploiement D1 de mardi 17h ; si FEAT-10 n'est pas encore déployée, les 3 autres sont validés et le 4e est
       revérifié après D2 — FEAT-02 ne bloque pas sur FEAT-10)
@@ -227,12 +232,14 @@ distincts).
     - **Tests auto** : aucun nouveau (config) ; suite front/back inchangée verte.
 - **Critères d'acceptation**
     - [x] Compte Apple Developer actif (ACC-A1)
-    - [ ] Bundle ID + fiche App Store Connect en place ; clé APNs référencée dans EAS (`eas credentials`)
-    - [ ] Profil `production` iOS + `submit` iOS présents dans `eas.json`
-    - [ ] Build iOS terminé sans erreur, soumis, visible dans TestFlight
-    - [ ] Au moins un testeur interne (autre qu'Ozias idéalement) a installé via TestFlight
-    - [ ] Push reçu sur iPhone physique + tap ouvre le bon prêt
-    - [ ] Doc : PUSH-P1, PUSH-F5, ACC-A1→A3, ACC-E1→E5 cochés (docs 14 et 15)
+    - [x] Bundle ID + fiche App Store Connect en place ; clé APNs référencée dans EAS (générée par EAS)
+    - [x] Profil `production` iOS + `submit` iOS présents dans `eas.json`
+    - [x] Build iOS terminé sans erreur, soumis, visible dans TestFlight (1.0.0 (1), (2), (3))
+    - [ ] Au moins un testeur interne (autre qu'Ozias idéalement) a installé via TestFlight — Ozias a installé ;
+      aucun autre membre de l'équipe n'a d'iPhone
+    - [x] Push reçu sur iPhone physique + tap ouvre le bon prêt (31/10, build (2) ; retour à la liste corrigé dans la
+      PR #30)
+    - [x] Doc : PUSH-P1, PUSH-F5, ACC-A1→A3, ACC-E1→E5 cochés (docs 14 et 15) — volet iOS ; volet Android = FEAT-05
 - **Risque / repli** : si le premier build / les credentials EAS iOS ne passent pas **mardi soir**, si le
   traitement TestFlight traîne **mercredi soir**, ou si aucun **iPhone physique** n'est dispo pour le test push, la
   feature est livrée « prête à soumettre » (config + profil + clé en place) et l'installation TestFlight / le test
@@ -269,10 +276,10 @@ distincts).
       front
       (carte visible, valeur affichée).
 - **Critères d'acceptation**
-    - [ ] `GET /history/statistics` renvoie `overview.overdueLoans` correct
-    - [ ] Carte « en retard » visible dans le profil prêteur, plus de TODO
-    - [ ] Tests back + front verts, lint + typecheck OK
-    - [ ] Doc : FIX-14 → entièrement ✅ (doc 13), `openapi.yaml` à jour
+    - [x] `GET /history/statistics` renvoie `overview.overdueLoans` correct (code + tests ; en prod après D2)
+    - [x] Carte « en retard » visible dans le profil prêteur, plus de TODO
+    - [x] Tests back + front verts, lint + typecheck OK
+    - [x] Doc : FIX-14 → entièrement ✅ (doc 13), `openapi.yaml` à jour
 
 ---
 
@@ -405,6 +412,12 @@ distincts).
 ### FEAT-11 — Rappels annulés ou replanifiés selon le cycle de vie
 
 - **Porteur** : Ozias (back + tests ; pas de front) · **Priorité** : Must · **Estim.** : 1,5 h (1-2 h)
+- **⚠️ Exception au périmètre (validée par Ismael le 28/10)** : FEAT-11 a finalement **changé un contrat HTTP** et le
+  **front**. `PATCH /loans/{loanId}` renvoie `409 loan-return-date-locked` si la date de retour est modifiée hors d'un
+  prêt `PENDING_CONFIRMATION` / `ACTIVE` / `ACTIVE_BY_DEFAULT` (mise à jour conditionnelle au statut) ; côté front, le
+  champ date est masqué hors prêt ouvert, un message FR/EN s'affiche et la fenêtre d'édition reste ouverte en cas de
+  409. Les rappels sont aussi annulés sur `NOT_RETURNED` et à la suppression du prêt, et toutes les règles de jour
+  calendaire passent en UTC (`startOfUtcDay`).
 - **Dépendances** : aucune. **Contrat avec FEAT-10** : événement `LOAN_EVENTS.STATUS_CHANGED`.
 - **Constat vérifié** : les rappels ne sont jamais annulés quand le prêt passe `RETURNED` / `ABANDONED` /
   `CONTESTED`. `RemindersService.cancel` (`reminders.service.ts:107-112`) n'est appelé que par l'endpoint manuel et
@@ -420,12 +433,13 @@ distincts).
     - **Tests** : unitaires du listener (chaque statut cible ; `AWAITING_RETURN` n'annule rien ; les rappels `SENT`
       restent intacts) ; replanification après changement de date.
 - **Critères d'acceptation**
-    - [ ] Retour / abandon / contestation d'un prêt → ses rappels `SCHEDULED` passent `CANCELLED`, plus aucune relance
+    - [x] Retour / abandon / contestation d'un prêt → ses rappels `SCHEDULED` passent `CANCELLED`, plus aucune relance
       ne part
-    - [ ] Passage en `AWAITING_RETURN` n'annule aucun rappel ; les rappels `SENT` restent intacts
-    - [ ] Changement de `returnDate` → anciens rappels `SCHEDULED` annulés, nouveaux planifiés selon la politique
-    - [ ] Tests back verts, lint + typecheck OK ; mergée sur `fix/preprod-corrections`
-    - [ ] Doc : note dans doc 13 / 04 si applicable (lignes de sa feature uniquement)
+    - [x] Passage en `AWAITING_RETURN` n'annule aucun rappel ; les rappels `SENT` restent intacts
+    - [x] Changement de `returnDate` → anciens rappels `SCHEDULED` annulés, nouveaux planifiés selon la politique
+    - [ ] Tests back verts, lint + typecheck OK ; mergée sur `fix/preprod-corrections` — tests verts, en attente de la
+      fusion de la PR #30
+    - [x] Doc : note dans doc 13 / 04 si applicable (lignes de sa feature uniquement) — note FEAT-11 dans le doc 04
 
 ---
 
