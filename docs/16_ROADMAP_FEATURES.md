@@ -67,17 +67,17 @@ frontend + tests + intégration + mise à jour de la doc. Conséquences :
 | ID      | Titre                                                            | Porteur                             | Priorité | Estim.             | Dépend de                          | Réfs                                   | Statut |
 |---------|------------------------------------------------------------------|-------------------------------------|----------|--------------------|------------------------------------|----------------------------------------|--------|
 | FEAT-00 | Merge `fix/preprod-corrections` → `main` + stratégie de branches | Ismael (PR) + Ozias (revue)         | Must     | 1 h (0,5 h chacun) | jalon de fin (gel + recette)       | —                                      | ☐      |
-| FEAT-01 | Photos persistantes : `R2PhotoStorageService`                    | Ozias                               | Must     | 4,5 h              | —                                  | CORR-02, FIX-01/02                     | ☐      |
-| FEAT-02 | Durcissement prod (CORS, secrets, 1 seule machine, Expo token)   | Ozias                               | Must     | 2 h                | —                                  | CORR-05, PUSH-B5, CORR-01              | ☐      |
-| FEAT-03 | Distribution iOS (EAS prod iOS, APNs, TestFlight, push e2e iOS)  | Ozias                               | Must     | 7 h                | accès EAS (ACC-A1 ✅)              | PUSH-P1, PUSH-F5, ACC-A2/A3, ACC-E1→E5 | ☐      |
-| FEAT-04 | Stats prêts en retard : `overdueLoans` back + carte front        | Ozias                               | Should   | 1,5 h              | —                                  | FIX-14 (reste)                         | ☐      |
+| FEAT-01 | Photos persistantes : `R2PhotoStorageService`                    | Ozias                               | Must     | 4,5 h              | —                                  | CORR-02, FIX-01/02                     | ✅ (PR #30) — recette après D2 |
+| FEAT-02 | Durcissement prod (CORS, secrets, 1 seule machine, Expo token)   | Ozias                               | Must     | 2 h                | —                                  | CORR-05, PUSH-B5, CORR-01              | ✅ (PR #30) — effectif après D2 |
+| FEAT-03 | Distribution iOS (EAS prod iOS, APNs, TestFlight, push e2e iOS)  | Ozias                               | Must     | 7 h                | accès EAS (ACC-A1 ✅)              | PUSH-P1, PUSH-F5, ACC-A2/A3, ACC-E1→E5 | ✅ (PR #30) |
+| FEAT-04 | Stats prêts en retard : `overdueLoans` back + carte front        | Ozias                               | Should   | 1,5 h              | —                                  | FIX-14 (reste)                         | ✅ (PR #30) |
 | FEAT-05 | Distribution Android (Play internal via `eas submit`)            | Ismael                              | Must     | 3 h                | Play Console OK (fait)             | PUSH-P2, ACC-G*, ACC-E3/E4             | ✅ (28/10) — `eas submit` auto validé (versionCode 2, 29/10) |
-| FEAT-06 | Rappels visibles dans la timeline du prêt                        | Ismael                              | Should   | 3,5 h              | —                                  | CORR-07                                | ✅ (28/10) |
-| FEAT-07 | Historique des prêts (écran dédié, périmètre réduit)             | Ismael                              | Should   | 8 h                | —                                  | CORR-14 (partiel), CORR-08             | ✅ (28/10) — version complète ; vérif device à faire |
+| FEAT-06 | Rappels visibles dans la timeline du prêt                        | Ismael                              | Should   | 3,5 h              | —                                  | CORR-07                                | ✅ à la fusion de #31 (livré 28/10) |
+| FEAT-07 | Historique des prêts (écran dédié, périmètre réduit)             | Ismael                              | Should   | 8 h                | —                                  | CORR-14 (partiel), CORR-08             | ✅ à la fusion de #31 (livré 28/10) — version complète ; vérif device à faire |
 | FEAT-08 | Mise à jour de la documentation                                  | Ismael (porteur) + Ozias (sous-lot) | Must     | 4,5 h (2,5 + 2)    | features terminées (en continu)    | CORR-11, doc 12 §A                     | ☐      |
-| FEAT-09 | Seuils de couverture (`coverageThreshold` front + back)          | Ismael (front) + Ozias (back)       | Could    | 2 h (1 + 1)        | —                                  | CORR-10                                | ☐      |
-| FEAT-10 | Passage automatique en retard (AWAITING_RETURN) puis non rendu   | Ismael                              | Must     | 3,5 h (3-4 h)      | — (contrat : événement `STATUS_CHANGED`) | LOAN-017 (doc 04), doc 13:209-212, openapi.yaml:638-639 | ✅ (28/10) — déploiement prévu D2 |
-| FEAT-11 | Rappels annulés / replanifiés selon le cycle de vie du prêt      | Ozias                               | Must     | 1,5 h (1-2 h)      | — (contrat : événement `STATUS_CHANGED`) | `reminders.service.ts:107-112`, `loans.service.ts:283-300` | ☐ |
+| FEAT-09 | Seuils de couverture (`coverageThreshold` front + back)          | Ismael (front) + Ozias (back)       | Could    | 2 h (1 + 1)        | —                                  | CORR-10                                | ✅ (seuils en place, CI `--coverage`) |
+| FEAT-10 | Passage automatique en retard (AWAITING_RETURN) puis non rendu   | Ismael                              | Must     | 3,5 h (3-4 h)      | — (contrat : événement `STATUS_CHANGED`) | LOAN-017 (doc 04), doc 13:209-212, openapi.yaml:638-639 | ✅ à la fusion de #31 (livré 28/10) — déploiement prévu D2 |
+| FEAT-11 | Rappels annulés / replanifiés selon le cycle de vie du prêt      | Ozias                               | Must     | 1,5 h (1-2 h)      | — (contrat : événement `STATUS_CHANGED`) | `reminders.service.ts:107-112`, `loans.service.ts:283-300` | ✅ (PR #30) |
 
 > FEAT-10 et FEAT-11 (validées par Ismael le 25/10) sont des **Must placées au-dessus de FEAT-04** : elles touchent
 > le cœur de l'app (relances et statut des prêts). Aujourd'hui, `NOT_RETURNED` est inatteignable et des relances
@@ -358,7 +358,7 @@ distincts).
     - [x] FR + EN, tests front verts, lint + typecheck OK, TODO supprimé
     - [x] Doc : CORR-07 → ✅ (doc 11)
 
-> **Livré le 28/10/2026** (commits `ef9db61`, `5f8995a`, `1327c4c`, corrigés par `2fcab49` et `661bec7`). Seul le
+> **Livré le 28/10/2026** (commits `b937131`, `988ff3d`, `13b9e72`, corrigés par `4dd77f6` et `8802ac6`). Seul le
 > prêteur voit les rappels `SENT` et `SCHEDULED` ; `CANCELLED` et `FAILED` sont ignorés. Affichage pour les prêts
 > `ACTIVE`, `ACTIVE_BY_DEFAULT` et `AWAITING_RETURN`.
 
@@ -398,8 +398,8 @@ distincts).
     - [x] Doc : CORR-08 → ✅, CORR-14 → « partiel (historique livré, dashboard post-échéance) » (doc 11)
 - **Repli** : si retard mercredi midi, livrer la liste sans filtre (−2 h). **Non utilisé** : version complète livrée.
 
-> **Livré le 28/10/2026** (commits `f042c29`, `1a59912`, `83602f4`, `2f1f2cb`, puis correctifs `cf090b7` et
-> `2fcab49`). Point d'entrée « Historique » dans le Profil.
+> **Livré le 28/10/2026** (commits `e830d9e`, `b2d5bc8`, `4393fa2`, `50f2118`, puis correctifs `94572bb` et
+> `4dd77f6`). Point d'entrée « Historique » dans le Profil.
 
 ---
 
@@ -441,19 +441,36 @@ distincts).
     - [x] Chemin complet jusqu'à `NOT_RETURNED` couvert par un e2e vert ; `notReturnedLoans` > 0 et trustScore pénalisé
     - [x] Rattrapage des prêts déjà en retard / FINAL_OVERDUE déjà envoyé testé
     - [x] Tests back verts, lint + typecheck OK (hors e2e `/health`, environnement)
-    - [ ] Mergée sur `fix/preprod-corrections` (non vérifié à la date de mise à jour : commits sur
+    - [ ] Mergée sur `fix/preprod-corrections` (en attente de la fusion de la PR #31, branche
       `feature/loans-lifecycle-history`)
     - [x] Doc : LOAN-017 coché (doc 04), doc 13 : sujet reporté (l.209) noté « traité »
 
-> **Livré le 28/10/2026** (commits `4e1a5c6`, `3dd611c`, `561876e`, `473317d`). **Pas encore déployé : prévu pour D2.**
+> **Livré le 28/10/2026** (commits `a97e106`, `6a592c5`, `d231e41`, `fe7abaf`, puis `15c65e7`, `7f97650` et `bb38fa9`). **Pas encore déployé : prévu pour D2.**
 > « En retard » = `returnDate` antérieure au début du jour courant **en UTC**. Rattrapage `NOT_RETURNED` quand le rappel
 > `FINAL_OVERDUE` est `SENT` ou `FAILED` (décision du 28/10, cf. ci-dessus). Clôture protégée par `updateMany` sur le
 > statut et `deletedAt` ; une erreur sur un prêt n'interrompt pas le passage. Log à chaque passage :
 > `Overdue tick: N loan(s) marked AWAITING_RETURN, M closed NOT_RETURNED (catch-up)`. Le listener
 > `reminder-exhausted` a été légèrement refactoré (extraction de `closeAsNotReturned`), sans régression.
 >
-> **Dette de tests corrigée au passage** (`c26fe22`, `4ceab43`) : typage dans `history.controller.spec.ts` et deux e2e
-> contact-invitations sans `returnDate`. Il reste un e2e `/health` en échec faute de Redis local (environnement).
+> **Dette de tests corrigée au passage** (`5569a1b` pour les e2e contact-invitations sans `returnDate` ; typage de
+> `history.controller.spec.ts` : PR #31, hash non identifiable avec certitude). Il reste un e2e `/health` en échec faute de Redis local (environnement).
+>
+> **Garde-fous ajoutés à la revue de la PR #31 (corrections de revue du 31/10)** : interrupteur
+> `OVERDUE_JOB_ENABLED` (opt-in : job coupé par défaut en prod), lot `OVERDUE_JOB_BATCH_SIZE` (100 prêts par passage) et
+> disjoncteur `OVERDUE_JOB_MAX_SHARE` (0,5 : une étape n'écrit rien et logue une erreur si ses candidats dépassent ce seuil des prêts ouverts et le lot). Script
+> `npm run db:legacy-fix` (à blanc par défaut, `--apply` pour écrire), documenté dans
+> `07_GUIDE_LANCEMENT_BACKEND.md`.
+>
+> **Procédure D2 validée avec Ozias** (FEAT-10 change le comportement prod au premier tick, cf. R8) :
+> 1. sauvegarde : `pg_dump -Fc` hors Fly + snapshot du volume (par Ozias) ;
+> 2. déploiement avec le job coupé (`OVERDUE_JOB_ENABLED` non défini) ;
+> 3. `npm run db:legacy-fix` à blanc : comptage N/M + données anciennes ;
+> 4. vérification commune des chiffres (Ismael + Ozias) ;
+> 5. `npm run db:legacy-fix -- --apply` si validé ;
+> 6. `fly secrets set OVERDUE_JOB_ENABLED=true`.
+>
+> **Décision produit à prendre (31/10)** : clôture sur `FINAL_OVERDUE` en `FAILED`, réessai borné, notification de
+> l'emprunteur à la clôture → ADR.
 
 ---
 
@@ -485,8 +502,7 @@ distincts).
       ne part
     - [x] Passage en `AWAITING_RETURN` n'annule aucun rappel ; les rappels `SENT` restent intacts
     - [x] Changement de `returnDate` → anciens rappels `SCHEDULED` annulés, nouveaux planifiés selon la politique
-    - [ ] Tests back verts, lint + typecheck OK ; mergée sur `fix/preprod-corrections` — tests verts, en attente de la
-      fusion de la PR #30
+    - [x] Tests back verts, lint + typecheck OK ; mergée sur `fix/preprod-corrections` (PR #30 fusionnée)
     - [x] Doc : note dans doc 13 / 04 si applicable (lignes de sa feature uniquement) — note FEAT-11 dans le doc 04
 
 ---
@@ -516,7 +532,8 @@ distincts).
     - [ ] Plus aucun statut ☐ dans les docs 11-15 qui contredise le code ou l'infra réelle
     - [ ] Docs 00 / 04 / 05 / 08 resynchronisés (liste des écarts de doc 12 §A traitée ou explicitement reportée)
     - [ ] `docs/CLAUDE.md` à jour (avancement, notifications, organisation par feature)
-    - [ ] Hashes de commit vérifiés via `git log` (pas de hash recopié de mémoire)
+    - [x] Hashes de commit vérifiés via `git log` (pas de hash recopié de mémoire) — revérifiés le 31/10 après le
+      rebase sur la PR #30
     - [ ] PR docs mergée dans `fix/preprod-corrections` (puis dans `main` via FEAT-00)
 
 ---
@@ -530,9 +547,10 @@ distincts).
   backend ; brancher en CI si déjà prévu. Les cibles du projet (Domain 95 %, Services 90 %, Controllers 70 %)
   restent l'objectif long terme.
 - **Critères d'acceptation**
-    - [ ] `coverageThreshold` défini côté front et côté back
-    - [ ] `jest --coverage` passe localement et en CI
-    - [ ] Doc : CORR-10 → ✅ (doc 11)
+    - [x] `coverageThreshold` défini côté front (`jest.config.js` : 76/76/71/77 en statements/branches/functions/lines)
+      et côté back (`package.json` : 88/74/82/89)
+    - [x] `jest --coverage` en CI (`frontend-ci.yml` : `test:coverage` ; `ci.yml` : `--coverage`)
+    - [x] Doc : CORR-10 → ✅ (doc 11)
 
 ---
 

@@ -231,10 +231,10 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
     - [x] Build EAS Android déclenché et terminé sans erreur (artefact AAB généré : build
       `c2fcaeca-07b9-4a0c-a4fc-c6ea176902b1`, 1.0.0, versionCode 1)
     - [x] Build EAS iOS déclenché et terminé sans erreur (artefact IPA généré — builds 1→3, profil `production`)
-    - [ ] Les builds incorporent les plugins `expo-notifications` (vérifiable dans les logs EAS) — Android : push reçu
-      (28/10/2026) ; iOS : push reçu (31/10/2026, cf. ACC-E5)
+    - [x] Les builds incorporent les plugins `expo-notifications` (preuve indirecte : Android push reçu
+      (28/10/2026) ; iOS push reçu (31/10/2026, cf. ACC-E5))
     - [ ] L'app installée sur device demande la permission de notifications au premier lancement (non vérifié
-      explicitement)
+      explicitement, non bloquant : ACC-E3 reste ✅ car push reçu)
 
 ---
 
@@ -250,7 +250,8 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
     - [x] Build iOS soumis et visible dans l'onglet TestFlight d'App Store Connect
     - [x] Build Android soumis et visible dans la piste "Test interne" du Play Console (1er AAB **importé
       manuellement**, comme Google l'exige ; `eas submit` automatique validé avec le build versionCode 2 le 29/10)
-    - [ ] Testeurs notifiés (invitation TestFlight + lien opt-in Android) — Android ✅ ; iOS : Ozias seul testeur
+    - [x] Testeurs notifiés (invitation TestFlight + lien opt-in Android) — Android ✅ ; iOS ✅ pour Ozias, seul
+      testeur (aucun autre iPhone dans l'équipe)
 
 ---
 

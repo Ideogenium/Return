@@ -423,7 +423,7 @@ paths:
                     type: https://api.return.app/errors/return-date-too-soon
                     title: Return Date Too Soon
                     status: 400
-                    detail: Return date must be at least 2 days after the loan creation date.
+                    detail: Return date must be at least 2 days from now.
                     instance: /v1/loans
                     timestamp: '2026-01-15T10:30:00Z'
                     requestId: req_example123
@@ -685,7 +685,7 @@ paths:
         **Système (automatique)** :
         - `PENDING_CONFIRMATION` → `ACTIVE_BY_DEFAULT` (timeout 48h sans réponse de l'emprunteur)
         - `ACTIVE` / `ACTIVE_BY_DEFAULT` → `AWAITING_RETURN` (date de retour dépassée)
-        - `AWAITING_RETURN` → `NOT_RETURNED` (tous les rappels épuisés)
+        - `AWAITING_RETURN` → `NOT_RETURNED` (clôture quand le dernier rappel `FINAL_OVERDUE` (J+21) est envoyé **ou en échec** (`FAILED`) pour l'échéance actuelle ; règle en cours de révision, voir décision du 31/10)
 
         Les transitions invalides retournent une erreur 409 Conflict.
       operationId: updateLoanStatus
@@ -2620,7 +2620,7 @@ components:
           example: '2026-03-15'
           description: |
             Date de retour prévue (null = indéfinie).
-            Contrainte : minimum J+2 (2 jours après createdAt).
+            Contrainte : minimum J+2 (2 jours après la date du jour, jour calendaire UTC), à la création comme à la modification.
         status:
           $ref: '#/components/schemas/LoanStatus'
         confirmationDate:
@@ -3279,8 +3279,8 @@ components:
           example: '2026-03-15'
           description: |
             Date de retour prévue (null = indéfinie).
-            **Contrainte** : doit être au minimum 2 jours après la date de création du prêt (J+2).
-            Exemple : si le prêt est créé le 16/03, la date de retour minimum est le 18/03.
+            **Contrainte** : doit être au minimum 2 jours après la date du jour (J+2, jour calendaire UTC).
+            Exemple : si la requête est faite le 16/03, la date de retour minimum est le 18/03.
             Retourne une erreur 400 si la contrainte n'est pas respectée.
         notes:
           type: [string, 'null']

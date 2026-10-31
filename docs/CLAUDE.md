@@ -16,11 +16,11 @@ chacun porte sa feature de bout en bout (back + front + tests + doc). Plan en co
 
 - **Backend** : NestJS 11.x (TypeScript 5.8+), Monolithe Modulaire, Prisma 6.x+ ORM
 - **Frontend** : React Native 0.78+ (TypeScript), Zustand 5.x, React Navigation 7.x, React Native Paper
-- **Base de données** : PostgreSQL 17+ (principal) + Redis 8.x (cache, queues BullMQ, blacklist JWT)
-- **Stockage photos** : Cloudflare R2 (S3-compatible) en production, `LocalPhotoStorageService` (filesystem) en dev
+- **Base de données** : PostgreSQL 17+ (principal) + Redis 8.x (cache, blacklist JWT ; pas de BullMQ : les CRON tournent in-process, cf. CORR-09)
+- **Stockage photos** : Cloudflare R2 (S3-compatible) en production à partir du déploiement D2 (code livré, bascule pilotée par les variables `R2_*`), `LocalPhotoStorageService` (filesystem) en dev
 - **Infrastructure** : Fly.io (Europe West), Docker, GitHub Actions CI/CD
 - **Auth** : JWT (access token 15min + refresh token 30j) via Passport.js, révocation immédiate via Redis blacklist
-- **Tests** : Jest, Testcontainers, Supertest (backend), React Native Testing Library (frontend), Detox (post-MVP E2E)
+- **Tests** : Jest, Supertest (backend, e2e sans base réelle : Prisma ou services simulés), React Native Testing Library (frontend), Detox (post-MVP E2E)
 - **Logs** : Winston (JSON structuré, console transport uniquement)
 - **Validation** : class-validator + class-transformer (NestJS ValidationPipe)
 - **i18n** : FR + EN (app + notifications push) via react-i18next
@@ -134,9 +134,9 @@ api/            — apiClient Axios (baseURL, intercepteurs JWT, refresh token)
 components/     — Composants réutilisables par module (auth/, borrowers/, items/, profile/)
 config/         — api-modules.config.ts (toggle mock/real), theme.config.ts, i18n.config.ts
 i18n/           — Locales FR + EN
-navigation/     — RootNavigator → AuthNavigator | AppNavigator (Tab: Items, Borrowers, Profile)
+navigation/     — RootNavigator → AuthNavigator | AppNavigator (Tab: `LoanTab`, `BorrowerTab`, `ItemTab`, `ProfileTab`)
 screens/        — Écrans par module (auth/, borrowers/, items/, profile/)
-stores/         — Zustand stores (useAuthStore, useBorrowerStore, useItemStore)
+stores/         — Zustand stores (`useAuthStore`, `useBorrowerStore`, `useItemStore`, `useLoanStore`, `useHistoryStore`, `useReminderStore`, `useContactInvitationStore`, `useNotificationStore`) ; `resetSessionStores.ts` remet à zéro les stores de session à la déconnexion
 types/          — api.types.ts (Item, Borrower, Photo, ProblemDetails, PaginatedResponse, etc.)
 utils/          — error.ts (extractProblemDetails, getErrorMessage, ERROR_TYPE_MAP), photo.ts
 ```
@@ -147,7 +147,7 @@ utils/          — error.ts (extractProblemDetails, getErrorMessage, ERROR_TYPE
 - **Formulaires** : react-hook-form + Controller (validation client-side)
 - **Erreurs** : RFC 7807 `ProblemDetails` → `extractProblemDetails()` → `getErrorMessage(error, t)` → i18n
 - **API mocking** : MSW (Mock Service Worker) via `frontend/__mocks__/handlers.ts` + `server.ts`
-- **Toggle mock/real** : `frontend/src/config/api-modules.config.ts` — `{ items: false, borrowers: false, auth: false }`
+- **Toggle mock/real** : `frontend/src/config/api-modules.config.ts` — modules `auth`, `borrowers`, `items`, `loans`, `reminders`, `notifications`, `users`, `contact-invitations` (tous à `false` = API réelle)
 - **Tests** : Jest + RNTL (React Native Testing Library) + MSW pour mocks API
 - **Photos** : `PhotoPicker` (camera/galerie) + `PhotoGallery` (affichage + suppression) + `buildPhotoFormData()`
 

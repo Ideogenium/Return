@@ -31,8 +31,8 @@
 | CORR-07 | Rappels invisibles dans l'UI                                       | 🟡 Mineur   | Front (Ismael)                    | 2-4h                | ✅      |
 | CORR-08 | Endpoints History/Statistics non consommés                         | 🟡 Mineur   | Front (Ismael)                    | 1h                  | ✅      |
 | CORR-09 | BullMQ annoncé mais jamais implémenté                              | 🟡 Mineur   | Back (Esdras)                     | Dette doc           | ☐      |
-| CORR-10 | Pas de `coverageThreshold` configuré                               | 🟡 Mineur   | Back + Front                      | 30 min              | ☐      |
-| CORR-11 | `docs/CLAUDE.md` tableau Avancement périmé                         | 🟡 Mineur   | Doc                               | 10 min              | ☐      |
+| CORR-10 | Pas de `coverageThreshold` configuré                               | 🟡 Mineur   | Back + Front                      | 30 min              | ✅     |
+| CORR-11 | `docs/CLAUDE.md` tableau Avancement périmé                         | 🟡 Mineur   | Doc                               | 10 min              | ✅     |
 | CORR-12 | DNS custom `api.return.app` absent                                 | 🟡 Mineur   | Info / Back                       | Avant prod publique | ☐      |
 | CORR-13 | Incompatibilité Expo Push Token ↔ Firebase Admin (FCM)             | 🟠 Majeur   | Front + Back                      | 1-3h                | ✅      |
 | CORR-14 | Écrans Sprint 6 (Dashboard/History/Stats) retirés → Epic 4 partiel | 🟡 Décision | Front (Ismael) + produit          | 0 / 2-4j            | ◐ partiel (historique livré, dashboard post-échéance) |
@@ -63,8 +63,8 @@
        shared-cpu-1x 512 MB). Vérifier ensuite via `fly logs -a return-api` que les CRON s'exécutent.
     2. *À terme (si montée en charge)* → migrer les jobs vers **BullMQ** (worker Redis persistant) ou un **cron externe
        ** (Upstash QStash / GitHub Actions / Fly scheduled machine) appelant un endpoint `/v1/cron/tick`.
-- **Statut** : ✅ Livré (`min_machines_running = 1`, cf. doc 16 FEAT-02). Reste : plafonner à 1 machine (FEAT-02) tant que
-  les CRON ne sont pas migrés (CORR-09).
+- **Statut** : ✅ Livré (`min_machines_running = 1`, cf. doc 16 FEAT-02). 1 seule machine confirmée (`fly machines list` le 31/10) ; règle « jamais plus d'1 machine » tant
+  que les CRON ne sont pas migrés (CORR-09) écrite dans le doc 08.
 
 ---
 
@@ -247,12 +247,13 @@
 - **Gravité** : 🟡 Mineur
 - **Périmètre** : Back (+ Front)
 - **Effort** : 30 min
-- **Fichier(s) & preuve** : aucune clé `coverageThreshold` dans la config Jest (backend & frontend)
+- **Fichier(s) & preuve** : (constat initial : aucune clé `coverageThreshold`) désormais `frontend/jest.config.js`
+  (statements 76 / branches 76 / functions 71 / lines 77) et `backend/package.json` (88 / 74 / 82 / 89)
 - **Problème** : les cibles documentaires (Domain 95 / Services 90 / Controllers 70) ne sont **pas enforced** → une
   régression de couverture ne casse pas la CI.
 - **Action recommandée** : ajouter `coverageThreshold` dans la config Jest des deux côtés (après mesure du coverage réel
   actuel).
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré (FEAT-09) — seuils posés sous le niveau mesuré, la CI lance `--coverage` (front et back)
 
 ### CORR-11 — `docs/CLAUDE.md` tableau Avancement périmé
 
@@ -262,7 +263,7 @@
 - **Fichier(s) & preuve** : `docs/CLAUDE.md` section « Avancement » → marque Sprints 4.6 / 5 / 6 comme « — » (non faits)
   alors qu'ils sont mergés.
 - **Action recommandée** : mettre à jour le tableau d'avancement pour refléter la phase preprod réelle.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré — Sprints 4.6 / 5 / 6 à « Fait », phase pré-production et organisation par feature mentionnées
 
 ### CORR-12 — DNS custom `api.return.app` absent
 
