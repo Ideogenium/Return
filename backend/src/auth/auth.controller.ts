@@ -7,6 +7,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import type { AuthResponse } from './interfaces/auth-response.interface.js';
 import type { AuthenticatedUser } from './strategies/jwt.strategy.js';
+import { ThrottleByBodyField } from '../common/throttling/throttle-by-body-field.decorator.js';
 
 // =============================================================================
 // AuthController — Couche HTTP pour l'authentification
@@ -56,6 +57,10 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 900_000, limit: 10 } })
+  // FIX-37: 10 attempts per 15 min per client IP AND email, so one client cannot lock the
+  // login for everyone, nor for another account; plus 50 per 15 min per IP alone
+  // (clientIpCeiling in AppModule) against password spraying.
+  @ThrottleByBodyField('email')
   async login(@Body() dto: LoginDto): Promise<AuthResponse> {
     return this.authService.login(dto);
   }
