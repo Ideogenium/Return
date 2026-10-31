@@ -68,6 +68,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [isContesting, setIsContesting] = useState(false);
   const [contestApiError, setContestApiError] = useState<string | undefined>();
   const [editDialogVisible, setEditDialogVisible] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editNotes, setEditNotes] = useState('');
   const [editReturnDate, setEditReturnDate] = useState('');
   const [editReturnDateObj, setEditReturnDateObj] = useState<Date | undefined>();
@@ -189,8 +190,9 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const hasUnsavedEdit = editNotes !== (loan?.notes ?? '') || returnDateChanged;
 
   const handleEdit = async () => {
+    if (!loan || isSavingEdit) return;
     setEditApiError(undefined);
-    if (!loan) return;
+    setIsSavingEdit(true);
     const sendReturnDate = isReturnDateEditable(loan.status) && returnDateChanged;
     try {
       await useLoanStore.getState().updateLoan(id, {
@@ -217,6 +219,8 @@ export function LoanDetailScreen({ route, navigation }: Props) {
         // The loan left the editable statuses meanwhile: reload it to lock the date field.
         void reload();
       }
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -465,7 +469,11 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           testID="contest-loan-dialog"
           actions={
             <>
-              <Button onPress={() => setContestDialogVisible(false)} testID="cancel-contest-btn">
+              <Button
+                onPress={() => setContestDialogVisible(false)}
+                disabled={isContesting}
+                testID="cancel-contest-btn"
+              >
                 {t('common.cancel')}
               </Button>
               <Button
@@ -574,10 +582,19 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           testID="edit-loan-dialog"
           actions={
             <>
-              <Button onPress={() => setEditDialogVisible(false)} testID="cancel-edit-btn">
+              <Button
+                onPress={() => setEditDialogVisible(false)}
+                disabled={isSavingEdit}
+                testID="cancel-edit-btn"
+              >
                 {t('common.cancel')}
               </Button>
-              <Button onPress={handleEdit} testID="confirm-edit-btn">
+              <Button
+                onPress={handleEdit}
+                loading={isSavingEdit}
+                disabled={isSavingEdit}
+                testID="confirm-edit-btn"
+              >
                 {t('common.save')}
               </Button>
             </>

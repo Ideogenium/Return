@@ -76,4 +76,30 @@ describe('ConfirmationDialog', () => {
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
+
+  it('disables Cancel while the contest is sent', () => {
+    const props = {
+      loan,
+      visible: true,
+      onDismiss: jest.fn(),
+      onConfirm: jest.fn(),
+      onContest: jest.fn(),
+    };
+    const { rerender } = render(
+      <PaperProvider>
+        <ConfirmationDialog {...props} isLoading={false} />
+      </PaperProvider>,
+    );
+    fireEvent.press(screen.getByTestId('contest-btn'));
+
+    rerender(
+      <PaperProvider>
+        <ConfirmationDialog {...props} isLoading />
+      </PaperProvider>,
+    );
+
+    expect(screen.getByTestId('cancel-contest-btn').props.accessibilityState).toEqual(
+      expect.objectContaining({ disabled: true }),
+    );
+  });
 });

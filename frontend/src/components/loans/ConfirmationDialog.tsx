@@ -64,7 +64,11 @@ export function ConfirmationDialog({
         actions={
           showContestForm ? (
             <>
-              <Button onPress={() => setShowContestForm(false)} testID="cancel-contest-btn">
+              <Button
+                onPress={() => setShowContestForm(false)}
+                disabled={isLoading}
+                testID="cancel-contest-btn"
+              >
                 {t('common.cancel')}
               </Button>
               <Button
