@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import i18n from '../config/i18n.config';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useNotificationStore } from '../stores/useNotificationStore';
+import { resetSessionStores } from '../stores/resetSessionStores';
 import {
   registerForPushNotifications,
   setupNotificationHandler,
@@ -45,7 +46,8 @@ export function RootNavigator() {
         store.unregisterDeviceToken(deviceTokenRef.current).catch(() => {});
         deviceTokenRef.current = null;
       }
-      store.reset();
+      // Same reset as logout/refresh failure; kept after the device-token call to preserve its order
+      resetSessionStores();
     }
   }, [isAuthenticated]);
 

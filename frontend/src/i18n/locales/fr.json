@@ -45,6 +45,7 @@
     "changePassword": "Changer le mot de passe",
     "deleteAccount": "Supprimer mon compte",
     "settings": "Paramètres",
+    "history": "Historique des prêts",
     "currentPassword": "Mot de passe actuel",
     "newPassword": "Nouveau mot de passe",
     "confirmNewPassword": "Confirmer le nouveau mot de passe",
@@ -246,6 +247,11 @@
     "statusReturned": "Rendu",
     "statusNotReturned": "Non rendu",
     "statusAbandoned": "Abandonné",
+    "reminderPreventive": "Rappel avant échéance",
+    "reminderOnDueDate": "Rappel le jour de l'échéance",
+    "reminderFirstOverdue": "Rappel J+7",
+    "reminderSecondOverdue": "Rappel J+14",
+    "reminderFinalOverdue": "Dernier rappel J+21",
     "myLoans": "Mes prêts",
     "myBorrowings": "Mes emprunts",
     "emptyBorrowings": "Aucun emprunt",
@@ -294,6 +300,15 @@
     "timeHours": "{{count}}h",
     "timeDays": "{{count}}j",
     "unreadBadge": "{{count}} notifications non lues"
+  },
+  "history": {
+    "title": "Historique",
+    "filterAll": "Tous",
+    "empty": "Aucun prêt dans l'historique",
+    "emptySubtitle": "Les prêts terminés (rendus, non rendus, contestés ou abandonnés) apparaîtront ici",
+    "emptyFiltered": "Aucun prêt pour ce statut",
+    "emptyFilteredSubtitle": "Essayez un autre filtre ou affichez tous les prêts",
+    "loadMoreError": "Impossible de charger la suite"
   },
   "navigation": {
     "loans": "Prêts",

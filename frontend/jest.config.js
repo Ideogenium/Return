@@ -13,4 +13,9 @@ module.exports = {
     '^expo-notifications$': '<rootDir>/__mocks__/expo-notifications.ts',
   },
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/types/**'],
+  // Anti-regression safety net: ~2 points under the level measured on 2026-10-31
+  // (statements 78.50, branches 78.36, functions 73.98, lines 79.01). Not a target.
+  coverageThreshold: {
+    global: { statements: 76, branches: 76, functions: 71, lines: 77 },
+  },
 };

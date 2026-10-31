@@ -1,6 +1,13 @@
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../__mocks__/server';
 import { useAuthStore } from '../useAuthStore';
+import { useBorrowerStore } from '../useBorrowerStore';
+import { useContactInvitationStore } from '../useContactInvitationStore';
+import { useHistoryStore } from '../useHistoryStore';
+import { useItemStore } from '../useItemStore';
+import { useLoanStore } from '../useLoanStore';
+import { useNotificationStore } from '../useNotificationStore';
+import { useReminderStore } from '../useReminderStore';
 import apiClient, { UPLOAD_TIMEOUT_MS } from '../../api/apiClient';
 import {
   getAccessToken,
@@ -20,7 +27,65 @@ afterEach(async () => {
 });
 afterAll(() => server.close());
 
+// Marks every user-data store with the previous account's data
+function fillSessionStores() {
+  useLoanStore.setState({ loans: [{ id: 'l1' }] as never, selectedLoan: { id: 'l1' } as never });
+  useHistoryStore.setState({ loans: [{ id: 'h1' }] as never });
+  useReminderStore.setState({ loanId: 'l1', reminders: [{ id: 'r1' }] as never });
+  useBorrowerStore.setState({ borrowers: [{ id: 'b1' }] as never });
+  useItemStore.setState({ items: [{ id: 'i1' }] as never });
+  useContactInvitationStore.setState({
+    receivedInvitations: [{ id: 'c1' }] as never,
+    pendingCount: 2,
+  });
+  useNotificationStore.setState({ notifications: [{ id: 'n1' }] as never, unreadCount: 3 });
+}
+
+function expectSessionStoresEmpty() {
+  expect(useLoanStore.getState().loans).toEqual([]);
+  expect(useLoanStore.getState().selectedLoan).toBeNull();
+  expect(useHistoryStore.getState().loans).toEqual([]);
+  expect(useReminderStore.getState().reminders).toEqual([]);
+  expect(useReminderStore.getState().loanId).toBeNull();
+  expect(useBorrowerStore.getState().borrowers).toEqual([]);
+  expect(useItemStore.getState().items).toEqual([]);
+  expect(useContactInvitationStore.getState().receivedInvitations).toEqual([]);
+  expect(useContactInvitationStore.getState().pendingCount).toBe(0);
+  expect(useNotificationStore.getState().notifications).toEqual([]);
+  expect(useNotificationStore.getState().unreadCount).toBe(0);
+}
+
 describe('useAuthStore', () => {
+  describe('session data reset', () => {
+    it('empties every user-data store on logout', async () => {
+      fillSessionStores();
+      await useAuthStore.getState().logout();
+      expectSessionStoresEmpty();
+    });
+
+    it('empties every user-data store when the token refresh fails', async () => {
+      await setRefreshToken('expired');
+      server.use(http.post(`${API_BASE}/auth/refresh`, () => HttpResponse.error()));
+      fillSessionStores();
+      await useAuthStore.getState().refreshToken();
+      expectSessionStoresEmpty();
+    });
+
+    it('empties every user-data store when there is no refresh token', async () => {
+      fillSessionStores();
+      await useAuthStore.getState().refreshToken();
+      expectSessionStoresEmpty();
+    });
+
+    it('empties every user-data store when the session restore fails', async () => {
+      await setAccessToken('invalid-token');
+      server.use(http.get(`${API_BASE}/users/me`, () => HttpResponse.error()));
+      fillSessionStores();
+      await useAuthStore.getState().hydrate();
+      expectSessionStoresEmpty();
+    });
+  });
+
   describe('login', () => {
     it('should set user and tokens on successful login', async () => {
       await useAuthStore.getState().login('test@example.com', 'password');

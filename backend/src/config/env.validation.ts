@@ -70,4 +70,20 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   R2_PUBLIC_URL?: string;
+
+  // FEAT-10 overdue job. Opt-in: only the exact value 'true' enables it. The batch size
+  // is a positive integer (default 100) and the max share a number in ]0, 1] (default
+  // 0.5); an invalid value silently falls back to the default in LoansCronService
+  // rather than blocking startup.
+  @IsOptional()
+  @IsString()
+  OVERDUE_JOB_ENABLED?: string;
+
+  @IsOptional()
+  @IsString()
+  OVERDUE_JOB_BATCH_SIZE?: string;
+
+  @IsOptional()
+  @IsString()
+  OVERDUE_JOB_MAX_SHARE?: string;
 }

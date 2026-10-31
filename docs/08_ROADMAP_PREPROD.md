@@ -16,7 +16,7 @@
 | 1 — Backend Fly.io | ✅ Faite | App `return-api` (région `cdg`), Postgres `return-db` **non managé** (sauvegardes à notre charge). `CORS_ORIGIN=*` du PREPROD-006 est remplacé par une origine https exacte (voir « Exploitation Fly »). |
 | 2 — Config frontend | ✅ Faite | URL de prod `https://return-api.fly.dev/v1` (surcharge `EXPO_PUBLIC_API_URL`), tous les modules à `false` dans `api-modules.config.ts`. Identifiant d'app `com.ideogen.returnapp` (et non `com.ideogen.return`, `return` étant un mot-clé Java). |
 | 3/4 — APK et tests | ✅ Faites (re-test terrain en cours) | — |
-| 5 — Play test interne | ◑ Play Console créée ; piste interne = FEAT-05 | Voir `15_SETUP_COMPTES_DISTRIBUTION.md`. |
+| 5 — Play test interne | ✅ Piste interne active (FEAT-05, AAB importé puis `eas submit` auto validé le 29/10) | Voir `15_SETUP_COMPTES_DISTRIBUTION.md`. |
 | 5b — iOS TestFlight | ✅ Faite (FEAT-03) | Profil EAS `production` (pas `preview`), build dans le cloud EAS (aucun Mac requis), bundle `com.ideogen.returnapp`. Builds 1.0.0 (1)→(3) sur TestFlight. |
 | 6 — Push réels | ✅ Remplacée par l'Expo Push Service (CORR-13) | Plus de Firebase Admin côté back ni de secret Firebase sur Fly : voir `14_ROADMAP_PUSH_EXPO.md`. Push reçu sur iPhone physique le 31/10. |
 

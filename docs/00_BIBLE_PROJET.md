@@ -247,6 +247,12 @@ protégeant les biens de l'utilisateur.
 - Vue par Emprunteur : Taux de retour, délai moyen
 - Statistiques personnelles : Objet le plus prêté, meilleur emprunteur
 
+> **État d'implémentation (resync 28/10/2026)** : **partiel**. Livrés : consultation de l'historique des prêts
+> terminés (écran Historique depuis le Profil, filtre par statut, pagination) et statistiques de base dans le profil
+> prêteur. **Écart assumé / post-échéance** : vue Dashboard dédiée, statistiques « objet le plus prêté / meilleur
+> emprunteur » (`mostLoanedItems`, `topBorrowers`, disponibles côté API mais non affichées), filtres par date et par
+> emprunteur (cf. CORR-14, doc 11 et doc 16).
+
 #### Epic 5 : Gestion de Compte
 
 - Inscription / Connexion (email + mot de passe)

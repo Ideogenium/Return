@@ -5,6 +5,8 @@ import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
 import { ChangePasswordScreen } from '../screens/profile/ChangePasswordScreen';
 import { DeleteAccountScreen } from '../screens/profile/DeleteAccountScreen';
 import { SettingsScreen } from '../screens/profile/SettingsScreen';
+import { HistoryScreen } from '../screens/history/HistoryScreen';
+import { LoanDetailScreen } from '../screens/loans/LoanDetailScreen';
 import { NotificationBell } from '../components/notifications/NotificationBell';
 import type { ProfileStackParamList } from './types';
 
@@ -46,6 +48,17 @@ export function ProfileNavigator() {
         name="Settings"
         component={SettingsScreen}
         options={{ title: t('settings.title') }}
+      />
+      <Stack.Screen
+        name="LoanHistory"
+        component={HistoryScreen}
+        options={{ title: t('history.title') }}
+      />
+      {/* Same screen as in the Loan stack: back from a loan opened in the history returns to the list */}
+      <Stack.Screen
+        name="LoanDetail"
+        component={LoanDetailScreen}
+        options={{ title: t('loans.details') }}
       />
     </Stack.Navigator>
   );

@@ -7,18 +7,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Return** est une application mobile de suivi de prêts d'objets personnels et d'argent. Elle permet aux utilisateurs
 d'enregistrer des prêts, suivre les échéances et envoyer des rappels diplomatiques aux emprunteurs.
 
-**Statut actuel** : Sprints 1-3 complétés (Auth, Borrowers, Items/Photos) côté backend et frontend. Sprint 4 (Loans) en
-cours côté frontend.
+**Statut actuel** : phase **pré-production** (octobre 2026). Sprints 1 à 6 livrés (Auth, Borrowers, Items/Photos,
+Loans, Contact Invitations, Notifications, History/Dashboard). Backend déployé sur Fly.io (`return-api.fly.dev`),
+frontend branché dessus, builds EAS Android/iOS. Depuis le 25/10/2026, l'équipe travaille **par fonctionnalité** :
+chacun porte sa feature de bout en bout (back + front + tests + doc). Plan en cours : `16_ROADMAP_FEATURES.md`.
 
 ## Stack Technique
 
 - **Backend** : NestJS 11.x (TypeScript 5.8+), Monolithe Modulaire, Prisma 6.x+ ORM
 - **Frontend** : React Native 0.78+ (TypeScript), Zustand 5.x, React Navigation 7.x, React Native Paper
-- **Base de données** : PostgreSQL 17+ (principal) + Redis 8.x (cache, queues BullMQ, blacklist JWT)
-- **Stockage photos** : Cloudflare R2 (S3-compatible) en production, `LocalPhotoStorageService` (filesystem) en dev
+- **Base de données** : PostgreSQL 17+ (principal) + Redis 8.x (cache, blacklist JWT ; pas de BullMQ : les CRON tournent in-process, cf. CORR-09)
+- **Stockage photos** : Cloudflare R2 (S3-compatible) en production à partir du déploiement D2 (code livré, bascule pilotée par les variables `R2_*`), `LocalPhotoStorageService` (filesystem) en dev
 - **Infrastructure** : Fly.io (Europe West), Docker, GitHub Actions CI/CD
 - **Auth** : JWT (access token 15min + refresh token 30j) via Passport.js, révocation immédiate via Redis blacklist
-- **Tests** : Jest, Testcontainers, Supertest (backend), React Native Testing Library (frontend), Detox (post-MVP E2E)
+- **Tests** : Jest, Supertest (backend, e2e sans base réelle : Prisma ou services simulés), React Native Testing Library (frontend), Detox (post-MVP E2E)
 - **Logs** : Winston (JSON structuré, console transport uniquement)
 - **Validation** : class-validator + class-transformer (NestJS ValidationPipe)
 - **i18n** : FR + EN (app + notifications push) via react-i18next
@@ -33,8 +35,11 @@ Modules NestJS découplés par événements (EventEmitter2 + @OnEvent) :
 - **Items** : Objets prêtés (CRUD, photos max 5, catégories, valeur estimée)
 - **Loans** : Cycle de vie des prêts (8 statuts, types OBJECT/MONEY) — Sprint 4
 - **ContactInvitations** : Invitations entre utilisateurs inscrits (recherche, envoi, acceptation, rejet, expiration) — Sprint 4.6
-- **Reminders** : Rappels automatiques (BullMQ jobs) — politique fixe avec PREVENTIVE adaptatif (J-3 si Δ≥3, sinon J-1), J, J+7, J+14, J+21. Date retour minimum J+2. — Sprint 5
-- **Notifications** : Push (FCM) en V1. Email, SMS en V2+.
+- **Reminders** : Rappels automatiques (CRON `@nestjs/schedule` in-process, BullMQ non implémenté) — politique fixe avec PREVENTIVE adaptatif (J-3 si Δ≥3, sinon J-1), J, J+7, J+14, J+21. Date retour minimum J+2. — Sprint 5
+- **Notifications** : Push via Expo Push Service (`expo-server-sdk`) en V1. Email, SMS en V2+.
+- **History** : Prêts archivés (`GET /history/loans`) et statistiques du prêteur (`GET /history/statistics`).
+- **Dashboard** : Pas de module backend dédié ; les chiffres clés viennent des statistiques du module History
+  (profil prêteur).
 
 ## Architecture & Patterns Obligatoires
 
@@ -129,9 +134,9 @@ api/            — apiClient Axios (baseURL, intercepteurs JWT, refresh token)
 components/     — Composants réutilisables par module (auth/, borrowers/, items/, profile/)
 config/         — api-modules.config.ts (toggle mock/real), theme.config.ts, i18n.config.ts
 i18n/           — Locales FR + EN
-navigation/     — RootNavigator → AuthNavigator | AppNavigator (Tab: Items, Borrowers, Profile)
+navigation/     — RootNavigator → AuthNavigator | AppNavigator (Tab: `LoanTab`, `BorrowerTab`, `ItemTab`, `ProfileTab`)
 screens/        — Écrans par module (auth/, borrowers/, items/, profile/)
-stores/         — Zustand stores (useAuthStore, useBorrowerStore, useItemStore)
+stores/         — Zustand stores (`useAuthStore`, `useBorrowerStore`, `useItemStore`, `useLoanStore`, `useHistoryStore`, `useReminderStore`, `useContactInvitationStore`, `useNotificationStore`) ; `resetSessionStores.ts` remet à zéro les stores de session à la déconnexion
 types/          — api.types.ts (Item, Borrower, Photo, ProblemDetails, PaginatedResponse, etc.)
 utils/          — error.ts (extractProblemDetails, getErrorMessage, ERROR_TYPE_MAP), photo.ts
 ```
@@ -142,7 +147,7 @@ utils/          — error.ts (extractProblemDetails, getErrorMessage, ERROR_TYPE
 - **Formulaires** : react-hook-form + Controller (validation client-side)
 - **Erreurs** : RFC 7807 `ProblemDetails` → `extractProblemDetails()` → `getErrorMessage(error, t)` → i18n
 - **API mocking** : MSW (Mock Service Worker) via `frontend/__mocks__/handlers.ts` + `server.ts`
-- **Toggle mock/real** : `frontend/src/config/api-modules.config.ts` — `{ items: false, borrowers: false, auth: false }`
+- **Toggle mock/real** : `frontend/src/config/api-modules.config.ts` — modules `auth`, `borrowers`, `items`, `loans`, `reminders`, `notifications`, `users`, `contact-invitations` (tous à `false` = API réelle)
 - **Tests** : Jest + RNTL (React Native Testing Library) + MSW pour mocks API
 - **Photos** : `PhotoPicker` (camera/galerie) + `PhotoGallery` (affichage + suppression) + `buildPhotoFormData()`
 
@@ -173,9 +178,9 @@ docker compose up postgres redis        # Uniquement les services d'infrastructu
 | Sprint 2 | Borrowers | Fait | Fait |
 | Sprint 3 | Items + Photos | Fait | Fait |
 | Sprint 4 | Loans | Fait | Fait |
-| Sprint 4.6 | Contact Invitations | — | — |
-| Sprint 5 | Docker Dev + Validation J+2 + Notifications | — | — |
-| Sprint 6 | Dashboard + History | — | — |
+| Sprint 4.6 | Contact Invitations | Fait | Fait |
+| Sprint 5 | Docker Dev + Validation J+2 + Notifications | Fait | Fait |
+| Sprint 6 | Dashboard + History | Fait | Fait (historique ; dashboard dédié post-échéance) |
 
 ## Documents de Référence
 

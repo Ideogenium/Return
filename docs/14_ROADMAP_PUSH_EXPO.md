@@ -36,12 +36,12 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
 | ID      | Titre                                                         | Resp.     | Effort | Dépend de                 | Statut |
 |---------|---------------------------------------------------------------|-----------|--------|---------------------------|--------|
 | PUSH-P1 | Créer et uploader la clé APNs (iOS)                           | natismael | 20 min | —                         | ✅ (FEAT-03, 31/10) |
-| PUSH-P2 | Uploader le compte de service FCM V1 (Android)                | natismael | 15 min | —                         | ☐      |
+| PUSH-P2 | Uploader le compte de service FCM V1 (Android)                | natismael | 15 min | —                         | ✅ (push reçu sur le build production Play, piste interne, 28/10) |
 | PUSH-F1 | Ajouter `projectId` à `getExpoPushTokenAsync`                 | Ismael    | 15 min | —                         | ✅     |
 | PUSH-F2 | Déclarer `expo-notifications` dans `app.json > plugins`       | Ismael    | 5 min  | —                         | ✅     |
 | PUSH-F3 | Canal Android `setNotificationChannelAsync`                   | Ismael    | 20 min | PUSH-F1                   | ✅     |
 | PUSH-F4 | Listeners de tap + navigation vers `LoanDetailScreen`         | Ismael    | 1h     | PUSH-F1, PUSH-F2          | ✅     |
-| PUSH-F5 | Rebuild EAS preview (Android + iOS)                           | Ismael    | 30 min | PUSH-F1, PUSH-F2, PUSH-F3 | ◑ iOS ✅ (FEAT-03) · Android : FEAT-05 |
+| PUSH-F5 | Rebuild EAS preview (Android + iOS)                           | Ismael    | 30 min | PUSH-F1, PUSH-F2, PUSH-F3 | ✅ iOS (FEAT-03) · Android (FEAT-05, piste interne Play ; tap sur notif → bon prêt à vérifier, ACC-E5) |
 | PUSH-B1 | Installer `expo-server-sdk`, retirer `firebase-admin`         | Ozias     | 10 min | —                         | ✅ Fait |
 | PUSH-B2 | Réécrire `firebase.service.ts` avec `expo-server-sdk`         | Ozias     | 1h30   | PUSH-B1                   | ✅ Fait |
 | PUSH-B3 | Vérifier compat `isAvailable()` — `notifications.service.ts`  | Ozias     | 15 min | PUSH-B2                   | ✅ Fait |
@@ -101,9 +101,9 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
   console Firebase du projet Return, puis l'uploader via `eas credentials` (Android > FCM V1 Service Account Key).
   Il s'agit d'un **credential EAS** — ce n'est pas un secret Fly.io et ce n'est pas `firebase-admin`.
 - **Critères d'acceptation** :
-    - [ ] Fichier `google-services.json` / clé FCM V1 récupéré depuis la console Firebase
-    - [ ] Credential uploadé dans EAS (`eas credentials` confirme la présence côté Android)
-    - [ ] Le build Android suivant (PUSH-F5) intègre la configuration FCM
+    - [x] Fichier `google-services.json` / clé FCM V1 récupéré depuis la console Firebase
+    - [x] Credential uploadé dans EAS (`eas credentials` confirme la présence côté Android)
+    - [x] Le build Android suivant (PUSH-F5) intègre la configuration FCM (push reçu sur le build production, 28/10)
 
 ---
 
@@ -204,10 +204,10 @@ Aucune migration de données — les tokens en base sont déjà des `ExpoPushTok
   PUSH-F3. Ce build intègre les entitlements natifs push (APNs iOS, FCM Android) et installe le canal Android. Sans
   ce rebuild, les corrections F1/F2/F3 sont sans effet sur les builds existants.
 - **Critères d'acceptation** :
-    - [ ] Build EAS Android preview déclenché et terminé sans erreur
+    - [x] Build EAS Android déclenché et terminé sans erreur (profil `production` au lieu de `preview` — FEAT-05, AAB versionCode 1 puis 2)
     - [x] Build EAS iOS déclenché et terminé sans erreur (profil `production` au lieu de `preview` — FEAT-03, builds 1→3)
-    - [ ] Les builds incorporent bien les plugins `expo-notifications` (vérifiable dans les logs EAS)
-    - [ ] L'APK/IPA installé sur device demande bien la permission de notifications au premier lancement
+    - [x] Les builds incorporent bien les plugins `expo-notifications` (preuve indirecte : push reçu sur les builds Android et iOS)
+    - [ ] L'APK/IPA installé sur device demande bien la permission de notifications au premier lancement (non vérifié explicitement)
 
 ---
 

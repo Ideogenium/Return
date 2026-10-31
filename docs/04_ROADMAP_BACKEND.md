@@ -19,8 +19,8 @@
 >   `14_ROADMAP_PUSH_EXPO.md`).
 > - **Photos** : Cloudflare R2 livré en fin de chantier preprod (FEAT-01) et non au Sprint 3 / Phase 6.5 ; la
 >   référence unique est `10_ROADMAP_CLOUDFLARE_R2.md` § « État au 31/10/2026 ».
-> - **Sprint 6** : pas de Swagger UI (contrat manuel `docs/openapi.yaml`, contract-first), pas de seed, pas de
->   `coverageThreshold` (CORR-10 / FEAT-09) ; e2e : 3 suites, dont 2 tests rouges connus dans
+> - **Sprint 6** : pas de Swagger UI (contrat manuel `docs/openapi.yaml`, contract-first), pas de seed, seuils de couverture en place
+>   (`coverageThreshold` back 88/74/82/89, front 76/76/71/77 en statements/branches/functions/lines ; CORR-10 / FEAT-09) ; e2e : 3 suites, dont 2 tests rouges connus dans
 >   `contact-invitations.e2e-spec.ts`. Déploiement sur `return-api.fly.dev` (pas de domaine `api.return.app`),
 >   Postgres Fly non managé.
 > - **Rappels (FEAT-11)** : voir la note en fin de Sprint 5.
@@ -392,7 +392,7 @@ Cyclé TDD par comportement.
 
 | ID           | Titre                                                                                       | Dépendance | Critère de Fin                    | Temps |
 | ------------ | ------------------------------------------------------------------------------------------- | ---------- | --------------------------------- | ----- |
-| **LOAN-017** | RED : Test ACTIVE -> AWAITING_RETURN si returnDate dépassée                                 | LOAN-016   | Test écrit, échoue                | 20min |
+| **LOAN-017** | RED : Test ACTIVE -> AWAITING_RETURN si returnDate dépassée                                 | LOAN-016   | ✅ Fait (FEAT-10, 28/10/2026)     | 20min |
 | **LOAN-018** | RED : Test AWAITING_RETURN -> RETURNED                                                      | LOAN-017   | Test écrit, échoue                | 20min |
 | **LOAN-019** | RED : Test AWAITING_RETURN -> NOT_RETURNED après 5 rappels (via AllRemindersExhaustedEvent) | LOAN-018   | Test écrit, échoue                | 25min |
 | **LOAN-020** | RED : Test transition invalide retourne 409 Conflict (ex: RETURNED -> ACTIVE)               | LOAN-019   | Test écrit, échoue                | 20min |

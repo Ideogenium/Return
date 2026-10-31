@@ -183,6 +183,31 @@ npm run build
 npm run start:prod
 ```
 
+### Scripts ponctuels
+
+#### `db:legacy-fix` : données anciennes du déploiement D2
+
+Nettoie les données antérieures à FEAT-11 et mesure ce que le job overdue (FEAT-10) trouvera. Il n'écrit rien tant que `--apply` n'est pas passé.
+
+- a. Annule (`CANCELLED`) les rappels `SCHEDULED` d'un prêt clos (tout statut non remindable) ou supprimé.
+- b. Replanifie, comme FEAT-11, les prêts `ACTIVE` / `ACTIVE_BY_DEFAULT` dont les rappels `SCHEDULED` ne suivent pas la `returnDate` actuelle. Les prêts `AWAITING_RETURN` dans ce cas ne sont jamais modifiés : ils sont listés pour examen manuel.
+- c. Compte (lecture seule) les prêts que `markAwaitingReturn` basculerait, que `closeExhausted` clôturerait, et les prêts ouverts, pour régler `OVERDUE_JOB_BATCH_SIZE` / `OVERDUE_JOB_MAX_SHARE`.
+
+Précondition : **sauvegarde de la base faite** avant tout `--apply`. Les étapes a et b s'exécutent dans une seule transaction (tout ou rien) ; relancé, le script ne fait plus rien.
+
+```bash
+# Tunnel vers la base de prod (autre terminal), puis :
+export DATABASE_URL="postgresql://...@localhost:<port>/<base>"
+
+# À blanc : comptes et liste des UUID concernés, aucune écriture
+npm run db:legacy-fix
+
+# Écriture (après relecture de la sortie à blanc)
+npm run db:legacy-fix -- --apply
+```
+
+Le script compile le projet (`tsc`) puis lance un `PrismaClient` direct : aucune application Nest, aucun cron, aucun listener n'est démarré.
+
 ---
 
 ## Structure du backend

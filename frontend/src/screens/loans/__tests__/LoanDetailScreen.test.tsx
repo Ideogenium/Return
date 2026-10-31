@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { MD3LightTheme, PaperProvider, Dialog } from 'react-native-paper';
 import { server } from '../../../../__mocks__/server';
@@ -6,8 +6,11 @@ import { http, HttpResponse } from 'msw';
 import { Text } from 'react-native';
 import { LoanDetailScreen } from '../LoanDetailScreen';
 import { LoanListScreen } from '../LoanListScreen';
+import apiClient from '../../../api/apiClient';
 import { useLoanStore } from '../../../stores/useLoanStore';
 import { useAuthStore } from '../../../stores/useAuthStore';
+import { useReminderStore } from '../../../stores/useReminderStore';
+import { useHistoryStore } from '../../../stores/useHistoryStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { LoanStackParamList } from '../../../navigation/types';
 
@@ -75,6 +78,8 @@ beforeEach(() => {
 afterEach(() => {
   server.resetHandlers();
   useLoanStore.getState().reset();
+  useReminderStore.getState().reset();
+  useHistoryStore.getState().reset();
   useAuthStore.setState({ user: null, accessToken: null });
 });
 afterAll(() => server.close());
@@ -258,6 +263,120 @@ describe('LoanDetailScreen', () => {
       expect(screen.queryByTestId('loan-detail')).toBeNull();
     });
   });
+
+  it('should remove the deleted loan from the history list', async () => {
+    await useHistoryStore.getState().fetchArchivedLoans();
+    const archivedId = useHistoryStore.getState().loans[0]!.id;
+    renderDetailScreen(archivedId);
+
+    await waitFor(() => expect(screen.getByTestId('delete-loan-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('delete-loan-btn'));
+    await waitFor(() => expect(screen.getByTestId('confirm-delete-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('confirm-delete-btn'));
+
+    await waitFor(() => {
+      expect(useHistoryStore.getState().loans.map((loan) => loan.id)).not.toContain(archivedId);
+    });
+  });
+
+  it('should keep the history list when the deletion fails', async () => {
+    await useHistoryStore.getState().fetchArchivedLoans();
+    const archivedId = useHistoryStore.getState().loans[0]!.id;
+    server.use(
+      http.delete('http://localhost:3000/v1/loans/:id', () =>
+        HttpResponse.json({ status: 500, title: 'Boom' }, { status: 500 }),
+      ),
+    );
+    renderDetailScreen(archivedId);
+
+    await waitFor(() => expect(screen.getByTestId('delete-loan-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('delete-loan-btn'));
+    await waitFor(() => expect(screen.getByTestId('confirm-delete-btn')).toBeTruthy());
+    fireEvent.press(screen.getByTestId('confirm-delete-btn'));
+
+    await waitFor(() => expect(screen.getByTestId('api-error')).toBeTruthy());
+    expect(useHistoryStore.getState().loans.map((loan) => loan.id)).toContain(archivedId);
+  });
+
+  describe('reminders in timeline', () => {
+    const REMINDERS_URL = 'http://localhost:3000/v1/loans/:id/reminders';
+
+    it('should show sent and scheduled reminders to the lender', async () => {
+      renderDetailScreen();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reminder before due date')).toBeTruthy();
+      });
+      expect(screen.getByText('Reminder on due date')).toBeTruthy();
+    });
+
+    it('should not call the reminders endpoint for the borrower', async () => {
+      const getSpy = jest.spyOn(apiClient, 'get');
+      server.use(
+        http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+          HttpResponse.json(
+            {
+              id: params.id,
+              item: {
+                id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+                name: 'Perceuse Bosch',
+                category: 'TOOLS',
+                createdAt: '2026-02-10T10:00:00Z',
+              },
+              lender: { id: 'other-user-id', firstName: 'Alice', lastName: 'Martin' },
+              borrower: { id: 'b-1', firstName: 'John', lastName: 'Doe' },
+              status: 'ACTIVE',
+              returnDate: '2026-04-15',
+              confirmationDate: '2026-02-02T10:00:00Z',
+              returnedDate: null,
+              notes: null,
+              contestReason: null,
+              createdAt: '2026-02-01T10:00:00Z',
+              updatedAt: '2026-02-02T10:00:00Z',
+            },
+            { status: 200 },
+          ),
+        ),
+        http.get(REMINDERS_URL, () => HttpResponse.json([], { status: 200 })),
+      );
+
+      renderDetailScreen();
+
+      await waitFor(() => {
+        expect(screen.getByTestId('loan-timeline')).toBeTruthy();
+      });
+      // The reminders effect runs once the loan is loaded: let it settle before asserting
+      await act(async () => {});
+      const requestedUrls = getSpy.mock.calls.map(([url]) => url);
+      expect(requestedUrls).toContain('/loans/7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+      expect(requestedUrls.some((url) => String(url).includes('/reminders'))).toBe(false);
+      expect(screen.queryByText(/reminder/i)).toBeNull();
+      getSpy.mockRestore();
+    });
+
+    it('should still render the timeline when the reminders request fails', async () => {
+      const getSpy = jest.spyOn(apiClient, 'get');
+      server.use(http.get(REMINDERS_URL, () => HttpResponse.error()));
+
+      renderDetailScreen();
+
+      await waitFor(() => {
+        expect(getSpy.mock.calls.some(([url]) => String(url).includes('/reminders'))).toBe(true);
+      });
+      // Wait for the failed request to actually settle before checking the outcome
+      const remindersCallIndex = getSpy.mock.calls.findIndex(([url]) =>
+        String(url).includes('/reminders'),
+      );
+      await getSpy.mock.results[remindersCallIndex]!.value.catch(() => {});
+      await act(async () => {});
+
+      expect(screen.getByTestId('loan-timeline')).toBeTruthy();
+      expect(useReminderStore.getState().reminders).toEqual([]);
+      expect(screen.queryByText(/reminder/i)).toBeNull();
+      expect(screen.queryByTestId('api-error')).toBeNull();
+      getSpy.mockRestore();
+    });
+  });
 });
 
 describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', () => {
@@ -415,6 +534,99 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
       expect(screen.getByTestId('return-date-locked-hint')).toBeTruthy();
     });
     expect(screen.queryByTestId('edit-return-date-input')).toBeNull();
+  });
+
+  it('drops the cached reminders once the return date is changed, since the backend reschedules them', async () => {
+    serveLoanWithStatus('ACTIVE');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    await waitFor(() => {
+      expect(useReminderStore.getState().reminders.length).toBeGreaterThan(0);
+    });
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toHaveProperty('returnDate');
+      expect(useReminderStore.getState().loanId).toBeNull();
+    });
+    expect(useReminderStore.getState().reminders).toEqual([]);
+  });
+
+  it('brings the reminders back after a return date change, once the backend had time to reschedule', async () => {
+    serveLoanWithStatus('ACTIVE');
+    capturePatchBody();
+    let remindersRequests = 0;
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id/reminders', () => {
+        remindersRequests += 1;
+        return HttpResponse.json([
+          {
+            id: 'reminder-new',
+            loanId: '7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d',
+            type: 'PREVENTIVE',
+            status: 'SCHEDULED',
+            scheduledFor: '2026-03-10T09:00:00Z',
+            sentAt: null,
+          },
+        ]);
+      }),
+    );
+
+    await openEditDialog();
+    await waitFor(() => expect(remindersRequests).toBe(1));
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => expect(useReminderStore.getState().loanId).toBeNull());
+    await waitFor(
+      () => {
+        expect(remindersRequests).toBe(2);
+        expect(useReminderStore.getState().reminders).toHaveLength(1);
+      },
+      { timeout: 4000 },
+    );
+  });
+
+  it('reloads the reminders when the same loan is opened again', async () => {
+    serveLoanWithStatus('ACTIVE');
+    let remindersRequests = 0;
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id/reminders', () => {
+        remindersRequests += 1;
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const first = renderDetailScreen();
+    await waitFor(() => expect(remindersRequests).toBe(1));
+    first.unmount();
+    // The store still holds this loan's reminders: reopening must not trust them
+    expect(useReminderStore.getState().loanId).toBe('7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d');
+
+    renderDetailScreen();
+    await waitFor(() => expect(remindersRequests).toBe(2));
+  });
+
+  it('keeps the cached reminders when only the notes change', async () => {
+    serveLoanWithStatus('ACTIVE');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    await waitFor(() => {
+      expect(useReminderStore.getState().reminders.length).toBeGreaterThan(0);
+    });
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toEqual({ notes: 'new notes' });
+      expect(editDialog()?.props.visible).toBe(false);
+    });
+    expect(useReminderStore.getState().reminders.length).toBeGreaterThan(0);
   });
 
   it('closes the edit dialog once the changes are saved', async () => {

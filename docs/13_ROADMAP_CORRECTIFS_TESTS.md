@@ -71,7 +71,7 @@
 | FIX-14 | Chantier stats prêteur : brancher `/history/statistics` (ex-FIX-06/07/08) | 🟠 Majeur   | Les deux (surtout Front)             | M                    | ✅ Fait    |
 | FIX-15 | trustScore global incohérent (par-relation back vs global front)          | 🟠 Majeur   | Front + Back — MVP                   | M                    | ✅ Fait    |
 | FIX-16 | Temps réel (websockets)                                                   | 🟡 Mineur   | Back + Front — POST-MVP              | M→L                  | ☐        |
-| FIX-17 | trustScore faussé : CONTESTÉS + prêts en cours comptés au dénominateur     | 🟠 Majeur   | Back (Ozias) + Front (Ismael)        | S                    | ✅ Back / ⏳ Front |
+| FIX-17 | trustScore faussé : CONTESTÉS + prêts en cours comptés au dénominateur     | 🟠 Majeur   | Back (Ozias) + Front (Ismael)        | S                    | ✅ |
 
 ---
 
@@ -216,6 +216,9 @@ Comportement inchangé : auto-confirmation à 48h + PREVENTIVE J-3.
 
 La transition automatique `ACTIVE → AWAITING_RETURN` à l'échéance (soulevée lors du 1er audit) est un **sujet
 séparé**, à confirmer avec Ozias — hors périmètre FIX-05.
+
+> **Traité (FEAT-10, 28/10/2026)** : un CRON horaire `handleOverdueLoans` fait passer les prêts `ACTIVE` /
+> `ACTIVE_BY_DEFAULT` en `AWAITING_RETURN` à l'échéance (cf. doc 16).
 
 - **Statut** : ✅ Fait — back : volet A (auto-confirm 24h pour Δ<3j) + volet B (pas de PREVENTIVE pour Δ<3j) livrés
 
@@ -395,7 +398,7 @@ séparé**, à confirmer avec Ozias — hors périmètre FIX-05.
 ### FIX-17 — trustScore faussé par les prêts contestés et en cours
 
 - **Gravité** : 🟠 Majeur — MVP
-- **Périmètre** : Back (Ozias) ✅ + Front (Ismael) ⏳
+- **Périmètre** : Back (Ozias) ✅ + Front (Ismael) ✅
 - **Effort** : S
 - **Lien** : prolonge **FIX-15** (même calcul de trustScore)
 - **Fichier(s) & preuve** :
@@ -414,7 +417,8 @@ séparé**, à confirmer avec Ozias — hors périmètre FIX-05.
 - **Action Front (Ismael)** : gérer `trustScore = null` partout où il s'affiche (profil self, fiche contact, liste des
   emprunteurs, détail de prêt, top emprunteurs) → afficher un état « pas encore noté » / « — », **ne pas** supposer un
   nombre (risque de `null %` ou crash sur `.toFixed()`).
-- **Statut** : ✅ Back livré (commit `e4d7ed0`) · ⏳ Front à faire
+- **Statut** : ✅ Back livré (commit `e4d7ed0`) · ✅ Front livré (commit `c4d6d91`,
+  « fix(borrowers): render null trustScore as not-yet-rated in stats badge and profile »)
 
 ---
 
@@ -508,7 +512,7 @@ est POST-MVP (FIX-16).
 | —     | FIX-16 — Websockets                                                            | M→L    | POST-MVP           |
 
 > **Note Ozias** : la transition automatique `ACTIVE → AWAITING_RETURN` à l'échéance est un sujet à confirmer
-> séparément — hors périmètre des FIX ci-dessus.
+> séparément — hors périmètre des FIX ci-dessus. **Traité (FEAT-10, 28/10/2026)**, cf. doc 16.
 
 ---
 

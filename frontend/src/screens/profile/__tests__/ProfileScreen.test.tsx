@@ -3,22 +3,30 @@ import { http, HttpResponse } from 'msw';
 import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider } from 'react-native-paper';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Text } from 'react-native';
 import { server } from '../../../../__mocks__/server';
 import { ProfileScreen } from '../ProfileScreen';
 import { useAuthStore } from '../../../stores/useAuthStore';
+import { useHistoryStore } from '../../../stores/useHistoryStore';
+import type { ProfileStackParamList } from '../../../navigation/types';
 import i18n from '../../../config/i18n.config';
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<ProfileStackParamList>();
 
 // Real store actions, captured before any test replaces them.
 const authDefaults = useAuthStore.getState();
+
+function DummyHistory() {
+  return <Text>HistoryScreen</Text>;
+}
 
 function renderProfile() {
   return render(
     <PaperProvider>
       <NavigationContainer>
-        <Stack.Navigator>
-          <Stack.Screen name="Profile" component={ProfileScreen as never} />
+        <Stack.Navigator initialRouteName="Profile">
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="LoanHistory" component={DummyHistory} />
         </Stack.Navigator>
       </NavigationContainer>
     </PaperProvider>,
@@ -31,7 +39,10 @@ beforeAll(() => {
 });
 afterEach(() => {
   server.resetHandlers();
-  act(() => useAuthStore.getState().reset());
+  act(() => {
+    useAuthStore.getState().reset();
+    useHistoryStore.getState().reset();
+  });
 });
 afterAll(() => server.close());
 
@@ -41,15 +52,7 @@ describe('ProfileScreen', () => {
     const refreshUser = jest.fn(() => Promise.resolve());
     act(() => useAuthStore.setState({ user: null, hydrate, refreshUser }));
 
-    render(
-      <PaperProvider>
-        <NavigationContainer>
-          <Stack.Navigator>
-            <Stack.Screen name="Profile" component={ProfileScreen as never} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </PaperProvider>,
-    );
+    renderProfile();
 
     await waitFor(() => {
       expect(refreshUser).toHaveBeenCalled();
@@ -86,5 +89,33 @@ describe('ProfileScreen', () => {
       expect(useAuthStore.getState().user).not.toBeNull();
     });
     expect(screen.queryByTestId('profile-error')).toBeNull();
+  });
+
+  describe('with a signed-in user', () => {
+    beforeEach(() => {
+      act(() =>
+        useAuthStore.setState({
+          user: {
+            id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+            email: 'test@example.com',
+            firstName: 'John',
+            lastName: 'Doe',
+            role: 'LENDER',
+            profilePicture: null,
+            createdAt: '2026-02-01T10:00:00Z',
+            lastLoginAt: '2026-02-18T08:00:00Z',
+          },
+          isLoading: false,
+        }),
+      );
+    });
+
+    it('should open the loan history when the history button is pressed', async () => {
+      renderProfile();
+
+      fireEvent.press(await screen.findByTestId('history-btn'));
+
+      await waitFor(() => expect(screen.getByText('HistoryScreen')).toBeTruthy());
+    });
   });
 });

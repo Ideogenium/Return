@@ -80,7 +80,14 @@ export const useLoanStore = create<LoanState>((set) => ({
       const { data } = await apiClient.get<Loan>(`/loans/${id}`);
       set({ selectedLoan: data, isLoading: false });
     } catch (err) {
-      set({ isLoading: false, error: extractProblemDetails(err) });
+      const problem = extractProblemDetails(err);
+      // Access lost or loan gone: never keep showing the previously fetched copy
+      const isGone = problem.status === 403 || problem.status === 404;
+      set((state) => ({
+        isLoading: false,
+        error: problem,
+        selectedLoan: isGone && state.selectedLoan?.id === id ? null : state.selectedLoan,
+      }));
       throw err;
     }
   },

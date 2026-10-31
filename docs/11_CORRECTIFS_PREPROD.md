@@ -22,20 +22,20 @@
 
 | ID      | Titre                                                              | Gravité     | Périmètre                         | Effort              | Statut |
 |---------|--------------------------------------------------------------------|-------------|-----------------------------------|---------------------|--------|
-| CORR-01 | CRON in-process vs Fly.io scale-to-zero                            | 🔴 Critique | Back (Esdras)                     | 5 min / 2-3h        | ☐      |
+| CORR-01 | CRON in-process vs Fly.io scale-to-zero                            | 🔴 Critique | Back (Esdras)                     | 5 min / 2-3h        | ✅      |
 | CORR-02 | Stockage photos R2 non implémenté                                  | 🟠 Majeur   | Back (Esdras)                     | 2-3h                | ◑ code ✅ (FEAT-01) · recette après D2 |
-| CORR-03 | `expo-notifications` absent des plugins `app.json`                 | 🟠 Majeur   | Front (Ismael)                    | 5 min               | ☐      |
-| CORR-04 | `getExpoPushTokenAsync()` sans `projectId`                         | 🟠 Majeur   | Front (Ismael)                    | 5 min               | ☐      |
+| CORR-03 | `expo-notifications` absent des plugins `app.json`                 | 🟠 Majeur   | Front (Ismael)                    | 5 min               | ✅      |
+| CORR-04 | `getExpoPushTokenAsync()` sans `projectId`                         | 🟠 Majeur   | Front (Ismael)                    | 5 min               | ✅      |
 | CORR-05 | Secrets Fly à définir/vérifier                                     | 🟠 Majeur   | Back (Esdras)                     | 15 min              | ◑ stagés · effectifs au déploiement D2 |
 | CORR-06 | Type MONEY orphelin (UX)                                           | 🟡 Mineur   | Front (Ismael) + décision produit | 30 min              | ☐      |
-| CORR-07 | Rappels invisibles dans l'UI                                       | 🟡 Mineur   | Front (Ismael)                    | 2-4h                | ☐      |
-| CORR-08 | Endpoints History/Statistics non consommés                         | 🟡 Mineur   | Front (Ismael)                    | 1h                  | ☐      |
+| CORR-07 | Rappels invisibles dans l'UI                                       | 🟡 Mineur   | Front (Ismael)                    | 2-4h                | ✅      |
+| CORR-08 | Endpoints History/Statistics non consommés                         | 🟡 Mineur   | Front (Ismael)                    | 1h                  | ✅      |
 | CORR-09 | BullMQ annoncé mais jamais implémenté                              | 🟡 Mineur   | Back (Esdras)                     | Dette doc           | ☐      |
-| CORR-10 | Pas de `coverageThreshold` configuré                               | 🟡 Mineur   | Back + Front                      | 30 min              | ☐      |
-| CORR-11 | `docs/CLAUDE.md` tableau Avancement périmé                         | 🟡 Mineur   | Doc                               | 10 min              | ☐      |
+| CORR-10 | Pas de `coverageThreshold` configuré                               | 🟡 Mineur   | Back + Front                      | 30 min              | ✅     |
+| CORR-11 | `docs/CLAUDE.md` tableau Avancement périmé                         | 🟡 Mineur   | Doc                               | 10 min              | ✅     |
 | CORR-12 | DNS custom `api.return.app` absent                                 | 🟡 Mineur   | Info / Back                       | Avant prod publique | ☐      |
-| CORR-13 | Incompatibilité Expo Push Token ↔ Firebase Admin (FCM)             | 🟠 Majeur   | Front + Back                      | 1-3h                | ☐      |
-| CORR-14 | Écrans Sprint 6 (Dashboard/History/Stats) retirés → Epic 4 partiel | 🟡 Décision | Front (Ismael) + produit          | 0 / 2-4j            | ☐      |
+| CORR-13 | Incompatibilité Expo Push Token ↔ Firebase Admin (FCM)             | 🟠 Majeur   | Front + Back                      | 1-3h                | ✅      |
+| CORR-14 | Écrans Sprint 6 (Dashboard/History/Stats) retirés → Epic 4 partiel | 🟡 Décision | Front (Ismael) + produit          | 0 / 2-4j            | ◐ partiel (historique livré, dashboard post-échéance) |
 
 ---
 
@@ -63,7 +63,8 @@
        shared-cpu-1x 512 MB). Vérifier ensuite via `fly logs -a return-api` que les CRON s'exécutent.
     2. *À terme (si montée en charge)* → migrer les jobs vers **BullMQ** (worker Redis persistant) ou un **cron externe
        ** (Upstash QStash / GitHub Actions / Fly scheduled machine) appelant un endpoint `/v1/cron/tick`.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré (`min_machines_running = 1`, cf. doc 16 FEAT-02). 1 seule machine confirmée (`fly machines list` le 31/10) ; règle « jamais plus d'1 machine » tant
+  que les CRON ne sont pas migrés (CORR-09) écrite dans le doc 08.
 
 ---
 
@@ -106,7 +107,7 @@
   entitlements et le code natif soient injectés par Expo Prebuild. Sans ça, **les push ne fonctionnent pas sur l'APK** (
   uniquement en Expo Go / web).
 - **Action recommandée** : ajouter `"expo-notifications"` au tableau `plugins` de `app.json`, puis rebuild EAS.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré (push reçu sur le build Android de production, 28/10/2026)
 
 ### CORR-04 — `getExpoPushTokenAsync()` sans `projectId`
 
@@ -119,7 +120,7 @@
 - **Problème** : avec Expo SDK 49+, `getExpoPushTokenAsync()` exige `{ projectId }` hors Expo Go. Sans ça, **erreur en
   build standalone**.
 - **Action recommandée** : passer `{ projectId: '595176ea-3595-4aec-8ba5-b56da4f48a67' }`.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré (push reçu sur le build Android de production, 28/10/2026)
 
 ### CORR-05 — Secrets Fly à définir / vérifier
 
@@ -168,7 +169,7 @@
       build) ; back conserve Firebase Admin. Cohérent avec la stack FCM des roadmaps.
     - **Option B** : back → API Expo Push (`expo-server-sdk` / `exp.host/--/api/v2/push/send`) ; front conserve
       `getExpoPushTokenAsync()`. Plus simple, mais crée une dépendance Expo.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Option B retenue et livrée (Expo Push Service, `firebase-admin` retiré)
 
 ---
 
@@ -206,7 +207,8 @@
   friction sociale ».
 - **Action recommandée** : appeler `GET /v1/loans/:id/reminders` et afficher les paliers sur la timeline pour les prêts
   `AWAITING_RETURN`.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré le 28/10/2026 (FEAT-06, doc 16) : seul le prêteur voit les rappels `SENT` / `SCHEDULED` pour les
+  prêts `ACTIVE`, `ACTIVE_BY_DEFAULT` et `AWAITING_RETURN` ; TODO « J+3 » supprimé.
 
 ### CORR-08 — Endpoints History/Statistics non consommés + `LenderStats` inefficace
 
@@ -222,7 +224,8 @@
 - **Problème** : agrégations refaites client-side (charge réseau inutile) ; les données serveur `byCategory`,
   `topBorrowers`, `mostLoanedItems` ne sont jamais exploitées → travail backend non consommé.
 - **Action recommandée** : migrer `LenderStats` vers `GET /v1/history/statistics`.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré le 28/10/2026 (FEAT-07, doc 16) : écran Historique (filtre par statut + pagination) consommant
+  `/v1/history/*`, point d'entrée dans le Profil. Reste à vérifier sur device contre l'API prod.
 
 ### CORR-09 — BullMQ annoncé mais jamais implémenté
 
@@ -244,12 +247,13 @@
 - **Gravité** : 🟡 Mineur
 - **Périmètre** : Back (+ Front)
 - **Effort** : 30 min
-- **Fichier(s) & preuve** : aucune clé `coverageThreshold` dans la config Jest (backend & frontend)
+- **Fichier(s) & preuve** : (constat initial : aucune clé `coverageThreshold`) désormais `frontend/jest.config.js`
+  (statements 76 / branches 76 / functions 71 / lines 77) et `backend/package.json` (88 / 74 / 82 / 89)
 - **Problème** : les cibles documentaires (Domain 95 / Services 90 / Controllers 70) ne sont **pas enforced** → une
   régression de couverture ne casse pas la CI.
 - **Action recommandée** : ajouter `coverageThreshold` dans la config Jest des deux côtés (après mesure du coverage réel
   actuel).
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré (FEAT-09) — seuils posés sous le niveau mesuré, la CI lance `--coverage` (front et back)
 
 ### CORR-11 — `docs/CLAUDE.md` tableau Avancement périmé
 
@@ -259,7 +263,7 @@
 - **Fichier(s) & preuve** : `docs/CLAUDE.md` section « Avancement » → marque Sprints 4.6 / 5 / 6 comme « — » (non faits)
   alors qu'ils sont mergés.
 - **Action recommandée** : mettre à jour le tableau d'avancement pour refléter la phase preprod réelle.
-- **Statut** : ☐ À faire
+- **Statut** : ✅ Livré — Sprints 4.6 / 5 / 6 à « Fait », phase pré-production et organisation par feature mentionnées
 
 ### CORR-12 — DNS custom `api.return.app` absent
 
@@ -288,7 +292,8 @@
   restent **orphelins** (lié à CORR-08).
 - **Action recommandée** : décision binôme → soit **assumer** la version allégée et acter l'écart vs Bible Epic 4 (
   mettre la Bible/roadmap à jour), soit **re-livrer** un écran Historique/Statistiques consommant `/v1/history/*`.
-- **Statut** : ☐ À faire
+- **Statut** : ◐ Partiel (historique livré, dashboard post-échéance) — écran Historique livré par FEAT-07 (28/10/2026) ;
+  Dashboard dédié (graphiques `byCategory`, `topBorrowers`, `mostLoanedItems`) sorti du périmètre, cf. doc 16.
 
 ---
 
@@ -310,6 +315,22 @@
     - `Back` — **CORR-09** (BullMQ/nettoyage), **CORR-10** (coverageThreshold)
     - `Doc` — **CORR-11** (mettre `docs/CLAUDE.md` à jour)
 4. **Avant prod publique** — **CORR-12** (DNS custom + SSL)
+
+---
+
+## Décisions « post-échéance » (état au 28/10/2026, détail dans `16_ROADMAP_FEATURES.md`)
+
+Sortis du périmètre du sprint 26→29/10/2026 :
+
+- **CORR-14 (reste)** : Dashboard dédié (graphiques, `byCategory`, `topBorrowers`, `mostLoanedItems`) et filtres
+  historique par date / emprunteur.
+- **CORR-06** (type MONEY orphelin) : décision produit requise, non investiguée.
+- **CORR-09** (BullMQ / migration des CRON) : d'ici là, **1 seule machine Fly**.
+- **CORR-12** (DNS `api.return.app`) : avant la prod publique.
+- **Prolonger un prêt déjà en retard** : bloqué par le 409 `loan-return-date-locked` de FEAT-11, et la machine à états
+  n'a pas de transition `AWAITING_RETURN` → `ACTIVE`.
+- **Historique** : tri par date de clôture plutôt que de création ; pagination par curseur ou avec un tri secondaire.
+- CORR-02/05/10 : cochés par leur porteur de feature (FEAT-01/02/09), non traités ici.
 
 ---
 

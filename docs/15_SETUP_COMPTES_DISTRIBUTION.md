@@ -29,12 +29,12 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
 | ACC-A3 | Configurer TestFlight (testeurs internes) | Ozias | — | ACC-A1, build iOS | ✅ (Ozias seul testeur) |
 | ACC-G1 | Extraire le compte de service FCM V1 du projet Firebase existant (= prérequis PUSH-P2) | natismael | gratuit | — | ✅ (doc 16 : « FCM EAS fait ») |
 | ACC-G2 | Créer le compte Google Play Console (Individual) | natismael | 25 $ une fois | — | ✅ (doc 16 : « Play Console OK ») |
-| ACC-G3 | Créer l'app "Return" + piste "Test interne" + liste testeurs | natismael | — | ACC-G2 | ☐ (FEAT-05) |
-| ACC-E1 | Profil de distribution EAS dans `eas.json` (Android AAB / iOS store) | Ismael | — | — | ✅ |
+| ACC-G3 | Créer l'app "Return" + piste "Test interne" + liste testeurs | natismael | — | ACC-G2 | ✅ |
+| ACC-E1 | Profil de distribution EAS dans `eas.json` (Android AAB / iOS store) | Ismael | — | — | ✅ (Android ✅ — iOS ✅) |
 | ACC-E2 | Uploader credentials APNs + FCM dans EAS (`eas credentials`) (= PUSH-P1/P2) | Ismael + binôme | — | ACC-A2, ACC-G1 | ✅ |
-| ACC-E3 | Builds EAS iOS + Android (= PUSH-F5) | Ismael | — | ACC-E1, ACC-E2 | ◑ iOS ✅ · Android : FEAT-05 |
-| ACC-E4 | `eas submit` → TestFlight + Play test interne | Ismael | — | ACC-E3, ACC-A3, ACC-G3 | ◑ iOS ✅ · Android : FEAT-05 |
-| ACC-E5 | Test e2e : push reçu sur device iOS + Android (cf. `docs/14` § E) | Binôme | — | ACC-E4 | ◑ iOS ✅ (31/10) · Android : FEAT-05 |
+| ACC-E3 | Builds EAS iOS + Android (= PUSH-F5) | Ismael | — | ACC-E1, ACC-E2 | ✅ (Android ✅ AAB v1.0.0, versionCode 1 — iOS ✅ builds 1→3) |
+| ACC-E4 | `eas submit` → TestFlight + Play test interne | Ismael | — | ACC-E3, ACC-A3, ACC-G3 | ✅ (Android ✅ piste interne : 1er AAB importé manuellement, `eas submit` auto validé avec versionCode 2 le 29/10 — iOS ✅) |
+| ACC-E5 | Test e2e : push reçu sur device iOS + Android (cf. `docs/14` § E) | Binôme | — | ACC-E4 | ◑ iOS ✅ (31/10) — Android ✅ push reçu (28/10 et 31/10) — tap → prêt non vérifié formellement |
 
 ---
 
@@ -133,9 +133,11 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   (onglet "Vue d'ensemble du projet" → liste des apps).
 - **Critères d'acceptation** :
     - [x] Fichier JSON du compte de service FCM V1 généré depuis la console Firebase (doc 16 : « FCM EAS fait »)
-    - [ ] Fichier JSON sauvegardé en lieu sûr (ne pas commiter dans le dépôt) — à confirmer par natismael
+    - [x] Fichier JSON sauvegardé en lieu sûr (ne pas commiter dans le dépôt)
     - [x] App Android `com.ideogen.returnapp` enregistrée dans le projet Firebase (`google-services.json`, commit
       `1063ec9`)
+
+  > Statut au 28/10/2026 : « FCM EAS déjà fait » (doc 16, FEAT-05) et push reçu sur le build Android de production.
 
 ---
 
@@ -170,10 +172,12 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   > en **production publique** pour les comptes Individual. Le **test interne est disponible immédiatement** et
   > sans cette contrainte — c'est exactement ce dont nous avons besoin pour le re-test terrain.
 - **Critères d'acceptation** :
-    - [ ] App "Return" créée dans le Play Console (`com.ideogen.returnapp`)
-    - [ ] Piste "Test interne" configurée
-    - [ ] Liste de testeurs créée avec les emails concernés
-    - [ ] Lien d'opt-in généré et transmis aux testeurs
+    - [x] App "Return" créée dans le Play Console (`com.ideogen.returnapp`)
+    - [x] Piste "Test interne" configurée
+    - [x] Liste de testeurs créée avec les emails concernés
+    - [x] Lien d'opt-in généré et transmis aux testeurs (installation depuis la piste interne vérifiée sur un téléphone)
+
+  > Statut au 28/10/2026 : Play App Signing activé ; release du 1er AAB déployée sur « Test interne » (FEAT-05, doc 16).
 
 ---
 
@@ -224,10 +228,13 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   Ces builds intègrent les entitlements push natifs (APNs iOS, FCM Android). Temps de build estimé : 15-30 min selon
   la file EAS.
 - **Critères d'acceptation** :
-    - [ ] Build EAS Android déclenché et terminé sans erreur (artefact AAB généré)
+    - [x] Build EAS Android déclenché et terminé sans erreur (artefact AAB généré : build
+      `c2fcaeca-07b9-4a0c-a4fc-c6ea176902b1`, 1.0.0, versionCode 1)
     - [x] Build EAS iOS déclenché et terminé sans erreur (artefact IPA généré — builds 1→3, profil `production`)
-    - [ ] Les builds incorporent les plugins `expo-notifications` (vérifiable dans les logs EAS)
-    - [ ] L'app installée sur device demande la permission de notifications au premier lancement
+    - [x] Les builds incorporent les plugins `expo-notifications` (preuve indirecte : Android push reçu
+      (28/10/2026) ; iOS push reçu (31/10/2026, cf. ACC-E5))
+    - [ ] L'app installée sur device demande la permission de notifications au premier lancement (non vérifié
+      explicitement, non bloquant : ACC-E3 reste ✅ car push reçu)
 
 ---
 
@@ -241,8 +248,10 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
     - **Android** : `eas submit --platform android` → soumet l'AAB vers le Play Console (piste "Test interne").
 - **Critères d'acceptation** :
     - [x] Build iOS soumis et visible dans l'onglet TestFlight d'App Store Connect
-    - [ ] Build Android soumis et visible dans la piste "Test interne" du Play Console
-    - [ ] Testeurs notifiés (invitation TestFlight + lien opt-in Android)
+    - [x] Build Android soumis et visible dans la piste "Test interne" du Play Console (1er AAB **importé
+      manuellement**, comme Google l'exige ; `eas submit` automatique validé avec le build versionCode 2 le 29/10)
+    - [x] Testeurs notifiés (invitation TestFlight + lien opt-in Android) — Android ✅ ; iOS ✅ pour Ozias, seul
+      testeur (aucun autre iPhone dans l'équipe)
 
 ---
 
@@ -255,7 +264,8 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   aux 5 critères d'acceptation e2e définis dans **`docs/14_ROADMAP_PUSH_EXPO.md` § E** (specs back vertes, token
   visible en base, push reçu sur les deux plateformes, CRON reminder, logout + purge token).
 - **Critères d'acceptation** :
-    - [ ] Push reçu sur device Android standalone (app installée via Play test interne)
+    - [x] Push reçu sur device Android standalone (app installée via Play test interne) — 28/10 et 31/10 (build
+      production, piste interne) ; tap → bon prêt non vérifié formellement sur Android (reste ouvert)
     - [x] Push reçu sur device iOS standalone (app installée via TestFlight) — 31/10, build 1.0.0 (2), tap → bon prêt
     - [ ] Les 5 critères e2e de `docs/14` § E validés
 
