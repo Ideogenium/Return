@@ -202,6 +202,7 @@
     "deletedItem": "Objet supprimé"
   },
   "loans": {
+    "deletedAccount": "Compte supprimé",
     "title": "Prêts",
     "addLoan": "Créer un prêt",
     "editLoan": "Modifier le prêt",

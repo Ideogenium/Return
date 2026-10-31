@@ -2,6 +2,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react-native
 import { PaperProvider } from 'react-native-paper';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 import type { Loan } from '../../../types/api.types';
+import i18n from '../../../config/i18n.config';
 
 const loan = {
   id: 'loan-1',
@@ -157,5 +158,29 @@ describe('ConfirmationDialog', () => {
 
       expect(screen.queryByTestId('photo-gallery')).toBeNull();
     });
+  });
+});
+
+describe('ConfirmationDialog — lender who deleted his account (FIX-22)', () => {
+  it('shows the translated label instead of the stored names', () => {
+    const deletedLender = {
+      ...loan,
+      lender: { firstName: 'Stored', lastName: 'Names', accountDeleted: true },
+    } as unknown as Loan;
+    render(
+      <PaperProvider>
+        <ConfirmationDialog
+          loan={deletedLender}
+          visible
+          onDismiss={jest.fn()}
+          onConfirm={jest.fn()}
+          onContest={jest.fn()}
+          isLoading={false}
+        />
+      </PaperProvider>,
+    );
+
+    expect(screen.getByText(new RegExp(i18n.t('loans.deletedAccount')))).toBeTruthy();
+    expect(screen.queryByText(/Stored Names/)).toBeNull();
   });
 });

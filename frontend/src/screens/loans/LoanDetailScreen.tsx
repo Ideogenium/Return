@@ -25,7 +25,7 @@ import { useReminderStore } from '../../stores/useReminderStore';
 import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { formatDate, parseIsoDate, toLocalIsoDate } from '../../utils/date';
 import { ReturnDateCalendar } from '../../components/loans/ReturnDateCalendar';
-import { getContactForUser } from '../../utils/loan';
+import { getContactForUser, getContactName } from '../../utils/loan';
 import { ui } from '../../config/theme.config';
 import type { LoanStackParamList } from '../../navigation/types';
 import type { AxiosError } from 'axios';
@@ -302,7 +302,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
             {t('navigation.contacts')}
           </Text>
           <Text variant="bodyMedium" style={styles.value}>
-            {contact.firstName} {contact.lastName}
+            {getContactName(contact, t)}
           </Text>
         </View>
 

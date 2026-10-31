@@ -5,7 +5,7 @@ import { formatDate } from '../../utils/date';
 import { ui } from '../../config/theme.config';
 import { StatusBadge } from './StatusBadge';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { getContactForUser } from '../../utils/loan';
+import { getContactForUser, getContactName } from '../../utils/loan';
 import type { Loan } from '../../types/api.types';
 
 interface LoanCardProps {
@@ -48,7 +48,7 @@ export function LoanCard({ loan, onPress }: LoanCardProps) {
             {loan.item.name}
           </Text>
           <Text variant="bodyMedium" style={styles.borrower} numberOfLines={1}>
-            {t('navigation.contacts')}: {contact.firstName} {contact.lastName}
+            {t('navigation.contacts')}: {getContactName(contact, t)}
           </Text>
           <View style={styles.bottom}>
             <StatusBadge status={loan.status} size="small" />

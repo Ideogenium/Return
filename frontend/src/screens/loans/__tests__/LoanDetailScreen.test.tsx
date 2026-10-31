@@ -245,6 +245,53 @@ describe('LoanDetailScreen', () => {
     expect(screen.queryByTestId('delete-loan-btn')).toBeNull();
   });
 
+  it('shows a translated label for a lender who deleted his account (FIX-22)', async () => {
+    server.use(
+      http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+        HttpResponse.json(
+          {
+            id: params.id,
+            item: {
+              id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+              name: 'Perceuse Bosch',
+              category: 'TOOLS',
+              createdAt: '2026-02-10T10:00:00Z',
+            },
+            lender: {
+              id: 'other-user-id',
+              firstName: 'Stored',
+              lastName: 'Names',
+              profilePicture: null,
+              accountDeleted: true,
+            },
+            borrower: {
+              id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+              firstName: 'John',
+              lastName: 'Doe',
+              email: 'test@example.com',
+            },
+            status: 'RETURNED',
+            returnDate: '2026-04-15',
+            confirmationDate: '2026-02-02T10:00:00Z',
+            returnedDate: '2026-04-10T10:00:00Z',
+            notes: null,
+            contestReason: null,
+            createdAt: '2026-02-01T10:00:00Z',
+            updatedAt: '2026-02-01T10:00:00Z',
+          },
+          { status: 200 },
+        ),
+      ),
+    );
+
+    renderDetailScreen();
+
+    await waitFor(() => {
+      expect(screen.getByText(i18n.t('loans.deletedAccount'))).toBeTruthy();
+    });
+    expect(screen.queryByText(/Stored Names/)).toBeNull();
+  });
+
   describe('contest by the borrower', () => {
     // A loan waiting for the confirmation of the current user, its borrower.
     const pendingLoan = (id: string) => ({

@@ -176,6 +176,8 @@ export interface UserSummary {
   firstName: string;
   lastName: string;
   profilePicture?: string | null;
+  /** Present and true only on Loan.lender when the lender deleted his account (FIX-22). */
+  accountDeleted?: boolean;
 }
 
 export interface Loan {

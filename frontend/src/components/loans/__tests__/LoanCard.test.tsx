@@ -116,3 +116,19 @@ describe('LoanCard — return date', () => {
     expect(screen.getByText(new Date(2026, 10, 3).toLocaleDateString(i18n.language))).toBeTruthy();
   });
 });
+
+describe('LoanCard — lender who deleted his account (FIX-22)', () => {
+  it('shows the translated label instead of the stored names', () => {
+    const lender: UserSummary = {
+      ...makeLender('user-gone', 'Stored', 'Names'),
+      accountDeleted: true,
+    };
+    const loan = makeLoan(lender, makeBorrower('user-bob', 'Bob', 'Dupont'));
+    useAuthStore.setState({ user: makeUser('user-bob', 'Bob', 'Dupont') });
+
+    renderLoanCard(loan);
+
+    expect(screen.getByText(new RegExp(i18n.t('loans.deletedAccount')))).toBeTruthy();
+    expect(screen.queryByText(/Stored Names/)).toBeNull();
+  });
+});
