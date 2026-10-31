@@ -891,3 +891,111 @@ describe('LoanDetailScreen — actions never unmount the screen', () => {
     });
   });
 });
+
+const LENDER_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+
+const photo = (id: string) => ({
+  id,
+  url: `https://storage.return.app/items/${id}.jpg`,
+  thumbnailUrl: `https://storage.return.app/items/${id}_thumb.jpg`,
+  uploadedAt: '2026-02-20T14:00:00Z',
+});
+
+// The current user is the lender (LENDER_ID) unless `asBorrower` is set.
+function serveLoan(
+  photos: ReturnType<typeof photo>[] | undefined,
+  asBorrower: boolean,
+  category = 'TOOLS',
+) {
+  server.use(
+    http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+      HttpResponse.json(
+        {
+          id: params.id,
+          item: {
+            id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+            name: 'Perceuse Bosch',
+            category,
+            photos,
+            createdAt: '2026-02-10T10:00:00Z',
+          },
+          lender: asBorrower
+            ? { id: 'other-user-id', firstName: 'Alice', lastName: 'Martin', profilePicture: null }
+            : { id: LENDER_ID, firstName: 'John', lastName: 'Doe', profilePicture: null },
+          borrower: {
+            id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+            firstName: asBorrower ? 'John' : 'Marie',
+            lastName: asBorrower ? 'Doe' : 'Dupont',
+            email: asBorrower ? 'test@example.com' : 'marie@example.com',
+          },
+          status: 'ACTIVE',
+          returnDate: '2026-04-15',
+          confirmationDate: '2026-02-02T10:00:00Z',
+          returnedDate: null,
+          notes: null,
+          contestReason: null,
+          createdAt: '2026-02-01T10:00:00Z',
+          updatedAt: '2026-02-02T10:00:00Z',
+        },
+        { status: 200 },
+      ),
+    ),
+  );
+}
+
+describe('LoanDetailScreen — item photos', () => {
+  it('shows a read-only photo gallery of the item to the borrower', async () => {
+    serveLoan([photo('ph-1'), photo('ph-2')], true);
+
+    renderDetailScreen();
+
+    await waitFor(() => expect(screen.getByTestId('photo-gallery')).toBeTruthy());
+    expect(screen.getByTestId('photo-thumb-ph-1')).toBeTruthy();
+    expect(screen.getByTestId('photo-thumb-ph-2')).toBeTruthy();
+    expect(screen.queryByTestId('photo-delete-ph-1')).toBeNull();
+    expect(screen.queryByTestId('photo-gallery-add')).toBeNull();
+    // The quota ("2/5 photos") is editor-only; not a generic digit pattern, which the return date would match.
+    expect(screen.queryByText(/\/5 photos/)).toBeNull();
+  });
+
+  it('opens the full-screen viewer when the borrower taps a thumbnail', async () => {
+    serveLoan([photo('ph-1')], true);
+
+    renderDetailScreen();
+
+    await waitFor(() => expect(screen.getByTestId('photo-thumb-ph-1')).toBeTruthy());
+    expect(screen.queryByTestId('photo-viewer')).toBeNull();
+    fireEvent.press(screen.getByTestId('photo-thumb-ph-1'));
+
+    expect(screen.getByTestId('photo-viewer')).toBeTruthy();
+  });
+
+  it('shows the read-only photo gallery to the lender too', async () => {
+    serveLoan([photo('ph-1')], false);
+
+    renderDetailScreen();
+
+    await waitFor(() => expect(screen.getByTestId('photo-gallery')).toBeTruthy());
+    expect(screen.getByTestId('photo-thumb-ph-1')).toBeTruthy();
+    expect(screen.queryByTestId('photo-delete-ph-1')).toBeNull();
+    expect(screen.queryByTestId('photo-gallery-add')).toBeNull();
+  });
+
+  it('renders no gallery when the item has no photo', async () => {
+    serveLoan([], true);
+
+    renderDetailScreen();
+
+    await waitFor(() => expect(screen.getByTestId('loan-detail')).toBeTruthy());
+    expect(screen.queryByTestId('photo-gallery')).toBeNull();
+  });
+
+  it('renders no gallery for a money loan, whose item carries no photo', async () => {
+    serveLoan(undefined, true, 'MONEY');
+
+    renderDetailScreen();
+
+    await waitFor(() => expect(screen.getByTestId('loan-detail')).toBeTruthy());
+    expect(screen.queryByTestId('photo-gallery')).toBeNull();
+  });
+});
