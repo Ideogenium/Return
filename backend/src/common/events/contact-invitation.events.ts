@@ -17,12 +17,38 @@
  * ```
  */
 export const CONTACT_INVITATION_EVENTS = {
+  /** Émis quand une invitation de contact vient d'être créée (envoyée au destinataire) */
+  SENT: 'contact-invitation.sent',
+
   /** Émis quand une invitation de contact est acceptée par le destinataire */
   ACCEPTED: 'contact-invitation.accepted',
 
   /** Émis quand une invitation de contact est rejetée par le destinataire */
   REJECTED: 'contact-invitation.rejected',
 } as const;
+
+/**
+ * Payload émis lors de l'envoi d'une invitation de contact.
+ *
+ * Le module Notifications écoute cet événement pour notifier le destinataire
+ * (CONTACT_INVITATION_RECEIVED).
+ */
+export interface ContactInvitationSentEvent {
+  /** ID de l'invitation créée */
+  invitationId: string;
+
+  /** ID de l'émetteur de l'invitation */
+  senderUserId: string;
+
+  /** ID du destinataire, à notifier */
+  recipientUserId: string;
+
+  /** Prénom du profil User de l'émetteur (jamais une donnée saisie dans ses contacts) */
+  senderFirstName: string;
+
+  /** Nom du profil User de l'émetteur */
+  senderLastName: string;
+}
 
 /**
  * Payload émis lors de l'acceptation d'une invitation de contact.

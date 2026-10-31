@@ -12,6 +12,7 @@ import { CONTACT_INVITATION_EVENTS } from '../common/events/contact-invitation.e
 import type {
   ContactInvitationAcceptedEvent,
   ContactInvitationRejectedEvent,
+  ContactInvitationSentEvent,
 } from '../common/events/contact-invitation.events.js';
 import type {
   ContactInvitationResponse,
@@ -214,6 +215,16 @@ export class ContactInvitationsService {
         recipientUser: true,
       },
     });
+
+    // Emit SENT event after the write succeeded (listener failures never reach the caller)
+    const event: ContactInvitationSentEvent = {
+      invitationId: invitation.id,
+      senderUserId: invitation.senderUserId,
+      recipientUserId: recipient.id,
+      senderFirstName: invitation.senderUser.firstName,
+      senderLastName: invitation.senderUser.lastName,
+    };
+    this.eventEmitter.emit(CONTACT_INVITATION_EVENTS.SENT, event);
 
     return this.toInvitationResponse(invitation as ContactInvitationWithRelations);
   }
