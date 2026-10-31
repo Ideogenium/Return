@@ -47,7 +47,7 @@ Identique au doc 13 :
 | FIX-19 | Champ multiligne caché par le clavier ; défiler ferme le clavier (Android)            | 🟠 Majeur   | 1   | Ozias   | S      | —         | ☐      |
 | FIX-20 | Photos HEIC de l'iPhone refusées                                                      | 🟠 Majeur   | 1   | Ozias   | S      | —         | ☐      |
 | FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —         | ☐      |
-| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | à décider | ☐      |
+| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | oui       | ☐      |
 | FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —         | ☐      |
 | FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ☐      |
 | FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —         | ☐      |
@@ -165,10 +165,32 @@ Identique au doc 13 :
   donc `ON DELETE RESTRICT`. `users.service.ts:116-147` ne bloque que les prêts actifs, puis `user.delete` heurte les
   prêts clos ou supprimés. L'erreur Prisma `P2003` n'est pas traduite : 500. Un utilisateur qui a seulement emprunté
   peut supprimer son compte (`Borrower.user` en `SetNull`).
-- **Décision produit à prendre (les deux)** : à la suppression du prêteur, supprimer ses prêts clos (l'emprunteur perd
-  l'historique) ou les anonymiser (prêteur « Compte supprimé »).
-- **Correctif** : selon la décision, migration Prisma et suppression dans une transaction ; erreur RFC 7807 si un prêt
-  actif bloque.
+- **Décision (31/10, validée en revue de #43)** : **pseudonymiser**, ADR `0010-anonymisation-des-comptes-supprimes.md`.
+  - Contrôles : mot de passe d'abord (`401`), puis `409 active-loans-exist` pour les 4 statuts en cours. Ses emprunts
+    en cours ne bloquent pas (rappels arrêtés : `borrower.userId ?? null`, téléphones supprimés).
+  - Prêts conservés : ses prêts clos (tout statut hors des 4 en cours, `CONTESTED` compris) dont le contact
+    emprunteur est relié à un compte. S'il n'en reste aucun : `user.delete` complet, sans pierre tombale.
+  - Sinon, pierre tombale (`deletedAt`, noms `Compte` / `supprimé` en base, email `deleted+<id>@deleted.invalid`,
+    mot de passe inutilisable, téléphone, avatar et `lastLoginAt` à `null`).
+  - Supprimés : sessions, téléphones, ses notifications et invitations, ses prêts `deletedAt`, ses prêts clos non
+    conservés, ses objets et contacts hors prêt conservé, ses photos (R2 et lignes `Photo`), et les notifications
+    d'autres utilisateurs qui le nomment (`WHERE actorUserId = <id>` : dépend de la colonne interne `actorUserId`
+    ajoutée par FIX-27, #45 ; rien à nettoyer avant, FIX-27 n'étant pas déployé).
+  - Textes libres qu'il a écrits vidés (description de ses objets, notes de ses prêts). Exception : `contestReason`
+    d'un emprunteur qui supprime son compte, conservé pour le prêteur.
+  - Contact conservé : noms et email (unicité `@@unique([lenderUserId, email])`), téléphone effacé.
+  - Access tokens encore valables (15 min) : clé Redis `user-deleted:<id>` lue par `JwtStrategy`, réponse
+    `401 invalid-token`.
+  - Réinscription avec la même adresse : `BorrowerLinkingListener` relie les contacts détachés au nouveau compte,
+    qui retrouve l'historique d'emprunteur. Accepté.
+- **Contrat** (PR #43, contrat seul) : `DELETE /users/me` décrit l'ordre des contrôles, ce qui est effacé et ce qui
+  est conservé ; `Loan.lender` et `UserSummary.accountDeleted` (seulement sur `Loan.lender`) ; la recherche de
+  contacts exclut les comptes supprimés.
+- **Code, après validation du contrat** : migration `users.deleted_at` ; suppression en une transaction ; ordre
+  mot de passe puis 409 (aujourd'hui inversé dans `users.service.ts`) ; clé Redis dans `JwtStrategy` ; `deletedAt`
+  filtré à la connexion, au refresh, à la recherche et aux invitations ; `accountDeleted` dans le mapper du prêteur ;
+  libellé traduit côté app. Un test par point d'entrée qui lit des utilisateurs.
+- **Builds installés** : ils ignorent `accountDeleted` et affichent « Compte supprimé » tel quel.
 
 ### FIX-23 — La déconnexion ne désinscrit pas le téléphone des notifications
 

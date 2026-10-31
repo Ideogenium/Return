@@ -1556,7 +1556,7 @@ paths:
       summary: Rechercher des utilisateurs inscrits
       description: |
         Recherche des utilisateurs inscrits sur Return par email, prénom ou nom.
-        Exclut l'utilisateur courant et les contacts déjà acceptés.
+        Exclut l'utilisateur courant, les contacts déjà acceptés et les comptes supprimés (FIX-22).
         Indique le statut de la relation (nouveau / invitation en attente / déjà contact).
       operationId: searchUsersForInvitation
       requestBody:
@@ -2233,9 +2233,46 @@ paths:
         - Users
       summary: Supprimer définitivement le compte
       description: |
-        Suppression irréversible du compte et de toutes les données associées
-        (prêts, objets, emprunteurs). Conforme RGPD (droit à l'effacement).
-        **Attention** : Impossible si des prêts actifs existent.
+        Suppression irréversible du compte. Conforme au RGPD (droit à l'effacement) et à la règle
+        App Store 5.1.1(v) (suppression du compte depuis l'app). Décision : FIX-22, ADR 0010.
+
+        **Ordre des contrôles** : le mot de passe est vérifié en premier (`401 invalid-current-password`),
+        puis les prêts en cours : `409 active-loans-exist` tant que l'utilisateur est le prêteur d'un prêt
+        en cours (`PENDING_CONFIRMATION`, `ACTIVE`, `ACTIVE_BY_DEFAULT`, `AWAITING_RETURN`). Ses emprunts
+        en cours chez d'autres prêteurs ne bloquent pas la suppression.
+
+        **Effacé** :
+        - le compte : reconnexion impossible (`POST /auth/login` répond comme pour un compte inexistant),
+          adresse email libérée, mot de passe, téléphone, photo de profil, préférences et date de dernière
+          connexion effacés ;
+        - les sessions : refresh tokens supprimés ; un access token encore valable (15 min au plus) reçoit
+          `401 invalid-token` sur toute route ;
+        - les téléphones enregistrés pour les notifications push ;
+        - ses notifications et ses invitations de contact, envoyées et reçues ;
+        - les notifications d'autres utilisateurs qui le nomment ;
+        - toutes ses photos stockées (photo de profil et photos de ses objets) ;
+        - ses prêts supprimés (`deletedAt`) ;
+        - ses prêts clos dont le contact emprunteur n'est relié à aucun compte (personne ne peut plus
+          les voir), avec leurs objets et contacts ;
+        - ses objets et ses contacts qui ne figurent dans aucun prêt conservé ;
+        - les textes libres qu'il a écrits : description de ses objets et notes de ses prêts.
+
+        **Conservé, pseudonymisé** : ses prêts clos (tout statut hors des 4 en cours, `CONTESTED` compris)
+        dont le contact emprunteur est relié à un compte restent dans l'historique de cet emprunteur. Le
+        prêteur y apparaît avec `accountDeleted: true`, les noms fixes `Compte` / `supprimé` et
+        `profilePicture: null`. L'objet garde son nom, sa catégorie et sa valeur, sans photo ni
+        description ; le prêt garde ses dates et son statut, sans notes. Le contact de l'emprunteur garde
+        ses noms et son email, sans téléphone. Si aucun prêt n'est conservé, le compte est entièrement
+        supprimé, sans trace.
+
+        **Ses emprunts** : s'il était emprunteur chez d'autres prêteurs, leurs contacts et leurs prêts
+        restent inchangés pour eux, mais ne sont plus reliés à un compte (`Borrower.userId: null`) : il
+        ne reçoit plus aucun rappel. Le motif de contestation (`contestReason`) qu'il a écrit est conservé,
+        car il explique le statut du prêt au prêteur.
+
+        **Nouvelle inscription avec la même adresse** : elle crée un nouveau compte, et les contacts qui le
+        représentaient chez d'autres prêteurs s'y relient par email, comme pour toute inscription : le
+        nouveau compte retrouve l'historique et le score de confiance d'emprunteur de l'ancien.
       operationId: deleteUserAccount
       requestBody:
         required: true
@@ -2261,13 +2298,23 @@ paths:
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
-          description: Mot de passe incorrect
+          description: |
+            Mot de passe incorrect, vérifié avant les prêts en cours : un mauvais mot de passe reçoit ce 401
+            même si des prêts en cours existent.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://api.return.app/errors/invalid-current-password
+                title: Invalid Current Password
+                status: 401
+                detail: The provided password is incorrect.
+                instance: /v1/users/me
+                timestamp: 2026-02-08T21:30:00Z
+                requestId: req-5c6d7e8f
         '409':
-          description: Des prêts actifs existent
+          description: Des prêts en cours existent (le mot de passe est correct)
           content:
             application/json:
               schema:
@@ -2814,7 +2861,11 @@ components:
         item:
           $ref: '#/components/schemas/Item'
         lender:
-          $ref: '#/components/schemas/UserSummary'
+          allOf:
+            - $ref: '#/components/schemas/UserSummary'
+          description: |
+            Prêteur du prêt. S'il a supprimé son compte (FIX-22), `accountDeleted: true`, noms fixes
+            `Compte` / `supprimé` et `profilePicture: null`.
         borrower:
           allOf:
             - $ref: '#/components/schemas/Borrower'
@@ -3461,6 +3512,15 @@ components:
           type: [string, 'null']
           format: uri
           example: https://photos.return.app/users/b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e/avatar-4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b.jpg
+        accountDeleted:
+          type: boolean
+          example: true
+          description: |
+            Utilisé seulement dans `Loan.lender`, jamais ailleurs. Présent et `true` uniquement quand le
+            prêteur a supprimé son compte (FIX-22, voir `DELETE /users/me`) ; **omis** sinon. `firstName` et
+            `lastName` portent alors les valeurs fixes `Compte` / `supprimé`, enregistrées en base, et
+            `profilePicture` vaut `null`. Les builds qui ignorent cette propriété affichent ces valeurs
+            telles quelles ; les suivants affichent un libellé traduit.
 
     # =========================================================================
     # DATA TRANSFER OBJECTS (DTOs)
