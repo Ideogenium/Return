@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { ActivityIndicator, Text, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,6 +11,7 @@ import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import type { BorrowerStackParamList } from '../../navigation/types';
 import type { UpdateBorrowerDto } from '../../types/api.types';
 import type { AxiosError } from 'axios';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<BorrowerStackParamList, 'EditBorrower'>;
 
@@ -61,7 +62,7 @@ export function EditBorrowerScreen({ route, navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} testID="edit-borrower">
+    <FormScrollView contentContainerStyle={styles.container} testID="edit-borrower">
       {loadError && <RefreshError problem={loadError} onRetry={reload} />}
       <BorrowerForm
         mode="edit"
@@ -76,7 +77,7 @@ export function EditBorrowerScreen({ route, navigation }: Props) {
         error={apiError}
         submitLabel={t('common.save')}
       />
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

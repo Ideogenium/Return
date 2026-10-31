@@ -19,6 +19,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<LoginDto>({
     defaultValues: {
@@ -27,13 +28,21 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
     },
   });
 
+  const submitForm = handleSubmit((data) =>
+    onSubmit({ ...data, email: normalizeEmail(data.email) }),
+  );
+  // The return key of the last field submits like the button, never while it is disabled.
+  const submitFromKeyboard = () => {
+    if (!isLoading) void submitForm();
+  };
+
   return (
     <View style={styles.container}>
       <Controller
         control={control}
         name="email"
         rules={{ validate: (value) => validateRequiredEmail(value, t) }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.email')}
             mode="outlined"
@@ -44,6 +53,10 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
             onChangeText={onChange}
             value={value}
             error={!!errors.email}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('password')}
             testID="email-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -61,7 +74,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
         name="password"
         // Verification of an existing password: only required, as in the API (LoginDto).
         rules={{ required: t('auth.passwordRequired') }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.password')}
             mode="outlined"
@@ -77,6 +90,9 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
             onChangeText={onChange}
             value={value}
             error={!!errors.password}
+            ref={ref}
+            returnKeyType="done"
+            onSubmitEditing={submitFromKeyboard}
             testID="password-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -98,7 +114,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       <Button
         mode="contained"
         icon="login"
-        onPress={handleSubmit((data) => onSubmit({ ...data, email: normalizeEmail(data.email) }))}
+        onPress={submitForm}
         loading={isLoading}
         disabled={isLoading}
         testID="login-btn"

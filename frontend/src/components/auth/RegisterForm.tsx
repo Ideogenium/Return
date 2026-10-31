@@ -33,6 +33,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
     watch,
     setError,
@@ -65,6 +66,12 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
     });
   };
 
+  const submitForm = handleSubmit(handleFormSubmit);
+  // The return key of the last field submits like the button, never while it is disabled.
+  const submitFromKeyboard = () => {
+    if (!isLoading) void submitForm();
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.row}>
@@ -76,7 +83,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
               required: t('auth.firstNameRequired'),
               maxLength: { value: 50, message: t('auth.nameMaxLength') },
             }}
-            render={({ field: { onChange, onBlur, value } }) => (
+            render={({ field: { onChange, onBlur, value, ref } }) => (
               <TextInput
                 label={t('auth.firstName')}
                 mode="outlined"
@@ -85,6 +92,10 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
                 onChangeText={onChange}
                 value={value}
                 error={!!errors.firstName}
+                ref={ref}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => setFocus('lastName')}
                 testID="firstName-input"
                 style={[styles.input, ui.input]}
                 outlineStyle={styles.outline}
@@ -105,7 +116,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
               required: t('auth.lastNameRequired'),
               maxLength: { value: 50, message: t('auth.nameMaxLength') },
             }}
-            render={({ field: { onChange, onBlur, value } }) => (
+            render={({ field: { onChange, onBlur, value, ref } }) => (
               <TextInput
                 label={t('auth.lastName')}
                 mode="outlined"
@@ -114,6 +125,10 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
                 onChangeText={onChange}
                 value={value}
                 error={!!errors.lastName}
+                ref={ref}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => setFocus('email')}
                 testID="lastName-input"
                 style={[styles.input, ui.input]}
                 outlineStyle={styles.outline}
@@ -132,7 +147,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
         control={control}
         name="email"
         rules={{ validate: (value) => validateRequiredEmail(value, t) }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.email')}
             mode="outlined"
@@ -143,6 +158,10 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
             onChangeText={onChange}
             value={value}
             error={!!errors.email}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('password')}
             testID="email-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -164,7 +183,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
           maxLength: { value: 100, message: t('auth.passwordMaxLength') },
           validate: (value) => validatePasswordRules(value, t),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.password')}
             mode="outlined"
@@ -180,6 +199,10 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
             onChangeText={onChange}
             value={value}
             error={!!errors.password}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('confirmPassword')}
             testID="password-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -203,7 +226,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
           required: t('auth.confirmPasswordRequired'),
           validate: (value) => value === password || t('auth.passwordsMismatch'),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.confirmPassword')}
             mode="outlined"
@@ -219,6 +242,9 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
             onChangeText={onChange}
             value={value}
             error={!!errors.confirmPassword}
+            ref={ref}
+            returnKeyType="done"
+            onSubmitEditing={submitFromKeyboard}
             testID="confirmPassword-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -240,7 +266,7 @@ export function RegisterForm({ onSubmit, isLoading, error, fieldErrors }: Regist
       <Button
         mode="contained"
         icon="account-plus-outline"
-        onPress={handleSubmit(handleFormSubmit)}
+        onPress={submitForm}
         loading={isLoading}
         disabled={isLoading}
         testID="register-btn"

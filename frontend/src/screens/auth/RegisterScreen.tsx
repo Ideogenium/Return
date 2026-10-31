@@ -1,4 +1,4 @@
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -6,6 +6,7 @@ import { RegisterForm } from '../../components/auth/RegisterForm';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { getErrorMessage, getFieldErrors } from '../../utils/error';
 import type { AuthStackParamList } from '../../navigation/types';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -33,7 +34,7 @@ export function RegisterScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <View style={styles.logoRow}>
         <Image
           source={require('../../../assets/branding/return-logo-horizontal.png')}
@@ -66,7 +67,7 @@ export function RegisterScreen({ navigation }: Props) {
       >
         {t('auth.hasAccount')}
       </Button>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

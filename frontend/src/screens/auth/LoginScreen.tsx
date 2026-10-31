@@ -1,4 +1,4 @@
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { Text, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { getErrorMessage } from '../../utils/error';
 import type { AuthStackParamList } from '../../navigation/types';
 import type { LoginDto } from '../../types/api.types';
+import { FormScrollView } from '../../components/common/FormScrollView';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -23,7 +24,7 @@ export function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={styles.container}>
       <View style={styles.logoRow}>
         <Image
           source={require('../../../assets/branding/return-logo-horizontal.png')}
@@ -55,7 +56,7 @@ export function LoginScreen({ navigation }: Props) {
       >
         {t('auth.noAccount')}
       </Button>
-    </ScrollView>
+    </FormScrollView>
   );
 }
 

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { ChangePasswordForm } from '../ChangePasswordForm';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 function renderForm(props: Partial<React.ComponentProps<typeof ChangePasswordForm>> = {}) {
   const onSubmit = jest.fn();
@@ -56,5 +57,41 @@ describe('ChangePasswordForm', () => {
     await waitFor(() => {
       expect(screen.getByTestId('newPassword-error').props.children).toBe('Refused by the API');
     });
+  });
+});
+
+describe('ChangePasswordForm keyboard', () => {
+  it('moves through the three fields with the return key', async () => {
+    renderForm();
+
+    expect(await pressReturnIn('currentPassword-input')).toBe('newPassword-input');
+    expect(await pressReturnIn('newPassword-input')).toBe('confirmNewPassword-input');
+    ['currentPassword-input', 'newPassword-input'].forEach((id) =>
+      expect(returnKeyOf(id)).toEqual({ returnKeyType: 'next', submitBehavior: 'submit' }),
+    );
+  });
+
+  it('submits from the confirmation field', async () => {
+    const onSubmit = renderForm();
+    fireEvent.changeText(screen.getByTestId('currentPassword-input'), 'OldPass1!');
+    fireEvent.changeText(screen.getByTestId('newPassword-input'), 'NewPass1!');
+    fireEvent.changeText(screen.getByTestId('confirmNewPassword-input'), 'NewPass1!');
+
+    expect(returnKeyOf('confirmNewPassword-input').returnKeyType).toBe('done');
+    await pressReturnIn('confirmNewPassword-input');
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not submit again while the password is being changed', async () => {
+    const onSubmit = renderForm({ isLoading: true });
+    fireEvent.changeText(screen.getByTestId('currentPassword-input'), 'OldPass1!');
+    fireEvent.changeText(screen.getByTestId('newPassword-input'), 'NewPass1!');
+    fireEvent.changeText(screen.getByTestId('confirmNewPassword-input'), 'NewPass1!');
+
+    await pressReturnIn('confirmNewPassword-input');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

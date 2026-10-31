@@ -91,6 +91,7 @@ export function SearchBorrowerScreen() {
       )}
 
       <FlatList
+        keyboardShouldPersistTaps="handled"
         data={query.length >= 2 ? searchResults : []}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (

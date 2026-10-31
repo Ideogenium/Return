@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react-nativ
 import { PaperProvider } from 'react-native-paper';
 import { LoginForm } from '../LoginForm';
 import i18n from '../../../config/i18n.config';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -97,5 +98,40 @@ describe('LoginForm', () => {
       expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
     });
     expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('LoginForm keyboard', () => {
+  it('moves from the email to the password with the return key', async () => {
+    renderWithProvider(<LoginForm onSubmit={jest.fn()} isLoading={false} />);
+
+    expect(returnKeyOf('email-input')).toEqual({ returnKeyType: 'next', submitBehavior: 'submit' });
+    expect(await pressReturnIn('email-input')).toBe('password-input');
+  });
+
+  it('signs in from the password field', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<LoginForm onSubmit={onSubmit} isLoading={false} />);
+    fireEvent.changeText(screen.getByTestId('email-input'), 'john@example.com');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'secret');
+
+    expect(returnKeyOf('password-input').returnKeyType).toBe('done');
+    await pressReturnIn('password-input');
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ email: 'john@example.com', password: 'secret' }),
+    );
+  });
+
+  it('does not sign in again while signing in', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<LoginForm onSubmit={onSubmit} isLoading />);
+    fireEvent.changeText(screen.getByTestId('email-input'), 'john@example.com');
+    fireEvent.changeText(screen.getByTestId('password-input'), 'secret');
+
+    await pressReturnIn('password-input');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

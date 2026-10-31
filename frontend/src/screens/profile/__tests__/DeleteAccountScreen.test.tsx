@@ -7,6 +7,7 @@ import { DeleteAccountScreen } from '../DeleteAccountScreen';
 import { useAuthStore } from '../../../stores/useAuthStore';
 import { clearTokens } from '../../../utils/storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 const Stack = createNativeStackNavigator();
 
@@ -99,5 +100,37 @@ describe('DeleteAccountScreen', () => {
       expect(deleteCalled).toBe(true);
     });
     expect(screen.queryByTestId('password-error')).toBeNull();
+  });
+});
+
+describe('DeleteAccountScreen keyboard', () => {
+  it('moves from the password to the confirmation with the return key', async () => {
+    renderDeleteScreen();
+
+    expect(returnKeyOf('password-input')).toEqual({
+      returnKeyType: 'next',
+      submitBehavior: 'submit',
+    });
+    expect(await pressReturnIn('password-input')).toBe('confirmationText-input');
+  });
+
+  // Deleting the account is irreversible: it takes the button, never the keyboard's return key.
+  it('only closes the keyboard from the confirmation field, without deleting the account', async () => {
+    const deleteRequest = jest.fn();
+    server.use(
+      http.delete('*/users/me', () => {
+        deleteRequest();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderDeleteScreen();
+    fireEvent.changeText(screen.getByTestId('password-input'), 'Password1!');
+    fireEvent.changeText(screen.getByTestId('confirmationText-input'), 'SUPPRIMER');
+
+    expect(returnKeyOf('confirmationText-input').returnKeyType).toBe('done');
+    expect(screen.getByTestId('confirmationText-input').props.onSubmitEditing).toBeUndefined();
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(deleteRequest).not.toHaveBeenCalled();
   });
 });
