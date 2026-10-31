@@ -34,7 +34,7 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
 | ACC-E2 | Uploader credentials APNs + FCM dans EAS (`eas credentials`) (= PUSH-P1/P2) | Ismael + binôme | — | ACC-A2, ACC-G1 | ✅ |
 | ACC-E3 | Builds EAS iOS + Android (= PUSH-F5) | Ismael | — | ACC-E1, ACC-E2 | ✅ (Android ✅ AAB v1.0.0, versionCode 1 — iOS ✅ builds 1→3) |
 | ACC-E4 | `eas submit` → TestFlight + Play test interne | Ismael | — | ACC-E3, ACC-A3, ACC-G3 | ✅ (Android ✅ piste interne : 1er AAB importé manuellement, `eas submit` auto validé avec versionCode 2 le 29/10 — iOS ✅) |
-| ACC-E5 | Test e2e : push reçu sur device iOS + Android (cf. `docs/14` § E) | Binôme | — | ACC-E4 | ◑ iOS ✅ (31/10) — Android ☐ (push reçu sur le build production Play le 28/10, cf. PUSH-P2) |
+| ACC-E5 | Test e2e : push reçu sur device iOS + Android (cf. `docs/14` § E) | Binôme | — | ACC-E4 | ◑ iOS ✅ (31/10) — Android ✅ push reçu (28/10 et 31/10) — tap → prêt non vérifié formellement |
 
 ---
 
@@ -263,7 +263,8 @@ Ces deux objectifs sont liés mais distincts. Le compte Apple Developer couvre l
   aux 5 critères d'acceptation e2e définis dans **`docs/14_ROADMAP_PUSH_EXPO.md` § E** (specs back vertes, token
   visible en base, push reçu sur les deux plateformes, CRON reminder, logout + purge token).
 - **Critères d'acceptation** :
-    - [ ] Push reçu sur device Android standalone (app installée via Play test interne)
+    - [x] Push reçu sur device Android standalone (app installée via Play test interne) — 28/10 et 31/10 (build
+      production, piste interne) ; tap → bon prêt non vérifié formellement sur Android (reste ouvert)
     - [x] Push reçu sur device iOS standalone (app installée via TestFlight) — 31/10, build 1.0.0 (2), tap → bon prêt
     - [ ] Les 5 critères e2e de `docs/14` § E validés
 
