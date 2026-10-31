@@ -2210,6 +2210,9 @@ paths:
                 email:
                   type: string
                   format: email
+                  description: |
+                    Le domaine `deleted.invalid` (quelle que soit la casse) est réservé aux comptes supprimés
+                    (FIX-22) : `400` avec le code `INVALID_EMAIL`.
       responses:
         '200':
           description: Profil mis à jour
@@ -2314,7 +2317,9 @@ paths:
                 timestamp: 2026-02-08T21:30:00Z
                 requestId: req-5c6d7e8f
         '409':
-          description: Des prêts en cours existent (le mot de passe est correct)
+          description: |
+            Des prêts en cours existent (le mot de passe est correct), y compris un prêt créé pendant la
+            suppression.
           content:
             application/json:
               schema:
@@ -2327,6 +2332,38 @@ paths:
                 instance: /v1/users/me
                 timestamp: 2026-02-08T21:30:00Z
                 requestId: req-6d7e8f9a
+        '404':
+          description: |
+            Le compte est déjà supprimé : par exemple un second appui sur « Supprimer » traité pendant le
+            premier. Une fois la première suppression enregistrée, l'access token reçoit `401 invalid-token`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://api.return.app/errors/user-not-found
+                title: User Not Found
+                status: 404
+                detail: The user with ID '550e8400-e29b-41d4-a716-446655440000' does not exist.
+                instance: /v1/users/me
+                timestamp: 2026-02-08T21:30:00Z
+                requestId: req-7e8f9a0b
+        '503':
+          description: |
+            La révocation des sessions (access tokens encore valables) n'a pas pu être enregistrée : **rien n'a
+            été effacé**. La suppression peut être relancée.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: https://api.return.app/errors/service-unavailable
+                title: Service Unavailable
+                status: 503
+                detail: The account could not be deleted right now. Nothing was erased, please try again.
+                instance: /v1/users/me
+                timestamp: 2026-02-08T21:30:00Z
+                requestId: req-8f9a0b1c
 
   /users/me/trust-score:
     get:
@@ -3538,6 +3575,9 @@ components:
           type: string
           format: email
           example: john.doe@example.com
+          description: |
+            Le domaine `deleted.invalid` (quelle que soit la casse) est réservé aux comptes supprimés (FIX-22) :
+            `400` avec le code `INVALID_EMAIL`.
         password:
           type: string
           format: password
@@ -3953,7 +3993,8 @@ components:
             Code d'erreur stable, à utiliser pour l'i18n (le `message` est en anglais et peut changer).
             - `REQUIRED` : champ obligatoire vide
             - `INVALID_TYPE` : type inattendu (ex. nombre au lieu d'une chaîne)
-            - `INVALID_EMAIL` : adresse e-mail mal formée
+            - `INVALID_EMAIL` : adresse e-mail mal formée, ou du domaine `deleted.invalid`, réservé aux comptes
+              supprimés (FIX-22) : refusé à l'inscription et au changement d'adresse
             - `INVALID_ENUM` : valeur hors de la liste autorisée
             - `INVALID_UUID` : identifiant qui n'est pas un UUID (corps ou chemin)
             - `INVALID_FORMAT` : valeur qui ne respecte pas le motif (`pattern`) du champ
