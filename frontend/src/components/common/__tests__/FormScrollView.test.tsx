@@ -17,17 +17,19 @@ type KeyboardHandler = (event: KeyboardEvent) => void;
 
 /** Captures the Keyboard listeners the component registers, to fire them by hand. */
 function captureKeyboardListeners() {
-  const handlers: Partial<Record<string, KeyboardHandler>> = {};
+  const handlers: Record<string, KeyboardHandler[]> = {};
   const remove = jest.fn();
-  jest.spyOn(Keyboard, 'addListener').mockImplementation(((
+  const addListener = jest.spyOn(Keyboard, 'addListener').mockImplementation(((
     eventName: string,
     handler: KeyboardHandler,
   ) => {
-    handlers[eventName] = handler;
+    (handlers[eventName] ??= []).push(handler);
     return { remove } as unknown as ReturnType<typeof Keyboard.addListener>;
   }) as typeof Keyboard.addListener);
-  const fire = (eventName: string, event: KeyboardEvent) => act(() => handlers[eventName]?.(event));
-  return { fire, remove };
+  const fire = (eventName: string, event: KeyboardEvent) =>
+    act(() => handlers[eventName]?.forEach((handler) => handler(event)));
+  const events = () => addListener.mock.calls.map(([eventName]) => eventName);
+  return { fire, remove, events };
 }
 
 function keyboardShownAt(screenY: number): KeyboardEvent {
@@ -83,11 +85,12 @@ describe('FormScrollView', () => {
       expect(screen.getByText('field')).toBeTruthy();
     });
 
-    it('does not listen to the keyboard: iOS insets the scroll view itself', () => {
-      const addListener = jest.spyOn(Keyboard, 'addListener');
+    it('listens to the keyboard only to keep the focused field in view: iOS insets itself', () => {
+      const { events } = captureKeyboardListeners();
       renderForm();
 
-      expect(addListener).not.toHaveBeenCalled();
+      expect(events()).toEqual(['keyboardDidShow']);
+      expect(screen.queryByTestId('form-keyboard-area')).toBeNull();
     });
   });
 
@@ -135,7 +138,8 @@ describe('FormScrollView', () => {
 
       unmount();
 
-      expect(remove).toHaveBeenCalledTimes(2);
+      // Overlap padding (show, hide) and focused-field follow-up (show).
+      expect(remove).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -183,11 +187,22 @@ describe('FormScrollView', () => {
     }
 
     /** The scroll view occupies the window from `top` to `bottom` (default: below the keyboard). */
-    function renderGrowingForm({ top = 0, bottom = 2000 }: { top?: number; bottom?: number } = {}) {
+    function renderGrowingForm({
+      top = 0,
+      bottom = 2000,
+      keyboardAvoidance = true,
+    }: { top?: number; bottom?: number; keyboardAvoidance?: boolean } = {}) {
       const ref = createRef<ScrollView>();
       const onContentSizeChange = jest.fn();
+      const onLayout = jest.fn();
       render(
-        <FormScrollView ref={ref} testID="form" onContentSizeChange={onContentSizeChange}>
+        <FormScrollView
+          ref={ref}
+          testID="form"
+          keyboardAvoidance={keyboardAvoidance}
+          onContentSizeChange={onContentSizeChange}
+          onLayout={onLayout}
+        >
           <Text>field</Text>
         </FormScrollView>,
       );
@@ -200,13 +215,77 @@ describe('FormScrollView', () => {
         .mockImplementation(() => {});
       scrollTo.mockClear();
       const grow = () => fireEvent(screen.getByTestId('form'), 'contentSizeChange', 400, 1200);
-      return { ref, scrollTo, grow, onContentSizeChange };
+      const layoutEvent = { nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 300 } } };
+      const relayout = () => fireEvent(screen.getByTestId('form'), 'layout', layoutEvent);
+      return { ref, scrollTo, grow, relayout, layoutEvent, onContentSizeChange, onLayout };
     }
 
     describe.each(['ios', 'android'] as const)('on %s', (os) => {
+      let keyboard: ReturnType<typeof captureKeyboardListeners>;
+
       beforeEach(() => {
         jest.replaceProperty(Platform, 'OS', os);
-        captureKeyboardListeners();
+        keyboard = captureKeyboardListeners();
+      });
+
+      it('still follows a growing field with keyboardAvoidance={false} (dialog moved by its parent)', () => {
+        keyboardOpenAt(600);
+        focusField({ y: 400, height: 80 });
+        const { scrollTo, grow } = renderGrowingForm({
+          top: 150,
+          bottom: 450,
+          keyboardAvoidance: false,
+        });
+
+        grow();
+
+        expect(scrollTo).toHaveBeenCalledWith({ y: 46, animated: true });
+      });
+
+      it('brings the field back when the scroll view shrinks without its content changing', () => {
+        // The dialog moved above the keyboard and its scroll area now ends at 450: "Notes", at the
+        // bottom (400 to 480), fell below it although no line was added.
+        keyboardOpenAt(600);
+        focusField({ y: 400, height: 80 });
+        const { scrollTo, relayout } = renderGrowingForm({
+          top: 150,
+          bottom: 450,
+          keyboardAvoidance: false,
+        });
+
+        relayout();
+
+        expect(scrollTo).toHaveBeenCalledWith({ y: 46, animated: true });
+      });
+
+      it("still calls the caller's onLayout", () => {
+        keyboardOpenAt(null);
+        const { relayout, layoutEvent, onLayout } = renderGrowingForm();
+
+        relayout();
+
+        expect(onLayout).toHaveBeenCalledWith(layoutEvent);
+      });
+
+      it('brings the focused field above the keyboard once it has opened', () => {
+        // Keyboard.metrics() may not be updated yet: the event's own coordinates are used.
+        keyboardOpenAt(null);
+        focusField({ y: 500, height: 120 });
+        const { scrollTo } = renderGrowingForm();
+
+        keyboard.fire('keyboardDidShow', keyboardShownAt(600));
+
+        expect(scrollTo).toHaveBeenCalledWith({ y: 36, animated: true });
+      });
+
+      it('ignores the keyboard opening for a field outside this form', () => {
+        keyboardOpenAt(null);
+        focusField({ y: 500, height: 120, inside: false });
+        const { scrollTo } = renderGrowingForm();
+
+        keyboard.fire('keyboardDidShow', keyboardShownAt(600));
+
+        expect(scrollTo).not.toHaveBeenCalled();
       });
 
       it('scrolls by the part of the focused field the keyboard hides', () => {
@@ -310,12 +389,12 @@ describe('FormScrollView', () => {
       expect(scroll.props.keyboardShouldPersistTaps).toBe('handled');
     });
 
-    it('neither listens to the keyboard nor pads the form on Android', () => {
+    it('does not pad the form on Android, listening only to keep the focused field in view', () => {
       jest.replaceProperty(Platform, 'OS', 'android');
-      const addListener = jest.spyOn(Keyboard, 'addListener');
+      const { events } = captureKeyboardListeners();
       renderUnavoidingForm();
 
-      expect(addListener).not.toHaveBeenCalled();
+      expect(events()).toEqual(['keyboardDidShow']);
       expect(screen.queryByTestId('form-keyboard-area')).toBeNull();
       expect(screen.getByTestId('form').props.keyboardDismissMode).toBe('none');
     });
