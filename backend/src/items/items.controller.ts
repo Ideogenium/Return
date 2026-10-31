@@ -15,9 +15,6 @@ import {
   Request,
   Res,
   ParseUUIDPipe,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request as ExpressRequest, Response } from 'express';
@@ -27,6 +24,11 @@ import { UpdateItemDto } from './dto/update-item.dto.js';
 import { ListItemsQueryDto } from './dto/list-items-query.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { mimeToExtension } from '../common/utils/mime.util.js';
+import {
+  ITEM_PHOTO_MAX_BYTES,
+  imageFilePipe,
+  imageUploadOptions,
+} from '../common/upload/upload-limits.js';
 import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy.js';
 import type { ItemResponse, PaginatedItemsResponse } from './interfaces/item-response.interface.js';
 import type { PhotoResponse } from './interfaces/photo-response.interface.js';
@@ -124,18 +126,11 @@ export class ItemsController {
    */
   @Post(':itemId/photos')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('photo'))
+  @UseInterceptors(FileInterceptor('photo', imageUploadOptions(ITEM_PHOTO_MAX_BYTES)))
   async addPhoto(
     @Request() req: ExpressRequest & { user: AuthenticatedUser },
     @Param('itemId', ParseUUIDPipe) itemId: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /(jpeg|jpg|png)$/ }),
-        ],
-      }),
-    )
+    @UploadedFile(imageFilePipe(ITEM_PHOTO_MAX_BYTES))
     file: Express.Multer.File,
     @Res({ passthrough: true }) res: Response,
   ): Promise<PhotoResponse> {
