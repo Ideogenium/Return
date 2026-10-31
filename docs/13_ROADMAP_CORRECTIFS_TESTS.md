@@ -55,8 +55,8 @@
 
 | ID     | Titre                                                                     | Gravité     | Périmètre / Qui                      | Effort               | Statut   |
 |--------|---------------------------------------------------------------------------|-------------|--------------------------------------|----------------------|----------|
-| FIX-01 | Photos objets : upload ET GET KO                                          | 🔴 Critique | Back (Ozias) + Front (Ismael, vérif) | M                    | 🟡 Partiel |
-| FIX-02 | Photo de profil ajoutée non affichée                                      | 🔴 Critique | Back (Ozias) + Front (Ismael, vérif) | M (mutualisé FIX-01) | 🟡 Partiel |
+| FIX-01 | Photos objets : upload ET GET KO                                          | 🔴 Critique | Back (Ozias) + Front (Ismael, vérif) | M                    | 🟡 Code livré (FEAT-01) — recette après D2 |
+| FIX-02 | Photo de profil ajoutée non affichée                                      | 🔴 Critique | Back (Ozias) + Front (Ismael, vérif) | M (mutualisé FIX-01) | 🟡 Code livré (FEAT-01) — recette après D2 |
 | FIX-03 | Date de retour obligatoire                                                | 🟠 Majeur   | Les deux                             | XS                   | ✅ Fait    |
 | FIX-04 | Objet déjà prêté reste re-prêtable                                        | 🟠 Majeur   | Les deux                             | M                    | ✅ Fait    |
 | FIX-05 | Workflow prêt court (Δ<3j) : auto-confirm 24h + pas de préventive avant J | 🟠 Majeur   | Back (Ozias)                         | S                    | ✅ Fait    |
@@ -98,7 +98,11 @@
        persistance réelle
 - **Action Front (Ismael)** : vérifier que `PhotoGallery` affiche bien l'URL absolue renvoyée par le backend (pas de
   reconstruction côté client). Aucune reconstruction locale si l'URL est déjà absolue.
-- **Statut** : 🟡 Partiel — front vérifié ✅ ; reste back : `fly deploy` (UPLOAD_BASE_URL) + persistance R2 (CORR-02)
+- **Statut** : 🟡 Code livré — front vérifié ✅ ; back livré par FEAT-01 (merge `9a6ca53`, PR #30) : photos sur
+  Cloudflare R2, URL publique du bucket renvoyée telle quelle. Le court terme `UPLOAD_BASE_URL` est **abandonné** :
+  la variable est retirée de `fly.toml`, `/uploads` n'est plus servi qu'en stockage local (dev). Reste : déploiement
+  D2 puis recette (upload sur `return-api.fly.dev`, photo qui survit à un `fly deploy`). Les chemins de fichiers
+  cités ci-dessus datent de l'audit : le stockage vit désormais dans `backend/src/storage/`.
 
 ---
 
@@ -118,7 +122,9 @@
 - **Action Back (Ozias)** : identique FIX-01 — le correctif `UPLOAD_BASE_URL` couvre aussi les avatars.
 - **Action Front (Ismael)** : vérifier que `ProfileCard` consomme l'URL absolue stockée dans `useAuthStore` sans la
   reconstruire.
-- **Statut** : 🟡 Partiel — front vérifié ✅ ; couvert par le même correctif backend que FIX-01 (deploy + R2)
+- **Statut** : 🟡 Code livré — front vérifié ✅ ; même correctif que FIX-01 (FEAT-01). Clé d'avatar
+  `users/<userId>/avatar-<uuid>.<ext>` : remplacer son avatar par un fichier de même extension ne supprime plus le
+  nouveau fichier (bug corrigé dans FEAT-01). Reste : recette après le déploiement D2.
 
 ---
 
@@ -358,7 +364,7 @@ séparé**, à confirmer avec Ozias — hors périmètre FIX-05.
     3. Invalider / refetch les stats après chaque mutation `useLoanStore` (création, confirmation, contestation)
 - **Action Back (Ozias)** : vérifier que l'endpoint retourne bien les données dans le format attendu par le front (
   confronter avec `openapi.yaml`).
-- **Statut** : ✅ Fait — front (`/history/statistics` + `useFocusEffect` + invalidation après mutation ; ex-FIX-06/07/08 réglés) + back. **Reste** : ajouter `overdueLoans` à l'`overview` côté back (carte masquée côté front en attendant — TODO documenté)
+- **Statut** : ✅ Fait — front (`/history/statistics` + `useFocusEffect` + invalidation après mutation ; ex-FIX-06/07/08 réglés) + back. `overview.overdueLoans` ajouté par FEAT-04 (contrat validé par Ismael, back + carte « En retard » côté front, TODO retiré ; merge `e571521`, PR #30) — en prod après le déploiement D2.
 
 ---
 
@@ -491,14 +497,14 @@ est POST-MVP (FIX-16).
 | Ordre | FIX                                                                            | Effort | Nature             |
 |-------|--------------------------------------------------------------------------------|--------|--------------------|
 | 1     | FIX-05 volet B — Pas de PREVENTIVE pour Δ<3j (`reminder-policy.ts`)            | XS     | Quick-win          |
-| 2     | FIX-01 + FIX-02 — `UPLOAD_BASE_URL` via `fly secrets set` (court terme)        | XS     | Quick-win bloquant |
+| 2     | FIX-01 + FIX-02 — ~~`UPLOAD_BASE_URL` via `fly secrets set` (court terme)~~ abandonné : R2 directement (FEAT-01) | XS     | Quick-win bloquant |
 | 3     | FIX-03 [back] — Rendre `returnDate` obligatoire dans le DTO                    | XS     | Quick-win          |
 | 4     | FIX-09 [back] — Retirer email du `UpdateBorrowerDto`                           | XS     | Fonctionnel        |
 | 5     | FIX-05 volet A — Auto-confirm 24h pour Δ<3j (`loans-cron.service.ts`)          | S      | Workflow correctif |
 | 6     | FIX-04 [back] — Contrôle 409 prêt actif sur même item                          | M      | Fonctionnel        |
 | 7     | FIX-15 [back] — Exposer endpoint trustScore global (agrégé tous prêteurs)      | M      | MVP                |
 | 8     | FIX-14 [back] — Vérifier format endpoint `/history/statistics` vs openapi.yaml | XS     | Vérification       |
-| 9     | FIX-01 + FIX-02 [fond] — Implémenter R2PhotoStorageService (= CORR-02)         | M      | Persistance        |
+| 9     | FIX-01 + FIX-02 [fond] — Implémenter R2PhotoStorageService (= CORR-02) — ✅ code (FEAT-01) | M      | Persistance        |
 | —     | FIX-16 — Websockets                                                            | M→L    | POST-MVP           |
 
 > **Note Ozias** : la transition automatique `ACTIVE → AWAITING_RETURN` à l'échéance est un sujet à confirmer
