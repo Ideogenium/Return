@@ -4,6 +4,7 @@ import { Text, Button, Portal, TextInput, HelperText } from 'react-native-paper'
 import { useTranslation } from 'react-i18next';
 import { formatDate } from '../../utils/date';
 import { FormDialog } from '../common/FormDialog';
+import { PhotoGallery } from '../items/PhotoGallery';
 import type { Loan } from '../../types/api.types';
 
 interface ConfirmationDialogProps {
@@ -116,6 +117,13 @@ export function ConfirmationDialog({
           )}
         </View>
 
+        {/* Lets the borrower check the item against its photos before confirming. */}
+        {loan.item?.photos?.length ? (
+          <View style={styles.photos}>
+            <PhotoGallery photos={loan.item.photos} readOnly />
+          </View>
+        ) : null}
+
         {showContestForm && (
           <View style={styles.contestForm}>
             <TextInput
@@ -147,5 +155,6 @@ const styles = StyleSheet.create({
   info: { marginBottom: 12 },
   label: { color: '#2D3748', fontWeight: '600' },
   sub: { color: '#6B7A8D', marginTop: 4 },
+  photos: { marginBottom: 12 },
   contestForm: { marginTop: 12 },
 });

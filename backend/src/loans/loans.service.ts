@@ -22,7 +22,11 @@ import type { ContestLoanDto } from './dto/contest-loan.dto.js';
 import type { CreateItemDto } from '../items/dto/create-item.dto.js';
 import { ContactInvitationsService } from '../contact-invitations/contact-invitations.service.js';
 import type { LoanResponse, PaginatedLoansResponse } from './interfaces/loan-response.interface.js';
-import { toLoanResponse, type LoanWithRelations } from '../common/mappers/loan-response.mapper.js';
+import {
+  LOAN_INCLUDE,
+  toLoanResponse,
+  type LoanWithRelations,
+} from '../common/mappers/loan-response.mapper.js';
 import type {
   LoanCreatedEvent,
   LoanStatusChangedEvent,
@@ -153,11 +157,7 @@ export class LoansService {
           returnDate: dto.returnDate ? new Date(dto.returnDate) : null,
           notes: dto.notes ?? null,
         },
-        include: {
-          item: { include: { photos: true } },
-          lender: true,
-          borrower: true,
-        },
+        include: LOAN_INCLUDE,
       });
     });
 
@@ -174,7 +174,7 @@ export class LoansService {
     };
     this.eventEmitter.emit(LOAN_EVENTS.CREATED, event);
 
-    return toLoanResponse(loan);
+    return toLoanResponse(loan, lenderId);
   }
 
   // =========================================================================
@@ -221,11 +221,7 @@ export class LoansService {
     const [loans, totalItems] = await Promise.all([
       this.prisma.loan.findMany({
         where,
-        include: {
-          item: { include: { photos: true } },
-          lender: true,
-          borrower: true,
-        },
+        include: LOAN_INCLUDE,
         orderBy: { [sortBy]: sortOrder },
         skip,
         take: limit,
@@ -236,7 +232,7 @@ export class LoansService {
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / limit);
 
     return {
-      data: loans.map((loan) => toLoanResponse(loan as LoanWithRelations)),
+      data: loans.map((loan) => toLoanResponse(loan as LoanWithRelations, userId)),
       pagination: {
         currentPage: page,
         totalPages,
@@ -251,7 +247,7 @@ export class LoansService {
   async findById(loanId: string, userId: string): Promise<LoanResponse> {
     const loan = await this.findLoanOrFail(loanId);
     this.resolveUserRole(loan, userId);
-    return toLoanResponse(loan);
+    return toLoanResponse(loan, userId);
   }
 
   /**
@@ -275,15 +271,11 @@ export class LoansService {
 
     const loans = await this.prisma.loan.findMany({
       where,
-      include: {
-        item: { include: { photos: true } },
-        lender: true,
-        borrower: true,
-      },
+      include: LOAN_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
 
-    return loans.map((loan) => toLoanResponse(loan as LoanWithRelations));
+    return loans.map((loan) => toLoanResponse(loan as LoanWithRelations, lenderId));
   }
 
   // =========================================================================
@@ -329,11 +321,7 @@ export class LoansService {
             ? { id: loanId }
             : { id: loanId, status: { in: RETURN_DATE_RESCHEDULABLE_STATUSES } },
         data,
-        include: {
-          item: { include: { photos: true } },
-          lender: true,
-          borrower: true,
-        },
+        include: LOAN_INCLUDE,
       })) as LoanWithRelations;
     } catch (error) {
       if (newReturnDate !== undefined && isPrismaRecordNotFoundError(error)) {
@@ -352,7 +340,7 @@ export class LoansService {
       this.eventEmitter.emit(LOAN_EVENTS.RETURN_DATE_CHANGED, event);
     }
 
-    return toLoanResponse(updated);
+    return toLoanResponse(updated, lenderId);
   }
 
   private returnDateLockedException(loanId: string): ConflictException {
@@ -444,11 +432,7 @@ export class LoansService {
     const updated = await this.prisma.loan.update({
       where: { id: loanId },
       data,
-      include: {
-        item: { include: { photos: true } },
-        lender: true,
-        borrower: true,
-      },
+      include: LOAN_INCLUDE,
     });
 
     const event: LoanStatusChangedEvent = {
@@ -460,7 +444,7 @@ export class LoansService {
     };
     this.eventEmitter.emit(LOAN_EVENTS.STATUS_CHANGED, event);
 
-    return toLoanResponse(updated as LoanWithRelations);
+    return toLoanResponse(updated as LoanWithRelations, userId);
   }
 
   async confirm(loanId: string, userId: string): Promise<LoanResponse> {
@@ -482,11 +466,7 @@ export class LoansService {
         status: LoanStatus.ACTIVE,
         confirmationDate: new Date(),
       },
-      include: {
-        item: { include: { photos: true } },
-        lender: true,
-        borrower: true,
-      },
+      include: LOAN_INCLUDE,
     });
 
     const event: LoanStatusChangedEvent = {
@@ -498,7 +478,7 @@ export class LoansService {
     };
     this.eventEmitter.emit(LOAN_EVENTS.STATUS_CHANGED, event);
 
-    return toLoanResponse(updated as LoanWithRelations);
+    return toLoanResponse(updated as LoanWithRelations, userId);
   }
 
   async contest(loanId: string, userId: string, dto: ContestLoanDto): Promise<LoanResponse> {
@@ -520,11 +500,7 @@ export class LoansService {
         status: LoanStatus.CONTESTED,
         contestReason: dto.reason,
       },
-      include: {
-        item: { include: { photos: true } },
-        lender: true,
-        borrower: true,
-      },
+      include: LOAN_INCLUDE,
     });
 
     const event: LoanStatusChangedEvent = {
@@ -536,7 +512,7 @@ export class LoansService {
     };
     this.eventEmitter.emit(LOAN_EVENTS.STATUS_CHANGED, event);
 
-    return toLoanResponse(updated as LoanWithRelations);
+    return toLoanResponse(updated as LoanWithRelations, userId);
   }
 
   // =========================================================================
@@ -639,11 +615,7 @@ export class LoansService {
   private async findLoanOrFail(loanId: string): Promise<LoanWithRelations> {
     const loan = await this.prisma.loan.findUnique({
       where: { id: loanId },
-      include: {
-        item: { include: { photos: true } },
-        lender: true,
-        borrower: true,
-      },
+      include: LOAN_INCLUDE,
     });
 
     if (!loan || loan.deletedAt !== null) {

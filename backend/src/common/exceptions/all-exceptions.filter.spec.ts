@@ -1,4 +1,9 @@
-import { ArgumentsHost, BadRequestException, HttpException } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  BadRequestException,
+  HttpException,
+  PayloadTooLargeException,
+} from '@nestjs/common';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
 import { UnauthorizedException } from './problem-details.exception.js';
 import type { ProblemDetails } from './problem-details.exception.js';
@@ -229,5 +234,108 @@ describe('AllExceptionsFilter', () => {
     expect(status).toHaveBeenCalledWith(500);
     const body = json.mock.calls[0]![0] as ProblemDetails;
     expect(body.type).toBe('https://api.return.app/errors/internal-server-error');
+  });
+
+  // =========================================================================
+  // 6. Erreurs 400 à message texte : upload (ParseFilePipe, Multer) et UUID
+  // =========================================================================
+  // Chaque message réel de NestJS 11 / Multer reçoit son propre code du contrat
+  // (ErrorDetail.code) ; plus aucun 400 inconnu n'est étiqueté INVALID_UUID.
+
+  function firstError(exception: unknown) {
+    const { host, status, json } = createMockHost('/v1/items/abc/photos');
+    filter.catch(exception, host);
+    const body = json.mock.calls[0]![0] as ProblemDetails;
+    return { status, body, error: body.errors![0] };
+  }
+
+  it.each([
+    [
+      'MaxFileSizeValidator with the file size',
+      'Validation failed (current file size is 6000000, expected size is less than 5242880)',
+    ],
+    [
+      'MaxFileSizeValidator without the file size',
+      'Validation failed (expected size is less than 5242880)',
+    ],
+  ])('maps a %s message to TOO_LARGE on the file field', (_label, message) => {
+    const { status, body, error } = firstError(new BadRequestException(message));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(body.type).toBe('https://api.return.app/errors/validation-failed');
+    expect(error).toEqual({ field: 'file', code: 'TOO_LARGE', message });
+  });
+
+  it.each([
+    [
+      'FileTypeValidator with the file type',
+      'Validation failed (current file type is image/gif, expected type is /(jpeg|jpg|png)$/)',
+    ],
+    [
+      'FileTypeValidator without the file type',
+      'Validation failed (expected type is /(jpeg|jpg|png)$/)',
+    ],
+    ['a missing file', 'File is required'],
+  ])(
+    'maps %s to FILE_REQUIRED on the file field (contract: absent or refused type)',
+    (_label, message) => {
+      const { status, error } = firstError(new BadRequestException(message));
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(error).toEqual({ field: 'file', code: 'FILE_REQUIRED', message });
+    },
+  );
+
+  it('maps a file over the Multer limit (413 File too large) to a 400 TOO_LARGE, as the contract says', () => {
+    const { status, body, error } = firstError(new PayloadTooLargeException('File too large'));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(body.status).toBe(400);
+    expect(body.type).toBe('https://api.return.app/errors/validation-failed');
+    expect(error).toEqual({ field: 'file', code: 'TOO_LARGE', message: 'File too large' });
+  });
+
+  it('keeps any other 413 as a generic error', () => {
+    const { host, status, json } = createMockHost();
+    filter.catch(new PayloadTooLargeException('Request body too large'), host);
+
+    expect(status).toHaveBeenCalledWith(413);
+    expect((json.mock.calls[0]![0] as ProblemDetails).errors).toBeUndefined();
+  });
+
+  it.each([
+    'Too many files',
+    'Unexpected field - picture',
+    'Too many parts',
+    'Too many fields',
+    'Field value too long',
+    'Multipart: Boundary not found',
+    'Multipart: Unexpected end of form',
+  ])('maps the multipart error "%s" to VALIDATION_ERROR on the file field', (message) => {
+    const { status, error } = firstError(new BadRequestException(message));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(error).toEqual({ field: 'file', code: 'VALIDATION_ERROR', message });
+  });
+
+  it.each(['Validation failed (uuid is expected)', 'Validation failed (uuid v 4 is expected)'])(
+    'maps the ParseUUIDPipe message "%s" to INVALID_UUID on id',
+    (message) => {
+      const { status, error } = firstError(new BadRequestException(message));
+
+      expect(status).toHaveBeenCalledWith(400);
+      expect(error).toEqual({ field: 'id', code: 'INVALID_UUID', message });
+    },
+  );
+
+  it('no longer labels an unknown 400 as INVALID_UUID: generic VALIDATION_ERROR', () => {
+    const { status, error } = firstError(new BadRequestException('Something else went wrong'));
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(error).toEqual({
+      field: 'unknown',
+      code: 'VALIDATION_ERROR',
+      message: 'Something else went wrong',
+    });
   });
 });

@@ -10,9 +10,6 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
   Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -23,6 +20,11 @@ import { UpdateSettingsDto } from './dto/update-settings.dto.js';
 import { DeleteAccountDto } from './dto/delete-account.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { mimeToExtension } from '../common/utils/mime.util.js';
+import {
+  AVATAR_MAX_BYTES,
+  imageFilePipe,
+  imageUploadOptions,
+} from '../common/upload/upload-limits.js';
 import { TrustScoreService } from '../trust-score/trust-score.service.js';
 import type { GlobalTrustScore } from '../trust-score/trust-score.service.js';
 import type { SafeUser, UserSettings } from '../auth/interfaces/auth-response.interface.js';
@@ -140,17 +142,10 @@ export class UsersController {
    * @throws 400 Bad Request — Format invalide ou fichier trop volumineux
    */
   @Put('me/avatar')
-  @UseInterceptors(FileInterceptor('avatar'))
+  @UseInterceptors(FileInterceptor('avatar', imageUploadOptions(AVATAR_MAX_BYTES)))
   async updateAvatar(
     @Request() req: { user: AuthenticatedUser },
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 2 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /(jpeg|jpg|png)$/ }),
-        ],
-      }),
-    )
+    @UploadedFile(imageFilePipe(AVATAR_MAX_BYTES))
     file: Express.Multer.File,
   ): Promise<{ profilePicture: string }> {
     const safeFilename = `avatar.${mimeToExtension(file.mimetype)}`;

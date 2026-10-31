@@ -18,7 +18,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { RemindersModule } from './reminders/reminders.module.js';
 import { HistoryModule } from './history/history.module.js';
 import { FirebaseModule } from './firebase/firebase.module.js';
-import { RequestContextMiddleware } from './common/middleware/request-context.middleware.js';
+import { applyRequestContext } from './common/middleware/request-context.routes.js';
 
 @Module({
   imports: [
@@ -59,6 +59,6 @@ import { RequestContextMiddleware } from './common/middleware/request-context.mi
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestContextMiddleware).forRoutes('*');
+    applyRequestContext(consumer);
   }
 }

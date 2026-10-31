@@ -529,6 +529,28 @@ describe('LoansService', () => {
       );
     });
 
+    it('should omit statistics for each loan when listing as borrower', async () => {
+      prisma.loan.findMany.mockResolvedValue([MOCK_LOAN]);
+      prisma.loan.count.mockResolvedValue(1);
+
+      const result = await service.findAll(BORROWER_USER_ID, {
+        ...DEFAULT_QUERY,
+        role: 'borrower',
+      });
+
+      expect(result.data[0].borrower).not.toHaveProperty('statistics');
+      expect(result.data[0].borrower).not.toHaveProperty('phoneNumber');
+    });
+
+    it('should include statistics for each loan when listing as lender', async () => {
+      prisma.loan.findMany.mockResolvedValue([MOCK_LOAN]);
+      prisma.loan.count.mockResolvedValue(1);
+
+      const result = await service.findAll(LENDER_USER_ID, DEFAULT_QUERY);
+
+      expect(result.data[0].borrower).toHaveProperty('statistics');
+    });
+
     it('should filter by specific statuses', async () => {
       prisma.loan.findMany.mockResolvedValue([]);
       prisma.loan.count.mockResolvedValue(0);
@@ -649,6 +671,53 @@ describe('LoansService', () => {
       expect(result.id).toBe(LOAN_ID);
       expect(result.item.id).toBe(ITEM_ID);
       expect(result.borrower.id).toBe(BORROWER_ID);
+    });
+
+    it('should expose statistics and the contact to the lender', async () => {
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+
+      const result = await service.findById(LOAN_ID, LENDER_USER_ID);
+
+      expect(result.borrower).toHaveProperty('statistics');
+      expect(result.borrower.firstName).toBe('Marie');
+    });
+
+    it("should return the borrower's own profile without statistics to the borrower", async () => {
+      prisma.loan.findUnique.mockResolvedValue({
+        ...MOCK_LOAN,
+        borrower: {
+          ...MOCK_BORROWER,
+          firstName: 'Nickname',
+          user: { firstName: 'Real', lastName: 'Account', email: 'real@example.com' },
+        },
+      } as never);
+
+      const result = await service.findById(LOAN_ID, BORROWER_USER_ID);
+
+      expect(result.borrower).not.toHaveProperty('statistics');
+      expect(result.borrower).not.toHaveProperty('phoneNumber');
+      expect(result.borrower).toMatchObject({
+        id: BORROWER_ID,
+        firstName: 'Real',
+        lastName: 'Account',
+        email: 'real@example.com',
+      });
+    });
+
+    it('should load the borrower account in the Prisma include', async () => {
+      prisma.loan.findUnique.mockResolvedValue(MOCK_LOAN);
+
+      await service.findById(LOAN_ID, BORROWER_USER_ID);
+
+      expect(prisma.loan.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            borrower: {
+              include: { user: { select: { firstName: true, lastName: true, email: true } } },
+            },
+          }),
+        }),
+      );
     });
 
     it('should throw 404 when loan not found', async () => {
