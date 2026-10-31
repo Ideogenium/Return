@@ -6,8 +6,10 @@ import {
   InjectThrottlerStorage,
   ThrottlerGuard,
   type ThrottlerModuleOptions,
+  type ThrottlerRequest,
   type ThrottlerStorage,
 } from '@nestjs/throttler';
+import { CLIENT_IP_CEILING } from './client-ip-ceiling.js';
 import { resolveClientIp, type ClientIpRequest } from './client-ip.js';
 import {
   normalizeThrottleField,
@@ -20,8 +22,9 @@ import {
  * The stock ThrottlerGuard counts by `req.ip`, which behind the Fly proxy is the proxy's
  * address: every user shared the same buckets. This guard counts by the client address
  * (resolveClientIp), and, on routes marked with @ThrottleByBodyField, by client address
- * plus the normalized body field (the email on the login). Keys are hashed by the
- * throttler before storage: no email is kept in clear.
+ * plus the normalized body field (the email on the login). The per-IP ceiling of those
+ * routes (clientIpCeiling) is always keyed by client address alone. Keys are hashed by
+ * the throttler before storage: no email is kept in clear.
  */
 @Injectable()
 export class ClientIpThrottlerGuard extends ThrottlerGuard {
@@ -34,6 +37,14 @@ export class ClientIpThrottlerGuard extends ThrottlerGuard {
     super(options, storageService, reflector);
   }
 
+  protected override handleRequest(requestProps: ThrottlerRequest): Promise<boolean> {
+    if (requestProps.throttler.name !== CLIENT_IP_CEILING) return super.handleRequest(requestProps);
+    return super.handleRequest({
+      ...requestProps,
+      getTracker: (req) => Promise.resolve(this.clientIp(req)),
+    });
+  }
+
   protected override getTracker(
     req: Record<string, unknown>,
     context?: ExecutionContext,
@@ -42,10 +53,7 @@ export class ClientIpThrottlerGuard extends ThrottlerGuard {
   }
 
   private trackerFor(req: Record<string, unknown>, context?: ExecutionContext): string {
-    const ip = resolveClientIp(
-      req as unknown as ClientIpRequest,
-      this.config.get<string>('CLIENT_IP_HEADER'),
-    );
+    const ip = this.clientIp(req);
     if (!context) return ip;
 
     const field = this.reflector.getAllAndOverride<string | undefined>(THROTTLE_BY_BODY_FIELD, [
@@ -57,5 +65,12 @@ export class ClientIpThrottlerGuard extends ThrottlerGuard {
     const body = req.body as Record<string, unknown> | undefined;
     const value = normalizeThrottleField(body?.[field]);
     return value ? `${ip}|${value}` : ip;
+  }
+
+  private clientIp(req: Record<string, unknown>): string {
+    return resolveClientIp(
+      req as unknown as ClientIpRequest,
+      this.config.get<string>('CLIENT_IP_HEADER'),
+    );
   }
 }

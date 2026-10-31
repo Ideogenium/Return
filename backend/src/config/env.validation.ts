@@ -43,9 +43,10 @@ export class EnvironmentVariables {
 
   // FIX-37: where the real client IP comes from, for rate limiting. Behind a proxy the
   // socket address is the proxy's, which would put every user in the same bucket.
-  // CLIENT_IP_HEADER names a header set by the proxy itself (on Fly: fly-client-ip);
-  // TRUST_PROXY_HOPS is Express's `trust proxy` hop count for X-Forwarded-For.
-  // Both are off by default (development, tests); production requires one of them.
+  // CLIENT_IP_HEADER names a header set by the proxy itself (on Fly: fly-client-ip),
+  // required in production. TRUST_PROXY_HOPS is Express's `trust proxy` hop count, so that
+  // req.ip (logs, fallback) is the client's too: 2 on Fly, whose proxy appends its own
+  // address last in X-Forwarded-For. Both are off by default (development, tests).
   @IsOptional()
   @Matches(/^[A-Za-z0-9-]+$/, { message: 'CLIENT_IP_HEADER must be an HTTP header name' })
   CLIENT_IP_HEADER?: string;

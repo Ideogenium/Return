@@ -22,26 +22,32 @@ describe('validate (environment)', () => {
     CORS_ORIGIN: 'https://return-api.fly.dev',
     REDIS_URL: 'redis://default:pass@return-redis.internal:6379',
     CLIENT_IP_HEADER: 'fly-client-ip',
-    TRUST_PROXY_HOPS: '1',
+    TRUST_PROXY_HOPS: '2',
   };
 
   // FIX-37: behind the Fly proxy the socket address is the proxy's. Without a
   // client IP source, every user would share the same rate-limit buckets.
   describe('client IP source in production', () => {
-    it('refuses to start when neither CLIENT_IP_HEADER nor TRUST_PROXY_HOPS is set', () => {
+    it('refuses to start without CLIENT_IP_HEADER', () => {
       const env: Record<string, unknown> = { ...PROD_ENV };
       delete env.CLIENT_IP_HEADER;
       delete env.TRUST_PROXY_HOPS;
       expect(() => validate(env)).toThrow(/CLIENT_IP_HEADER/);
     });
 
-    it('accepts either source alone', () => {
-      const headerOnly: Record<string, unknown> = { ...PROD_ENV };
-      delete headerOnly.TRUST_PROXY_HOPS;
+    // Fly appends its own address last in X-Forwarded-For: a hop count alone can land on
+    // the proxy's address and bring back the shared bucket. The header is the source.
+    it('refuses TRUST_PROXY_HOPS alone, which could still yield the proxy address', () => {
       const hopsOnly: Record<string, unknown> = { ...PROD_ENV };
       delete hopsOnly.CLIENT_IP_HEADER;
+      expect(() => validate(hopsOnly)).toThrow(/CLIENT_IP_HEADER/);
+    });
+
+    it('accepts CLIENT_IP_HEADER, with or without TRUST_PROXY_HOPS', () => {
+      const headerOnly: Record<string, unknown> = { ...PROD_ENV };
+      delete headerOnly.TRUST_PROXY_HOPS;
       expect(() => validate(headerOnly)).not.toThrow();
-      expect(() => validate(hopsOnly)).not.toThrow();
+      expect(() => validate(PROD_ENV)).not.toThrow();
     });
 
     it('does not require a client IP source in development', () => {

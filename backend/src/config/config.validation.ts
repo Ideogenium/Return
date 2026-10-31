@@ -33,7 +33,7 @@ export function validate(config: Record<string, unknown>): EnvironmentVariables 
     }
     assertProductionCorsOrigin(raw('CORS_ORIGIN'));
     assertProductionRedisUrl(raw('REDIS_URL'));
-    assertProductionClientIpSource(raw('CLIENT_IP_HEADER'), raw('TRUST_PROXY_HOPS'));
+    assertProductionClientIpSource(raw('CLIENT_IP_HEADER'));
   }
 
   return validated;
@@ -69,17 +69,15 @@ function assertProductionRedisUrl(redisUrl: string | undefined): void {
   }
 }
 
-// FIX-37: in production the API runs behind the Fly proxy. Without a client IP source,
-// rate limiting would count every request under the proxy's address, and one client
-// could lock the login for every user.
-function assertProductionClientIpSource(
-  header: string | undefined,
-  trustProxyHops: string | undefined,
-): void {
-  if (!header && !(Number(trustProxyHops) > 0)) {
+// FIX-37: in production the API runs behind the Fly proxy. Without the header the proxy
+// sets with the client address, rate limiting would count every request under the
+// proxy's address, and one client could lock the login for every user. A hop count
+// alone is not enough: Fly appends its own address last in X-Forwarded-For.
+function assertProductionClientIpSource(header: string | undefined): void {
+  if (!header) {
     throw new Error(
-      'Config validation error:\nCLIENT_IP_HEADER (e.g. fly-client-ip) or TRUST_PROXY_HOPS must be ' +
-        'set in production: behind a proxy, rate limiting would otherwise share one bucket between ' +
+      'Config validation error:\nCLIENT_IP_HEADER (on Fly: fly-client-ip) must be set in ' +
+        'production: behind a proxy, rate limiting would otherwise share one bucket between ' +
         'all users.',
     );
   }

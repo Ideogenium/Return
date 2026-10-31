@@ -20,6 +20,7 @@ import { HistoryModule } from './history/history.module.js';
 import { FirebaseModule } from './firebase/firebase.module.js';
 import { applyRequestContext } from './common/middleware/request-context.routes.js';
 import { ClientIpThrottlerGuard } from './common/throttling/client-ip-throttler.guard.js';
+import { clientIpCeiling } from './common/throttling/client-ip-ceiling.js';
 
 @Module({
   imports: [
@@ -29,7 +30,12 @@ import { ClientIpThrottlerGuard } from './common/throttling/client-ip-throttler.
       validate,
     }),
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60_000, limit: 100 }],
+      throttlers: [
+        { ttl: 60_000, limit: 100 },
+        // FIX-37: on routes keyed by a body field (login: IP + email), a second counter per
+        // IP alone, so one IP cannot try any number of accounts (password spraying).
+        clientIpCeiling(900_000, 50),
+      ],
     }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),

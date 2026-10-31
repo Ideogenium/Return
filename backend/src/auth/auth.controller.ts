@@ -58,7 +58,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { ttl: 900_000, limit: 10 } })
   // FIX-37: 10 attempts per 15 min per client IP AND email, so one client cannot lock the
-  // login for everyone, nor for another account.
+  // login for everyone, nor for another account; plus 50 per 15 min per IP alone
+  // (clientIpCeiling in AppModule) against password spraying.
   @ThrottleByBodyField('email')
   async login(@Body() dto: LoginDto): Promise<AuthResponse> {
     return this.authService.login(dto);

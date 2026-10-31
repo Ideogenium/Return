@@ -9,6 +9,7 @@ import request from 'supertest';
 import { AllExceptionsFilter } from '../exceptions/all-exceptions.filter.js';
 import { ClientIpThrottlerGuard } from './client-ip-throttler.guard.js';
 import { ThrottleByBodyField } from './throttle-by-body-field.decorator.js';
+import { clientIpCeiling } from './client-ip-ceiling.js';
 import { applyTrustProxy } from './trust-proxy.js';
 
 // =============================================================================
@@ -47,11 +48,14 @@ class ProbeController {
 async function createApp(
   env: Record<string, string>,
   trustProxyHops = 0,
+  ceilingLimit = 4,
 ): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({ ignoreEnvFile: true, load: [() => env] }),
-      ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 3 }] }),
+      ThrottlerModule.forRoot({
+        throttlers: [{ ttl: 60_000, limit: 3 }, clientIpCeiling(60_000, ceilingLimit)],
+      }),
     ],
     controllers: [ProbeController],
     providers: [{ provide: APP_GUARD, useClass: ClientIpThrottlerGuard }],
@@ -123,6 +127,35 @@ describe('ClientIpThrottlerGuard', () => {
     });
   });
 
+  describe('per-IP ceiling on routes keyed by a body field (password spraying)', () => {
+    it('answers 429 once one IP tries many different emails, at the per-IP ceiling', async () => {
+      const app = await createApp(FLY);
+      const login = (email: string) =>
+        request(app.getHttpServer())
+          .post('/login')
+          .set('Fly-Client-IP', '203.0.113.20')
+          .send({ email, password: 'wrong-password' });
+      for (let i = 0; i < 4; i++) await login(`user${i}@example.com`).expect(201);
+      const res = await login('user99@example.com').expect(429);
+      expect(res.body.type).toBe('https://api.return.app/errors/rate-limit-exceeded');
+      await request(app.getHttpServer())
+        .post('/login')
+        .set('Fly-Client-IP', '203.0.113.21')
+        .send({ email: 'user99@example.com', password: 'wrong-password' })
+        .expect(201);
+      await app.close();
+    });
+
+    it('does not apply the per-IP ceiling to routes without @ThrottleByBodyField', async () => {
+      const app = await createApp(FLY, 0, 1);
+      const ping = () =>
+        request(app.getHttpServer()).get('/ping').set('Fly-Client-IP', '203.0.113.22');
+      await ping().expect(200);
+      await ping().expect(200);
+      await app.close();
+    });
+  });
+
   describe('without CLIENT_IP_HEADER (not behind Fly)', () => {
     let app: INestApplication;
     beforeEach(async () => {
@@ -147,6 +180,16 @@ describe('applyTrustProxy', () => {
     const res = await request(app.getHttpServer())
       .get('/whoami')
       .set('X-Forwarded-For', '10.0.0.66, 203.0.113.9')
+      .expect(200);
+    expect(res.body.ip).toBe('203.0.113.9');
+    await app.close();
+  });
+
+  it('with 2 hops, skips the address Fly appends last and returns the client (forged, client, fly)', async () => {
+    const app = await createApp({}, 2);
+    const res = await request(app.getHttpServer())
+      .get('/whoami')
+      .set('X-Forwarded-For', '10.0.0.66, 203.0.113.9, 66.241.124.1')
       .expect(200);
     expect(res.body.ip).toBe('203.0.113.9');
     await app.close();
