@@ -33,6 +33,7 @@ export function ChangePasswordForm({
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
     watch,
     setError,
@@ -50,13 +51,19 @@ export function ChangePasswordForm({
     onSubmit({ currentPassword: data.currentPassword, newPassword: data.newPassword });
   };
 
+  const submitForm = handleSubmit(handleFormSubmit);
+  // The return key of the last field submits like the button, never while it is disabled.
+  const submitFromKeyboard = () => {
+    if (!isLoading) void submitForm();
+  };
+
   return (
     <View style={styles.container}>
       <Controller
         control={control}
         name="currentPassword"
         rules={{ required: t('auth.passwordRequired') }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('profile.currentPassword')}
             mode="outlined"
@@ -72,6 +79,10 @@ export function ChangePasswordForm({
             onChangeText={onChange}
             value={value}
             error={!!errors.currentPassword}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('newPassword')}
             testID="currentPassword-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -93,7 +104,7 @@ export function ChangePasswordForm({
           maxLength: { value: 100, message: t('auth.passwordMaxLength') },
           validate: (value) => validatePasswordRules(value, t),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('profile.newPassword')}
             mode="outlined"
@@ -109,6 +120,10 @@ export function ChangePasswordForm({
             onChangeText={onChange}
             value={value}
             error={!!errors.newPassword}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('confirmNewPassword')}
             testID="newPassword-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -132,7 +147,7 @@ export function ChangePasswordForm({
           required: t('auth.confirmPasswordRequired'),
           validate: (value) => value === newPassword || t('auth.passwordsMismatch'),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('profile.confirmNewPassword')}
             mode="outlined"
@@ -148,6 +163,9 @@ export function ChangePasswordForm({
             onChangeText={onChange}
             value={value}
             error={!!errors.confirmNewPassword}
+            ref={ref}
+            returnKeyType="done"
+            onSubmitEditing={submitFromKeyboard}
             testID="confirmNewPassword-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -169,7 +187,7 @@ export function ChangePasswordForm({
       <Button
         mode="contained"
         icon="lock-reset"
-        onPress={handleSubmit(handleFormSubmit)}
+        onPress={submitForm}
         loading={isLoading}
         disabled={isLoading}
         testID="changePassword-btn"

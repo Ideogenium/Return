@@ -24,6 +24,7 @@ export function DeleteAccountScreen() {
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<DeleteFormData>();
 
@@ -62,7 +63,7 @@ export function DeleteAccountScreen() {
         name="password"
         // Verification of the current password: only required, as in the API (DeleteAccountDto).
         rules={{ required: t('auth.passwordRequired') }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.password')}
             mode="outlined"
@@ -72,6 +73,10 @@ export function DeleteAccountScreen() {
             onChangeText={onChange}
             value={value}
             error={!!errors.password}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('confirmationText')}
             testID="password-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -92,7 +97,7 @@ export function DeleteAccountScreen() {
           validate: (value) =>
             value === 'DELETE MY ACCOUNT' || t('profile.confirmationTextInvalid'),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('profile.confirmationText')}
             mode="outlined"
@@ -101,6 +106,8 @@ export function DeleteAccountScreen() {
             onChangeText={onChange}
             value={value}
             error={!!errors.confirmationText}
+            ref={ref}
+            returnKeyType="done"
             testID="confirmationText-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}

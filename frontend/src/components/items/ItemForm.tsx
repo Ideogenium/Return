@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { forwardRef, useState, useCallback, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, type TextInput as NativeTextInput } from 'react-native';
 import { TextInput, Button, HelperText, Chip, Text } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -20,18 +20,25 @@ interface DecimalInputProps {
   label: string;
   style: object[];
   outlineStyle: object;
+  returnKeyType?: 'done';
+  onSubmitEditing?: () => void;
 }
 
-function DecimalInput({
-  value,
-  onChange,
-  onBlur: fieldBlur,
-  error,
-  testID,
-  label,
-  style,
-  outlineStyle,
-}: DecimalInputProps) {
+const DecimalInput = forwardRef<NativeTextInput, DecimalInputProps>(function DecimalInput(
+  {
+    value,
+    onChange,
+    onBlur: fieldBlur,
+    error,
+    testID,
+    label,
+    style,
+    outlineStyle,
+    returnKeyType,
+    onSubmitEditing,
+  },
+  ref,
+) {
   const [rawText, setRawText] = useState(value != null ? String(value) : '');
 
   const handleChangeText = useCallback(
@@ -83,6 +90,7 @@ function DecimalInput({
 
   return (
     <TextInput
+      ref={ref}
       label={label}
       mode="outlined"
       keyboardType="decimal-pad"
@@ -94,9 +102,11 @@ function DecimalInput({
       testID={testID}
       style={style}
       outlineStyle={outlineStyle}
+      returnKeyType={returnKeyType}
+      onSubmitEditing={onSubmitEditing}
     />
   );
-}
+});
 
 const CATEGORIES: ItemCategory[] = [
   'TOOLS',
@@ -131,6 +141,7 @@ export function ItemForm({
   const {
     control,
     handleSubmit,
+    setFocus,
     watch,
     formState: { errors },
   } = useForm<CreateItemDto>({
@@ -144,6 +155,12 @@ export function ItemForm({
 
   const selectedCategory = watch('category');
 
+  const submitForm = handleSubmit(onSubmit);
+  // The return key of the last field submits like the button, never while it is disabled.
+  const submitFromKeyboard = () => {
+    if (!isLoading) void submitForm();
+  };
+
   return (
     <View style={styles.container}>
       <Controller
@@ -154,7 +171,7 @@ export function ItemForm({
           minLength: { value: 3, message: t('items.nameMinLength') },
           maxLength: { value: 100, message: t('items.nameMaxLength') },
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('items.name')}
             mode="outlined"
@@ -163,6 +180,10 @@ export function ItemForm({
             onChangeText={onChange}
             value={value}
             error={!!errors.name}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('description')}
             testID="name-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -181,7 +202,7 @@ export function ItemForm({
         rules={{
           maxLength: { value: 500, message: t('items.descriptionMaxLength') },
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('items.description')}
             mode="outlined"
@@ -192,6 +213,7 @@ export function ItemForm({
             onChangeText={onChange}
             value={value ?? ''}
             error={!!errors.description}
+            ref={ref}
             testID="description-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -248,13 +270,16 @@ export function ItemForm({
           }),
           min: { value: 0, message: t('items.estimatedValueMin') },
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <DecimalInput
             label={t('items.estimatedValue')}
             onBlur={onBlur}
             onChange={onChange}
             value={value ?? undefined}
             error={!!errors.estimatedValue}
+            ref={ref}
+            returnKeyType="done"
+            onSubmitEditing={submitFromKeyboard}
             testID="estimatedValue-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -276,7 +301,7 @@ export function ItemForm({
       <Button
         mode="contained"
         icon="content-save-outline"
-        onPress={handleSubmit(onSubmit)}
+        onPress={submitForm}
         loading={isLoading}
         disabled={isLoading}
         testID="item-submit-btn"

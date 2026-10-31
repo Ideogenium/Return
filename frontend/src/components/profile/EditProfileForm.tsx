@@ -55,6 +55,7 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
   const {
     control,
     handleSubmit,
+    setFocus,
     setValue,
     formState: { errors },
   } = useForm<UpdateProfileDto>({
@@ -76,6 +77,12 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
     }
   };
 
+  const submitForm = handleSubmit((data) => onSubmit(withNormalizedEmail(data)));
+  // The return key of the last field submits like the button, never while it is disabled.
+  const submitFromKeyboard = () => {
+    if (!isLoading) void submitForm();
+  };
+
   return (
     <View style={styles.container}>
       <Controller
@@ -85,7 +92,7 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
           required: t('auth.firstNameRequired'),
           maxLength: { value: 50, message: t('auth.nameMaxLength') },
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.firstName')}
             mode="outlined"
@@ -94,6 +101,10 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
             onChangeText={onChange}
             value={value}
             error={!!errors.firstName}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('lastName')}
             testID="firstName-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -113,7 +124,7 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
           required: t('auth.lastNameRequired'),
           maxLength: { value: 50, message: t('auth.nameMaxLength') },
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.lastName')}
             mode="outlined"
@@ -122,6 +133,10 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
             onChangeText={onChange}
             value={value}
             error={!!errors.lastName}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('email')}
             testID="lastName-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -140,7 +155,7 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
         rules={{
           validate: (value) => validateOptionalEmail(value, t),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('auth.email')}
             mode="outlined"
@@ -151,6 +166,10 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
             onChangeText={onChange}
             value={value}
             error={!!errors.email}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('phone')}
             testID="email-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -175,7 +194,7 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
             message: t('profile.phoneInvalidFormat'),
           },
         }}
-        render={() => (
+        render={({ field: { ref } }) => (
           <View style={styles.phoneRow}>
             <Menu
               visible={menuVisible}
@@ -216,6 +235,9 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
                 updatePhone(dialCode, text);
               }}
               error={!!errors.phone}
+              ref={ref}
+              returnKeyType="done"
+              onSubmitEditing={submitFromKeyboard}
               testID="phone-input"
               style={[styles.phoneInput, ui.input]}
               outlineStyle={styles.outline}
@@ -232,7 +254,7 @@ export function EditProfileForm({ user, onSubmit, isLoading }: EditProfileFormPr
       <Button
         mode="contained"
         icon="content-save-outline"
-        onPress={handleSubmit((data) => onSubmit(withNormalizedEmail(data)))}
+        onPress={submitForm}
         loading={isLoading}
         disabled={isLoading}
         testID="save-btn"

@@ -28,6 +28,7 @@ export function BorrowerForm({
   const {
     control,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<CreateBorrowerDto>({
     defaultValues: {
@@ -37,6 +38,12 @@ export function BorrowerForm({
       phoneNumber: defaultValues?.phoneNumber ?? undefined,
     },
   });
+
+  const submitForm = handleSubmit((data) => onSubmit(withNormalizedEmail(data)));
+  // The return key of the last field submits like the button, never while it is disabled.
+  const submitFromKeyboard = () => {
+    if (!isLoading) void submitForm();
+  };
 
   return (
     <View style={styles.container}>
@@ -48,7 +55,7 @@ export function BorrowerForm({
           minLength: { value: 1, message: t('auth.firstNameRequired') },
           maxLength: { value: 50, message: t('auth.nameMaxLength') },
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('borrowers.firstName')}
             mode="outlined"
@@ -57,6 +64,10 @@ export function BorrowerForm({
             onChangeText={onChange}
             value={value}
             error={!!errors.firstName}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('lastName')}
             testID="firstName-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -77,7 +88,7 @@ export function BorrowerForm({
           minLength: { value: 1, message: t('auth.lastNameRequired') },
           maxLength: { value: 50, message: t('auth.nameMaxLength') },
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('borrowers.lastName')}
             mode="outlined"
@@ -86,6 +97,10 @@ export function BorrowerForm({
             onChangeText={onChange}
             value={value}
             error={!!errors.lastName}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus(isCreate ? 'email' : 'phoneNumber')}
             testID="lastName-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -104,7 +119,7 @@ export function BorrowerForm({
         rules={{
           ...(isCreate && { validate: (value: string) => validateRequiredEmail(value, t) }),
         }}
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('borrowers.email')}
             mode="outlined"
@@ -117,6 +132,10 @@ export function BorrowerForm({
             error={!!errors.email}
             editable={isCreate}
             disabled={!isCreate}
+            ref={ref}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => setFocus('phoneNumber')}
             testID="email-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -136,7 +155,7 @@ export function BorrowerForm({
       <Controller
         control={control}
         name="phoneNumber"
-        render={({ field: { onChange, onBlur, value } }) => (
+        render={({ field: { onChange, onBlur, value, ref } }) => (
           <TextInput
             label={t('borrowers.phone')}
             mode="outlined"
@@ -145,6 +164,9 @@ export function BorrowerForm({
             onBlur={onBlur}
             onChangeText={onChange}
             value={value ?? undefined}
+            ref={ref}
+            returnKeyType="done"
+            onSubmitEditing={submitFromKeyboard}
             testID="phone-input"
             style={[styles.input, ui.input]}
             outlineStyle={styles.outline}
@@ -161,7 +183,7 @@ export function BorrowerForm({
       <Button
         mode="contained"
         icon="content-save-outline"
-        onPress={handleSubmit((data) => onSubmit(withNormalizedEmail(data)))}
+        onPress={submitForm}
         loading={isLoading}
         disabled={isLoading}
         testID="borrower-submit-btn"

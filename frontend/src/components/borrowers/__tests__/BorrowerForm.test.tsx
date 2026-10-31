@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react-nativ
 import { PaperProvider } from 'react-native-paper';
 import { BorrowerForm } from '../BorrowerForm';
 import i18n from '../../../config/i18n.config';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -210,5 +211,58 @@ describe('BorrowerForm', () => {
       expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
     });
     expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('BorrowerForm keyboard', () => {
+  it('moves through the fields with the return key', async () => {
+    renderWithProvider(<BorrowerForm onSubmit={jest.fn()} isLoading={false} submitLabel="Save" />);
+
+    expect(await pressReturnIn('firstName-input')).toBe('lastName-input');
+    expect(await pressReturnIn('lastName-input')).toBe('email-input');
+    expect(await pressReturnIn('email-input')).toBe('phone-input');
+    ['firstName-input', 'lastName-input', 'email-input'].forEach((id) =>
+      expect(returnKeyOf(id)).toEqual({ returnKeyType: 'next', submitBehavior: 'submit' }),
+    );
+  });
+
+  it('skips the email, which cannot change, when editing', async () => {
+    renderWithProvider(
+      <BorrowerForm
+        mode="edit"
+        defaultValues={{ firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }}
+        onSubmit={jest.fn()}
+        isLoading={false}
+        submitLabel="Save"
+      />,
+    );
+
+    expect(await pressReturnIn('lastName-input')).toBe('phone-input');
+  });
+
+  it('saves from the phone field', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<BorrowerForm onSubmit={onSubmit} isLoading={false} submitLabel="Save" />);
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Jane');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Doe');
+    fireEvent.changeText(screen.getByTestId('email-input'), 'jane@example.com');
+
+    expect(returnKeyOf('phone-input').returnKeyType).toBe('done');
+    await pressReturnIn('phone-input');
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not save again while saving', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<BorrowerForm onSubmit={onSubmit} isLoading submitLabel="Save" />);
+    fireEvent.changeText(screen.getByTestId('firstName-input'), 'Jane');
+    fireEvent.changeText(screen.getByTestId('lastName-input'), 'Doe');
+    fireEvent.changeText(screen.getByTestId('email-input'), 'jane@example.com');
+
+    await pressReturnIn('phone-input');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

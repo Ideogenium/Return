@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import { PaperProvider } from 'react-native-paper';
 import { ItemForm } from '../ItemForm';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 function renderForm(props?: Partial<React.ComponentProps<typeof ItemForm>>) {
   const defaultProps = {
@@ -203,5 +204,46 @@ describe('ItemForm', () => {
     );
 
     expect(screen.queryByTestId('estimatedValue-error')).toBeNull();
+  });
+});
+
+describe('ItemForm keyboard', () => {
+  it('moves from the name to the description with the return key', async () => {
+    renderForm();
+
+    expect(returnKeyOf('name-input')).toEqual({ returnKeyType: 'next', submitBehavior: 'submit' });
+    expect(await pressReturnIn('name-input')).toBe('description-input');
+  });
+
+  it('keeps the return key for new lines in the description', () => {
+    renderForm();
+
+    expect(returnKeyOf('description-input')).toEqual({
+      returnKeyType: undefined,
+      submitBehavior: undefined,
+    });
+    expect(screen.getByTestId('description-input').props.onSubmitEditing).toBeUndefined();
+  });
+
+  it('saves from the value field', async () => {
+    const { onSubmit } = renderForm();
+    fireEvent.changeText(screen.getByTestId('name-input'), 'Drill');
+    fireEvent.press(screen.getByTestId('category-chip-TOOLS'));
+
+    expect(returnKeyOf('estimatedValue-input').returnKeyType).toBe('done');
+    await pressReturnIn('estimatedValue-input');
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not save again while saving', async () => {
+    const { onSubmit } = renderForm({ isLoading: true });
+    fireEvent.changeText(screen.getByTestId('name-input'), 'Drill');
+    fireEvent.press(screen.getByTestId('category-chip-TOOLS'));
+
+    await pressReturnIn('estimatedValue-input');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

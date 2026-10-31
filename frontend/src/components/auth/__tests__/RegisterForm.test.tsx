@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react-nativ
 import { PaperProvider } from 'react-native-paper';
 import { RegisterForm } from '../RegisterForm';
 import i18n from '../../../config/i18n.config';
+import { pressReturnIn, returnKeyOf } from '../../../testing/keyboard';
 
 function renderWithProvider(ui: React.ReactElement) {
   return render(<PaperProvider>{ui}</PaperProvider>);
@@ -135,5 +136,65 @@ describe('RegisterForm', () => {
     await waitFor(() => {
       expect(screen.getByTestId('email-error').props.children).toBe(i18n.t('auth.emailRequired'));
     });
+  });
+});
+
+describe('RegisterForm keyboard', () => {
+  const VALID = {
+    'firstName-input': 'John',
+    'lastName-input': 'Doe',
+    'email-input': 'john@example.com',
+    'password-input': 'Password1!',
+    'confirmPassword-input': 'Password1!',
+  };
+
+  function fillValid() {
+    Object.entries(VALID).forEach(([id, value]) =>
+      fireEvent.changeText(screen.getByTestId(id), value),
+    );
+  }
+
+  it('moves to the next field with the return key, keeping the keyboard open', async () => {
+    renderWithProvider(<RegisterForm onSubmit={jest.fn()} isLoading={false} />);
+
+    expect(await pressReturnIn('firstName-input')).toBe('lastName-input');
+    expect(await pressReturnIn('lastName-input')).toBe('email-input');
+    expect(await pressReturnIn('email-input')).toBe('password-input');
+    expect(await pressReturnIn('password-input')).toBe('confirmPassword-input');
+    ['firstName-input', 'lastName-input', 'email-input', 'password-input'].forEach((id) =>
+      expect(returnKeyOf(id)).toEqual({ returnKeyType: 'next', submitBehavior: 'submit' }),
+    );
+  });
+
+  it('submits the form from the last field', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<RegisterForm onSubmit={onSubmit} isLoading={false} />);
+    fillValid();
+
+    expect(returnKeyOf('confirmPassword-input').returnKeyType).toBe('done');
+    await pressReturnIn('confirmPassword-input');
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows the errors instead of submitting an invalid form from the last field', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<RegisterForm onSubmit={onSubmit} isLoading={false} />);
+
+    await pressReturnIn('confirmPassword-input');
+
+    await waitFor(() => expect(screen.getByTestId('firstName-error')).toBeTruthy());
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('does not submit again while the account is being created', async () => {
+    const onSubmit = jest.fn();
+    renderWithProvider(<RegisterForm onSubmit={onSubmit} isLoading />);
+    fillValid();
+
+    await pressReturnIn('confirmPassword-input');
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
