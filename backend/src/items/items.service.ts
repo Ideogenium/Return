@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   NotFoundException,
 } from '../common/exceptions/problem-details.exception.js';
 import { PHOTO_STORAGE } from '../storage/interfaces/photo-storage.interface.js';
@@ -135,7 +134,7 @@ export class ItemsService {
 
   async findById(itemId: string, userId: string): Promise<ItemResponse> {
     const item = await this.findItemOrFail(itemId);
-    this.assertOwnership(item, userId, `/v1/items/${itemId}`);
+    this.assertOwnership(item, userId);
 
     return this.toItemResponse(item);
   }
@@ -146,7 +145,7 @@ export class ItemsService {
 
   async update(itemId: string, userId: string, dto: UpdateItemDto): Promise<ItemResponse> {
     const item = await this.findItemOrFail(itemId);
-    this.assertOwnership(item, userId, `/v1/items/${itemId}`);
+    this.assertOwnership(item, userId);
 
     // Règle métier : l'état final ne doit jamais avoir category=MONEY sans estimatedValue
     const finalCategory = dto.category ?? item.category;
@@ -175,7 +174,7 @@ export class ItemsService {
 
   async delete(itemId: string, userId: string): Promise<void> {
     const item = await this.findItemOrFail(itemId);
-    this.assertOwnership(item, userId, `/v1/items/${itemId}`);
+    this.assertOwnership(item, userId);
 
     // LOAN-039: Cannot delete an item that is currently in an active loan
     const activeLoanCount = await this.prisma.loan.count({
@@ -212,7 +211,7 @@ export class ItemsService {
     filename: string,
   ): Promise<PhotoResponse> {
     const item = await this.findItemOrFail(itemId);
-    this.assertOwnership(item, userId, `/v1/items/${itemId}/photos`);
+    this.assertOwnership(item, userId);
 
     // Vérifier la limite de photos
     const photoCount = await this.prisma.photo.count({ where: { itemId } });
@@ -254,7 +253,7 @@ export class ItemsService {
 
   async deletePhoto(itemId: string, photoId: string, userId: string): Promise<void> {
     const item = await this.findItemOrFail(itemId);
-    this.assertOwnership(item, userId, `/v1/items/${itemId}/photos/${photoId}`);
+    this.assertOwnership(item, userId);
 
     const photo = item.photos.find((p) => p.id === photoId);
     if (!photo) {
@@ -293,14 +292,10 @@ export class ItemsService {
     return item;
   }
 
-  private assertOwnership(item: ItemWithPhotos, userId: string, path: string): void {
+  /** FIX-28: someone else's item is reported exactly like a missing one (no existence leak). */
+  private assertOwnership(item: ItemWithPhotos, userId: string): void {
     if (item.userId !== userId) {
-      throw new ForbiddenException(
-        'forbidden',
-        'Forbidden',
-        'You do not have permission to access this item.',
-        path,
-      );
+      throw new NotFoundException('Item', item.id, `/v1/items/${item.id}`);
     }
   }
 

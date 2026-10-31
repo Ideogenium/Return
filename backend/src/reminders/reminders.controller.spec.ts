@@ -18,6 +18,7 @@ import type { ReminderResponse } from './interfaces/reminder-response.interface.
 // =============================================================================
 
 const LENDER_USER_ID = '550e8400-e29b-41d4-a716-446655440000';
+const BORROWER_USER_ID = '770e8400-e29b-41d4-a716-446655440000';
 const OTHER_USER_ID = '660e8400-e29b-41d4-a716-446655440000';
 const LOAN_ID = '110e8400-e29b-41d4-a716-446655440000';
 const REMINDER_ID = 'aaa00000-e29b-41d4-a716-446655440000';
@@ -52,7 +53,7 @@ const MOCK_REMINDER_WITH_LOAN: ReminderWithLoan = {
   channel: NotificationChannel.PUSH,
   createdAt: NOW,
   updatedAt: NOW,
-  loan: { id: LOAN_ID, lenderId: LENDER_USER_ID },
+  loan: { id: LOAN_ID, lenderId: LENDER_USER_ID, borrowerUserId: BORROWER_USER_ID },
 };
 
 const MOCK_SENT_REMINDER_WITH_LOAN: ReminderWithLoan = {
@@ -99,6 +100,7 @@ describe('RemindersController', () => {
       remindersService.findLoanForReminders.mockResolvedValue({
         id: LOAN_ID,
         lenderId: LENDER_USER_ID,
+        borrowerUserId: BORROWER_USER_ID,
       });
       remindersService.assertLoanOwnership.mockReturnValue(undefined);
       remindersService.findByLoanId.mockResolvedValue([MOCK_REMINDER_RESPONSE]);
@@ -113,9 +115,10 @@ describe('RemindersController', () => {
         `/v1/loans/${LOAN_ID}/reminders`,
       );
       expect(remindersService.assertLoanOwnership).toHaveBeenCalledWith(
-        { id: LOAN_ID, lenderId: LENDER_USER_ID },
+        { id: LOAN_ID, lenderId: LENDER_USER_ID, borrowerUserId: BORROWER_USER_ID },
         LENDER_USER_ID,
         `/v1/loans/${LOAN_ID}/reminders`,
+        { name: 'Loan', id: LOAN_ID },
       );
       expect(remindersService.findByLoanId).toHaveBeenCalledWith(LOAN_ID);
     });
@@ -146,6 +149,7 @@ describe('RemindersController', () => {
       remindersService.findLoanForReminders.mockResolvedValue({
         id: LOAN_ID,
         lenderId: LENDER_USER_ID,
+        borrowerUserId: BORROWER_USER_ID,
       });
       remindersService.assertLoanOwnership.mockImplementation(() => {
         throw new ForbiddenException(
@@ -193,7 +197,7 @@ describe('RemindersController', () => {
     it('should throw 403 when user is not the lender of the associated loan', async () => {
       remindersService.findById.mockResolvedValue({
         ...MOCK_REMINDER_WITH_LOAN,
-        loan: { id: LOAN_ID, lenderId: OTHER_USER_ID },
+        loan: { id: LOAN_ID, lenderId: OTHER_USER_ID, borrowerUserId: BORROWER_USER_ID },
       });
       remindersService.assertLoanOwnership.mockImplementation(() => {
         throw new ForbiddenException(
@@ -239,7 +243,7 @@ describe('RemindersController', () => {
     it('should throw 403 when user is not the lender', async () => {
       remindersService.findById.mockResolvedValue({
         ...MOCK_REMINDER_WITH_LOAN,
-        loan: { id: LOAN_ID, lenderId: OTHER_USER_ID },
+        loan: { id: LOAN_ID, lenderId: OTHER_USER_ID, borrowerUserId: BORROWER_USER_ID },
       });
       remindersService.assertLoanOwnership.mockImplementation(() => {
         throw new ForbiddenException(
