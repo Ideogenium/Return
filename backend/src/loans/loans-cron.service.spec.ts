@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LoansCronService } from './loans-cron.service.js';
@@ -45,11 +46,14 @@ describe('LoansCronService', () => {
   let prisma: DeepMockProxy<PrismaService>;
   let eventEmitter: { emit: jest.Mock };
   let exhaustedListener: { closeAsNotReturned: jest.Mock };
+  let env: Record<string, string | undefined>;
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaService>();
     eventEmitter = { emit: jest.fn() };
     exhaustedListener = { closeAsNotReturned: jest.fn().mockResolvedValue(true) };
+    // The overdue job is opt-in: tests enable it explicitly, the "disabled" ones override it.
+    env = { OVERDUE_JOB_ENABLED: 'true' };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -57,6 +61,7 @@ describe('LoansCronService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: ReminderExhaustedListener, useValue: exhaustedListener },
+        { provide: ConfigService, useValue: { get: (key: string) => env[key] } },
       ],
     }).compile();
 
@@ -195,16 +200,29 @@ describe('LoansCronService', () => {
     }
 
     // Mocks the two findMany calls of a tick: overdue candidates, then the
-    // AWAITING_RETURN catch-up candidates (told apart by their status filter).
+    // AWAITING_RETURN catch-up candidates (told apart by their status filter). Both
+    // honour `take` and the `id > cursor` keyset, like the real queries.
     function mockQueries(
       overdue: Array<{ id: string; status: LoanStatus }>,
       exhausted: Array<string | Record<string, unknown>> = [],
     ): void {
-      prisma.loan.findMany.mockImplementation((async (args: { where: { status: unknown } }) => {
+      prisma.loan.findMany.mockImplementation((async (args: {
+        where: { status: unknown; id?: { gt: string } };
+        take?: number;
+      }) => {
+        const gt = args.where.id?.gt;
+        const page = <T extends { id: unknown }>(rows: T[]): T[] =>
+          rows.filter((row) => gt === undefined || String(row.id) > gt).slice(0, args.take);
         if (args.where.status === LoanStatus.AWAITING_RETURN) {
-          return exhausted.map((e) => (typeof e === 'string' ? exhaustedRow(e) : e));
+          return page(
+            exhausted.map((e) => (typeof e === 'string' ? exhaustedRow(e) : e)) as Array<
+              Record<string, unknown> & { id: unknown }
+            >,
+          );
         }
-        return overdue.map((l) => ({ ...l, borrowerId: BORROWER_ID, lenderId: LENDER_ID }));
+        return page(
+          overdue.map((l) => ({ ...l, borrowerId: BORROWER_ID, lenderId: LENDER_ID })),
+        ).slice(0, args.take);
       }) as never);
     }
 
@@ -212,6 +230,8 @@ describe('LoansCronService', () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-03-10T15:30:00.000Z'));
       logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
       prisma.loan.updateMany.mockResolvedValue({ count: 1 });
+      // Default: no volume, so the circuit breaker never trips unless a test says so.
+      prisma.loan.count.mockResolvedValue(0);
     });
 
     afterEach(() => {
@@ -494,16 +514,378 @@ describe('LoansCronService', () => {
       errorSpy.mockRestore();
     });
 
-    it('emits the summary line even when a query throws', async () => {
-      prisma.loan.findMany.mockRejectedValue(new Error('db down'));
-      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    describe('step isolation', () => {
+      let errorSpy: jest.SpyInstance;
 
-      await cronService.handleOverdueLoans().catch(() => undefined);
+      beforeEach(() => {
+        errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      });
 
-      expect(logSpy).toHaveBeenCalledWith(
-        'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up)',
+      afterEach(() => errorSpy.mockRestore());
+
+      it('still runs step 2, logs the error and flags the tick when step 1 throws', async () => {
+        const failure = new Error('db down');
+        prisma.loan.findMany.mockImplementation((async (args: { where: { status: unknown } }) => {
+          if (args.where.status === LoanStatus.AWAITING_RETURN) return [exhaustedRow(LOAN_ID_3)];
+          throw failure;
+        }) as never);
+
+        await expect(cronService.handleOverdueLoans()).resolves.toBeUndefined();
+
+        expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledTimes(1);
+        expect(errorSpy).toHaveBeenCalledWith(
+          'Overdue step markAwaitingReturn failed: db down',
+          failure.stack,
+        );
+        expect(logSpy).toHaveBeenCalledWith(
+          'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up) — failed: markAwaitingReturn',
+        );
+      });
+
+      it('keeps the step 1 result, logs the error and flags the tick when step 2 throws', async () => {
+        const failure = new Error('db down');
+        prisma.loan.findMany.mockImplementation((async (args: { where: { status: unknown } }) => {
+          if (args.where.status === LoanStatus.AWAITING_RETURN) throw failure;
+          return [
+            {
+              id: LOAN_ID_1,
+              status: LoanStatus.ACTIVE,
+              borrowerId: BORROWER_ID,
+              lenderId: LENDER_ID,
+            },
+          ];
+        }) as never);
+
+        await expect(cronService.handleOverdueLoans()).resolves.toBeUndefined();
+
+        expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
+        expect(errorSpy).toHaveBeenCalledWith(
+          'Overdue step closeExhausted failed: db down',
+          failure.stack,
+        );
+        expect(logSpy).toHaveBeenCalledWith(
+          'Overdue tick: 1 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up) — failed: closeExhausted',
+        );
+      });
+
+      it('lists both steps when both throw', async () => {
+        prisma.loan.findMany.mockRejectedValue(new Error('db down'));
+
+        await cronService.handleOverdueLoans();
+
+        expect(errorSpy).toHaveBeenCalledTimes(2);
+        expect(logSpy).toHaveBeenCalledWith(
+          'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up) — failed: markAwaitingReturn, closeExhausted',
+        );
+      });
+    });
+
+    describe('kill switch (OVERDUE_JOB_ENABLED)', () => {
+      it.each([undefined, '', 'false', 'TRUE', '1'])(
+        'makes no query and logs "skipped" when the value is %p',
+        async (value) => {
+          env.OVERDUE_JOB_ENABLED = value;
+
+          await cronService.handleOverdueLoans();
+
+          expect(prisma.loan.findMany).not.toHaveBeenCalled();
+          expect(prisma.loan.updateMany).not.toHaveBeenCalled();
+          expect(exhaustedListener.closeAsNotReturned).not.toHaveBeenCalled();
+          expect(logSpy).toHaveBeenCalledWith(
+            "Overdue tick: skipped (OVERDUE_JOB_ENABLED is not 'true')",
+          );
+        },
       );
-      errorSpy.mockRestore();
+    });
+
+    describe('batch (OVERDUE_JOB_BATCH_SIZE)', () => {
+      const overdueRows = (n: number): Array<{ id: string; status: LoanStatus }> =>
+        Array.from({ length: n }, (_, i) => ({
+          id: `loan-${String(i).padStart(3, '0')}`,
+          status: LoanStatus.ACTIVE,
+        }));
+
+      it('processes at most one batch per step and resumes with the rest at the next pass', async () => {
+        env.OVERDUE_JOB_BATCH_SIZE = '2';
+        // Like the database: a loan marked at the first pass no longer matches the where.
+        let remaining = overdueRows(5);
+        let closable = ['c-1', 'c-2', 'c-3'];
+        prisma.loan.findMany.mockImplementation((async (args: {
+          where: { status: unknown; id?: { gt: string } };
+          take: number;
+        }) => {
+          if (args.where.status === LoanStatus.AWAITING_RETURN) {
+            return closable
+              .filter((id) => args.where.id === undefined || id > args.where.id.gt)
+              .slice(0, args.take)
+              .map((id) => exhaustedRow(id));
+          }
+          return remaining
+            .slice(0, args.take)
+            .map((l) => ({ ...l, borrowerId: BORROWER_ID, lenderId: LENDER_ID }));
+        }) as never);
+        prisma.loan.updateMany.mockImplementation((async (args: { where: { id: string } }) => {
+          remaining = remaining.filter((l) => l.id !== args.where.id);
+          return { count: 1 };
+        }) as never);
+        exhaustedListener.closeAsNotReturned.mockImplementation(async ({ loanId }) => {
+          closable = closable.filter((id) => id !== loanId);
+          return true;
+        });
+
+        await cronService.handleOverdueLoans();
+        expect(logSpy).toHaveBeenLastCalledWith(
+          'Overdue tick: 2 loan(s) marked AWAITING_RETURN, 2 closed NOT_RETURNED (catch-up)',
+        );
+        await cronService.handleOverdueLoans();
+        expect(logSpy).toHaveBeenLastCalledWith(
+          'Overdue tick: 2 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up)',
+        );
+        await cronService.handleOverdueLoans();
+        expect(logSpy).toHaveBeenLastCalledWith(
+          'Overdue tick: 1 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up)',
+        );
+        expect(remaining).toEqual([]);
+        expect(closable).toEqual([]);
+      });
+
+      it('reads the overdue loans in a deterministic order, one batch at a time', async () => {
+        env.OVERDUE_JOB_BATCH_SIZE = '7';
+        mockQueries([]);
+
+        await cronService.handleOverdueLoans();
+
+        expect(prisma.loan.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            orderBy: [{ returnDate: 'asc' }, { id: 'asc' }],
+            take: 7,
+          }),
+        );
+      });
+
+      it('is not blocked by stale catch-up candidates (postponed loans) ahead of the real ones', async () => {
+        env.OVERDUE_JOB_BATCH_SIZE = '2';
+        const postponed = new Date('2026-02-11T00:00:00.000Z'); // FINAL_DUE is for the old date
+        const stale = ['a-1', 'a-2', 'a-3', 'a-4', 'a-5'].map((id) =>
+          exhaustedRow(id, ReminderStatus.SENT, FINAL_DUE, postponed),
+        );
+        mockQueries([], [...stale, 'z-1', 'z-2', 'z-3']);
+
+        await cronService.handleOverdueLoans();
+
+        expect(exhaustedListener.closeAsNotReturned.mock.calls.map(([e]) => e.loanId)).toEqual([
+          'z-1',
+          'z-2',
+        ]);
+        // First call is step 1; then 3 pages of 2 hold the 5 stale ones and the first real one,
+        // and a 4th page (after z-1) provides the second.
+        const afterIds = prisma.loan.findMany.mock.calls.map(
+          ([args]) => (args as { where: { id?: { gt: string } } }).where.id?.gt,
+        );
+        expect(afterIds).toEqual([undefined, undefined, 'a-2', 'a-4', 'z-1']);
+      });
+
+      it('stops paging as soon as the candidates run out', async () => {
+        env.OVERDUE_JOB_BATCH_SIZE = '2';
+        const stale = ['a-1', 'a-2', 'a-3'].map((id) =>
+          exhaustedRow(id, ReminderStatus.SENT, FINAL_DUE, new Date('2026-02-11T00:00:00.000Z')),
+        );
+        mockQueries([], [...stale, 'z-1']);
+
+        await cronService.handleOverdueLoans();
+
+        expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledTimes(1);
+        expect(logSpy).toHaveBeenCalledWith(
+          'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up)',
+        );
+      });
+    });
+
+    describe('circuit breaker (OVERDUE_JOB_MAX_SHARE)', () => {
+      let errorSpy: jest.SpyInstance;
+
+      const overdueRows = (n: number): Array<{ id: string; status: LoanStatus }> =>
+        Array.from({ length: n }, (_, i) => ({ id: `loan-${i}`, status: LoanStatus.ACTIVE }));
+
+      /** count() answers by where: open loans, step 1 candidates, step 2 candidates. */
+      function mockCounts(counts: { open: number; overdue: number; exhausted: number }): void {
+        prisma.loan.count.mockImplementation((async (args: {
+          where: { status: unknown; returnDate?: unknown };
+        }) => {
+          if (args.where.status === LoanStatus.AWAITING_RETURN) return counts.exhausted;
+          if (args.where.returnDate) return counts.overdue;
+          return counts.open;
+        }) as never);
+      }
+
+      beforeEach(() => {
+        errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+        env.OVERDUE_JOB_BATCH_SIZE = '2';
+      });
+
+      afterEach(() => errorSpy.mockRestore());
+
+      it('counts the step candidates (same where as the read) and the open loans', async () => {
+        mockQueries([]);
+
+        await cronService.handleOverdueLoans();
+
+        expect(prisma.loan.count).toHaveBeenCalledWith({
+          where: {
+            status: { in: [LoanStatus.ACTIVE, LoanStatus.ACTIVE_BY_DEFAULT] },
+            deletedAt: null,
+            returnDate: { not: null, lt: new Date('2026-03-10T00:00:00.000Z') },
+          },
+        });
+        expect(prisma.loan.count).toHaveBeenCalledWith({
+          where: {
+            status: LoanStatus.AWAITING_RETURN,
+            deletedAt: null,
+            reminders: {
+              some: {
+                type: ReminderType.FINAL_OVERDUE,
+                status: { in: [ReminderStatus.SENT, ReminderStatus.FAILED] },
+              },
+            },
+          },
+        });
+        expect(prisma.loan.count).toHaveBeenCalledWith({
+          where: {
+            status: {
+              in: [LoanStatus.ACTIVE, LoanStatus.ACTIVE_BY_DEFAULT, LoanStatus.AWAITING_RETURN],
+            },
+            deletedAt: null,
+          },
+        });
+      });
+
+      it('does not trip at the share limit (candidates = share x open)', async () => {
+        mockCounts({ open: 8, overdue: 4, exhausted: 4 });
+        mockQueries(overdueRows(2), ['a', 'b']);
+
+        await cronService.handleOverdueLoans();
+
+        expect(errorSpy).not.toHaveBeenCalled();
+        expect(prisma.loan.updateMany).toHaveBeenCalledTimes(2);
+        expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledTimes(2);
+      });
+
+      it('does not trip on a small database even at 100% (candidates <= batch size)', async () => {
+        mockCounts({ open: 1, overdue: 1, exhausted: 1 });
+        mockQueries(overdueRows(1), ['a']);
+
+        await cronService.handleOverdueLoans();
+
+        expect(errorSpy).not.toHaveBeenCalled();
+        expect(prisma.loan.updateMany).toHaveBeenCalledTimes(1);
+        expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledTimes(1);
+      });
+
+      it('does not trip above the batch size when the share stays low (large legitimate backlog)', async () => {
+        mockCounts({ open: 1000, overdue: 300, exhausted: 0 });
+        mockQueries(overdueRows(2));
+
+        await cronService.handleOverdueLoans();
+
+        expect(errorSpy).not.toHaveBeenCalled();
+        expect(prisma.loan.updateMany).toHaveBeenCalledTimes(2);
+      });
+
+      it('writes nothing for step 1 when tripped, still runs step 2, and flags the tick', async () => {
+        mockCounts({ open: 10, overdue: 6, exhausted: 1 });
+        mockQueries(overdueRows(2), ['a']);
+
+        await cronService.handleOverdueLoans();
+
+        expect(prisma.loan.updateMany).not.toHaveBeenCalled();
+        expect(eventEmitter.emit).not.toHaveBeenCalled();
+        expect(prisma.loan.findMany).not.toHaveBeenCalledWith(
+          expect.objectContaining({ orderBy: [{ returnDate: 'asc' }, { id: 'asc' }] }),
+        );
+        expect(exhaustedListener.closeAsNotReturned).toHaveBeenCalledTimes(1);
+        expect(errorSpy).toHaveBeenCalledWith(
+          'Overdue step markAwaitingReturn tripped the circuit breaker: 6 candidate(s) out of 10 open loan(s) ' +
+            '(60.0%, limit 50.0%), nothing was written. ' +
+            'Check the data, then raise OVERDUE_JOB_MAX_SHARE if this volume is legitimate.',
+        );
+        expect(logSpy).toHaveBeenCalledWith(
+          'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 1 closed NOT_RETURNED (catch-up) — tripped: markAwaitingReturn',
+        );
+      });
+
+      it('closes nothing for step 2 when tripped, still runs step 1, and flags the tick', async () => {
+        mockCounts({ open: 10, overdue: 1, exhausted: 6 });
+        mockQueries(overdueRows(1), ['a', 'b', 'c']);
+
+        await cronService.handleOverdueLoans();
+
+        expect(exhaustedListener.closeAsNotReturned).not.toHaveBeenCalled();
+        expect(prisma.loan.updateMany).toHaveBeenCalledTimes(1);
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'Overdue step closeExhausted tripped the circuit breaker: 6 candidate(s) out of 10',
+          ),
+        );
+        expect(logSpy).toHaveBeenCalledWith(
+          'Overdue tick: 1 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up) — tripped: closeExhausted',
+        );
+      });
+
+      it('lists failed and tripped steps separately in the tick line', async () => {
+        mockCounts({ open: 10, overdue: 9, exhausted: 1 });
+        prisma.loan.findMany.mockRejectedValue(new Error('db down'));
+
+        await cronService.handleOverdueLoans();
+
+        expect(logSpy).toHaveBeenCalledWith(
+          'Overdue tick: 0 loan(s) marked AWAITING_RETURN, 0 closed NOT_RETURNED (catch-up) — failed: closeExhausted — tripped: markAwaitingReturn',
+        );
+      });
+
+      it('honours OVERDUE_JOB_MAX_SHARE', async () => {
+        env.OVERDUE_JOB_MAX_SHARE = '0.9';
+        mockCounts({ open: 10, overdue: 6, exhausted: 0 });
+        mockQueries(overdueRows(2));
+
+        await cronService.handleOverdueLoans();
+
+        expect(errorSpy).not.toHaveBeenCalled();
+        expect(prisma.loan.updateMany).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('invalid settings fall back to the defaults', () => {
+      it.each([undefined, '', 'abc', '0', '-5', '1.5'])(
+        'uses a batch of 100 when OVERDUE_JOB_BATCH_SIZE is %p',
+        async (value) => {
+          env.OVERDUE_JOB_BATCH_SIZE = value;
+          mockQueries([]);
+
+          await cronService.handleOverdueLoans();
+
+          expect(prisma.loan.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
+        },
+      );
+
+      it.each([undefined, '', 'abc', '0', '-0.2', '1.5', 'Infinity'])(
+        'uses a share of 0.5 when OVERDUE_JOB_MAX_SHARE is %p',
+        async (value) => {
+          env.OVERDUE_JOB_MAX_SHARE = value;
+          const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+          // 101 candidates out of 200 open: 50.5% > the default 50%
+          prisma.loan.count.mockImplementation((async (args: {
+            where: { returnDate?: unknown };
+          }) => (args.where.returnDate ? 101 : 200)) as never);
+          mockQueries([]);
+
+          await cronService.handleOverdueLoans();
+
+          expect(errorSpy).toHaveBeenCalledWith(
+            expect.stringContaining('markAwaitingReturn tripped the circuit breaker'),
+          );
+          errorSpy.mockRestore();
+        },
+      );
     });
 
     it('logs the team-convention line on every tick, even when there is nothing to do', async () => {

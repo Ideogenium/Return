@@ -3,6 +3,7 @@ import { INestApplication, ExecutionContext, CanActivate, Logger } from '@nestjs
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2, EventEmitterModule } from '@nestjs/event-emitter';
 import { LoanStatus, ReminderStatus, ReminderType } from '@prisma/client';
 import { HistoryController } from '../src/history/history.controller';
@@ -76,11 +77,13 @@ function matchesScalar(value: unknown, cond: unknown): boolean {
       (value instanceof Date && cond instanceof Date ? value.getTime() === cond.getTime() : false)
     );
   }
-  const c = cond as { in?: unknown[]; not?: unknown; lt?: Date; lte?: Date };
+  const c = cond as { in?: unknown[]; not?: unknown; lt?: Date; lte?: Date; gt?: string };
   if (c.in && !c.in.includes(value)) return false;
   if ('not' in c && value === c.not) return false;
   if (c.lt && !(value instanceof Date && value.getTime() < c.lt.getTime())) return false;
   if (c.lte && !(value instanceof Date && value.getTime() <= c.lte.getTime())) return false;
+  // Keyset pagination of the catch-up (`id > lastId`)
+  if (c.gt !== undefined && !(typeof value === 'string' && value > c.gt)) return false;
   return true;
 }
 
@@ -176,11 +179,16 @@ describe('FEAT-10 overdue lifecycle (e2e, in-memory Prisma fake)', () => {
     prisma.loan.findMany.mockImplementation(((args: {
       where: Where;
       select?: { reminders?: { where?: Where } };
+      take?: number;
     }) => {
       const nested = args.select?.reminders?.where;
+      // Every orderBy used by the overdue job ends with id asc, and the fixtures have a
+      // single returnDate: sorting by id is enough to honour it.
       return Promise.resolve(
         loans
           .filter((l) => matchesLoan(l, args.where))
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .slice(0, args.take)
           .map((l) => ({
             ...l,
             createdAt: new Date('2026-02-20T00:00:00.000Z'),
@@ -269,6 +277,11 @@ describe('FEAT-10 overdue lifecycle (e2e, in-memory Prisma fake)', () => {
         BorrowerStatsListener,
         RemindersCronService,
         { provide: PrismaService, useValue: prisma },
+        // The overdue job is opt-in (OVERDUE_JOB_ENABLED === 'true').
+        {
+          provide: ConfigService,
+          useValue: { get: (key: string) => (key === 'OVERDUE_JOB_ENABLED' ? 'true' : undefined) },
+        },
         {
           provide: NotificationsService,
           useValue: { sendReminderNotification: jest.fn().mockResolvedValue(undefined) },

@@ -58,6 +58,7 @@ services:
       JWT_REFRESH_EXPIRATION: 30d
       LOG_LEVEL: debug
       CORS_ORIGIN: http://localhost:8081
+      OVERDUE_JOB_ENABLED: 'true'
       CHOKIDAR_USEPOLLING: 'true'
     volumes:
       - ./backend/src:/app/src
