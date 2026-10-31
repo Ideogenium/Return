@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../__mocks__/server';
 import { useItemStore } from '../useItemStore';
+import apiClient, { UPLOAD_TIMEOUT_MS } from '../../api/apiClient';
 
 const API_BASE = 'http://localhost:3000/v1';
 
@@ -195,6 +196,20 @@ describe('useItemStore', () => {
 
       const state = useItemStore.getState();
       expect(state.items[0]!.photos).toHaveLength(2);
+    });
+
+    it('gives the upload the photo timeout, not the default one', async () => {
+      await useItemStore.getState().fetchItems();
+      const post = jest.spyOn(apiClient, 'post');
+
+      await useItemStore
+        .getState()
+        .uploadPhoto(useItemStore.getState().items[0]!.id, new FormData());
+
+      expect(post.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({ timeout: UPLOAD_TIMEOUT_MS }),
+      );
+      post.mockRestore();
     });
 
     it('should set error on 400 (max photos exceeded)', async () => {

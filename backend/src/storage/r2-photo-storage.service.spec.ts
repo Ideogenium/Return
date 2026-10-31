@@ -7,7 +7,13 @@ import {
 } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 
-import { R2PhotoStorageService, createR2Client } from './r2-photo-storage.service.js';
+import {
+  R2PhotoStorageService,
+  R2_CONNECTION_TIMEOUT_MS,
+  R2_MAX_ATTEMPTS,
+  R2_REQUEST_TIMEOUT_MS,
+  createR2Client,
+} from './r2-photo-storage.service.js';
 import type { R2Settings } from '../config/r2-settings.js';
 
 describe('R2PhotoStorageService', () => {
@@ -281,7 +287,16 @@ describe('R2PhotoStorageService', () => {
     it('bounds retries so a slow R2 cannot hold upload requests indefinitely', async () => {
       const client = createR2Client(SETTINGS);
 
-      await expect(client.config.maxAttempts()).resolves.toBe(3);
+      await expect(client.config.maxAttempts()).resolves.toBe(R2_MAX_ATTEMPTS);
+    });
+
+    // The app gives a photo upload 60 s (UPLOAD_TIMEOUT_MS), which must also cover sending
+    // up to 5 MB from the phone: R2 may take at most half of it, or the app gives up on an
+    // upload that later succeeds (orphan photo, duplicate on retry).
+    it('keeps the worst-case R2 time within half of the app upload timeout', () => {
+      const worstCaseMs = R2_MAX_ATTEMPTS * (R2_CONNECTION_TIMEOUT_MS + R2_REQUEST_TIMEOUT_MS);
+
+      expect(worstCaseMs).toBeLessThanOrEqual(30_000);
     });
 
     it('only computes checksums when required, as Cloudflare recommends for R2', async () => {

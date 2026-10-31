@@ -26,6 +26,12 @@ function processQueue(error: unknown, token: string | null) {
   failedQueue = [];
 }
 
+/**
+ * Photo uploads send up to 5 MB from the phone, then the API stores the file (at most
+ * 26 s on its side): the default 15 s would give up on uploads that are still working.
+ */
+export const UPLOAD_TIMEOUT_MS = 60_000;
+
 const apiClient = axios.create({
   timeout: 15000,
   headers: {

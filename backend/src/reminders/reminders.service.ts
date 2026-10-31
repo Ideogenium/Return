@@ -44,9 +44,13 @@ export class RemindersService {
    * return date currently stored on the loan. The loan is re-read in the same
    * transaction, so out-of-order or late events cannot schedule a stale date or
    * revive reminders of a loan that became overdue, closed or deleted meanwhile.
+   * The loan row is locked first: two concurrent reschedules of the same loan run one
+   * after the other, instead of each cancelling only the reminders it can see and
+   * both creating theirs (duplicates).
    */
   async reschedule(loanId: string, now: Date): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "loans" WHERE "id" = ${loanId}::uuid FOR UPDATE`;
       const loan = await tx.loan.findUnique({
         where: { id: loanId },
         select: { returnDate: true, status: true, deletedAt: true },

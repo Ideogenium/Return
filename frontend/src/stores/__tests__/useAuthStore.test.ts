@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { server } from '../../../__mocks__/server';
 import { useAuthStore } from '../useAuthStore';
+import apiClient, { UPLOAD_TIMEOUT_MS } from '../../api/apiClient';
 import {
   getAccessToken,
   getRefreshToken,
@@ -274,6 +275,19 @@ describe('useAuthStore', () => {
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(false);
       expect(await getAccessToken()).toBeNull();
+    });
+  });
+
+  describe('updateAvatar', () => {
+    it('gives the upload the photo timeout, not the default one', async () => {
+      const put = jest.spyOn(apiClient, 'put');
+
+      await useAuthStore.getState().updateAvatar(new FormData());
+
+      expect(put.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({ timeout: UPLOAD_TIMEOUT_MS }),
+      );
+      put.mockRestore();
     });
   });
 });

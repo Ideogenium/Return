@@ -33,6 +33,15 @@ const CACHE_CONTROL = 'public, max-age=31536000, s-maxage=86400, immutable';
 /** Where photos live; deliberately carries no credential. */
 export type R2BucketTarget = Pick<R2Settings, 'bucketName' | 'publicUrl'>;
 
+/**
+ * R2 time budget. The app gives a photo upload 60 s, which must also cover sending the
+ * file from the phone: R2 takes at most half of it (2 × (3 s + 10 s) = 26 s), so the app
+ * never gives up on an upload that later succeeds (orphan photo, duplicate on retry).
+ */
+export const R2_MAX_ATTEMPTS = 2;
+export const R2_CONNECTION_TIMEOUT_MS = 3_000;
+export const R2_REQUEST_TIMEOUT_MS = 10_000;
+
 export function createR2Client(settings: R2Settings): S3Client {
   return new S3Client({
     region: 'auto',
@@ -41,10 +50,10 @@ export function createR2Client(settings: R2Settings): S3Client {
       accessKeyId: settings.accessKeyId,
       secretAccessKey: settings.secretAccessKey,
     },
-    maxAttempts: 3,
+    maxAttempts: R2_MAX_ATTEMPTS,
     requestHandler: {
-      connectionTimeout: 3_000,
-      requestTimeout: 15_000,
+      connectionTimeout: R2_CONNECTION_TIMEOUT_MS,
+      requestTimeout: R2_REQUEST_TIMEOUT_MS,
       throwOnRequestTimeout: true,
     },
     // SDK default (WHEN_SUPPORTED) adds checksum headers R2 does not fully support.
