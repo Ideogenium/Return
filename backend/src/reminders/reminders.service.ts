@@ -50,26 +50,10 @@ export class RemindersService {
    */
   async reschedule(loanId: string, now: Date): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "loans" WHERE "id" = ${loanId}::uuid FOR UPDATE`;
-      const loan = await tx.loan.findUnique({
-        where: { id: loanId },
-        select: { returnDate: true, status: true, deletedAt: true },
-      });
-      if (
-        !loan ||
-        loan.deletedAt !== null ||
-        !RETURN_DATE_RESCHEDULABLE_STATUSES.includes(loan.status)
-      ) {
-        return;
+      const count = await rescheduleInTransaction(tx, loanId, now);
+      if (count !== null) {
+        this.logger.log(`Rescheduled ${count} reminder(s) for loan ${loanId}`);
       }
-
-      const schedules = ReminderPolicy.calculateDates(loan.returnDate, now);
-      await cancelScheduledQuery(tx, loanId);
-      if (schedules.length > 0) {
-        await tx.reminder.createMany({ data: toScheduledRows(loanId, schedules) });
-      }
-
-      this.logger.log(`Rescheduled ${schedules.length} reminder(s) for loan ${loanId}`);
     });
   }
 
@@ -185,4 +169,35 @@ function cancelScheduledQuery(db: Pick<Prisma.TransactionClient, 'reminder'>, lo
     where: { loanId, status: ReminderStatus.SCHEDULED },
     data: { status: ReminderStatus.CANCELLED },
   });
+}
+
+/**
+ * Body of {@link RemindersService.reschedule}, exported so the one-off legacy data
+ * script replans exactly like FEAT-11 inside its own transaction.
+ * @returns the number of reminders created, or null when the loan is not reschedulable.
+ */
+export async function rescheduleInTransaction(
+  tx: Prisma.TransactionClient,
+  loanId: string,
+  now: Date,
+): Promise<number | null> {
+  await tx.$queryRaw`SELECT "id" FROM "loans" WHERE "id" = ${loanId}::uuid FOR UPDATE`;
+  const loan = await tx.loan.findUnique({
+    where: { id: loanId },
+    select: { returnDate: true, status: true, deletedAt: true },
+  });
+  if (
+    !loan ||
+    loan.deletedAt !== null ||
+    !RETURN_DATE_RESCHEDULABLE_STATUSES.includes(loan.status)
+  ) {
+    return null;
+  }
+
+  const schedules = ReminderPolicy.calculateDates(loan.returnDate, now);
+  await cancelScheduledQuery(tx, loanId);
+  if (schedules.length > 0) {
+    await tx.reminder.createMany({ data: toScheduledRows(loanId, schedules) });
+  }
+  return schedules.length;
 }
