@@ -44,6 +44,10 @@ model User {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   lastLoginAt DateTime? @map("last_login_at")
 
+  // FIX-22 (ADR 0010): set when the account is deleted but kept as a pseudonymised
+  // tombstone, because closed loans still visible to a borrower reference it.
+  deletedAt DateTime? @map("deleted_at")
+
   // Relations
   refreshTokens   RefreshToken[]
   borrowerProfile Borrower[]     @relation("BorrowerUser") // Contacts linked to this user as borrower

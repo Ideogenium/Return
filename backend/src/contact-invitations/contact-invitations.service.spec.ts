@@ -34,6 +34,7 @@ const SENDER_USER: User = {
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const RECIPIENT_USER: User = {
@@ -52,6 +53,7 @@ const RECIPIENT_USER: User = {
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const MOCK_INVITATION: ContactInvitation = {

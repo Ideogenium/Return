@@ -16,6 +16,7 @@ import {
 } from '../common/exceptions/problem-details.exception.js';
 import { toSafeUser } from '../common/mappers/user.mapper.js';
 import { isPrismaUniqueConstraintError } from '../common/utils/prisma-errors.util.js';
+import { accessTokenTtlSeconds, parseDurationMs } from '../common/utils/duration.util.js';
 import type { AuthResponse, TokenPair } from './interfaces/auth-response.interface.js';
 import type { User } from '@prisma/client';
 
@@ -354,37 +355,11 @@ export class AuthService {
    */
   private getRefreshExpirationMs(): number {
     const exp = this.config.get<string>('JWT_REFRESH_EXPIRATION', '30d');
-    return this.parseDuration(exp, 30 * 24 * 60 * 60 * 1000);
+    return parseDurationMs(exp, 30 * 24 * 60 * 60 * 1000);
   }
 
-  /**
-   * Parse la durée d'expiration de l'access token depuis la config.
-   * @returns Durée en secondes (pour le champ `expiresIn` de AuthResponse)
-   */
+  /** Durée de vie de l'access token en secondes (champ `expiresIn` de AuthResponse). */
   private getAccessExpirationSeconds(): number {
-    const exp = this.config.get<string>('JWT_ACCESS_EXPIRATION', '15m');
-    return Math.floor(this.parseDuration(exp, 900_000) / 1000);
-  }
-
-  /**
-   * Parse une chaîne de durée ("15m", "30d", "1h") en millisecondes.
-   *
-   * @param duration - Chaîne au format `<nombre><unité>` (s/m/h/d)
-   * @param fallback - Valeur par défaut en ms si le format est invalide
-   */
-  private parseDuration(duration: string, fallback: number): number {
-    const match = duration.match(/^(\d+)([smhd])$/);
-    if (!match) return fallback;
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-    const multipliers: Record<string, number> = {
-      s: 1_000,
-      m: 60_000,
-      h: 3_600_000,
-      d: 86_400_000,
-    };
-
-    return value * (multipliers[unit] ?? fallback);
+    return accessTokenTtlSeconds(this.config);
   }
 }

@@ -24,6 +24,7 @@ const LENDER: User = {
   createdAt: NOW,
   updatedAt: NOW,
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const ITEM: Item = {
