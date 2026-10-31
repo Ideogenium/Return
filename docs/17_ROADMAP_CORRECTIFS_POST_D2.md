@@ -64,6 +64,8 @@ Identique au doc 13 :
 | FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)  | 🟡 Mineur   | 3   | Ismael  | S      | —          | ☐                                     |
 | FIX-38 | Aucune notification quand le prêteur change la date de retour                         | 🟠 Majeur   | 3   | Ismael  | M      | oui        | ☐                                     |
 | FIX-39 | Limites de connexion : par email seul, et compteurs en mémoire                        | 🟡 Mineur   | 3   | Ozias   | S      | —          | ☐                                     |
+| FIX-40 | Inscription sans vérification de l'email                                              | 🟠 Majeur   | 3   | Ozias   | M      | oui        | ☐                                     |
+| FIX-41 | Pierres tombales orphelines après la suppression de l'emprunteur                      | 🟡 Mineur   | 3   | Ozias   | S      | —          | ☐                                     |
 
 ### Répartition
 
@@ -406,3 +408,23 @@ Aucun ne bloque une mise en production. À planifier après le D3.
 - **Correctif** : un compteur par email seul sur `/auth/login` (ou un verrouillage temporaire du compte, à trancher
   pour éviter qu'un attaquant bloque un compte), et un stockage Redis du throttler, indispensable avant de passer à
   plusieurs machines (règle « une seule machine », CORR-09).
+
+### FIX-40 — Inscription sans vérification de l'email
+
+- **Gravité** : 🟠 Majeur · **Porteur** : Ozias · **Effort** : M · **Contrat** : oui
+- **Source** : relecture de sécurité de FIX-22 (C4), décision d'Ozias et d'Ismael du 31/10.
+- **Constat** : `POST /auth/register` crée le compte sans vérifier que l'adresse appartient à la personne. Après la
+  suppression d'un compte, n'importe qui peut s'inscrire avec l'ancienne adresse. C'est pour ça que FIX-22 ne relie
+  plus automatiquement les contacts détachés par une suppression.
+- **Correctif** : un code ou un lien de vérification envoyé par email, et un compte limité tant que l'adresse n'est
+  pas vérifiée. Il faut un service d'envoi d'emails (nouveau sous-traitant, à ajouter à la politique de
+  confidentialité). Une fois en place, on pourra réautoriser la liaison automatique des contacts.
+
+### FIX-41 — Pierres tombales orphelines après la suppression de l'emprunteur
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : S
+- **Source** : relecture de sécurité de FIX-22 (S5).
+- **Constat** : une pierre tombale garde les prêts clos tant qu'un emprunteur relié peut les voir. Si cet emprunteur
+  supprime à son tour son compte, plus personne ne les voit, mais la pierre tombale et ses prêts restent.
+- **Correctif** : à la suppression d'un compte, ou par une tâche planifiée, supprimer les pierres tombales dont plus
+  aucun prêt n'est visible, ce qui applique la minimisation de l'ADR 0010.
