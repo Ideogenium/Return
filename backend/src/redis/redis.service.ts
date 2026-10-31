@@ -8,6 +8,7 @@ import Redis from 'ioredis';
  * Responsabilités :
  * - Ajouter un token à la blacklist (avec TTL = durée restante du token)
  * - Vérifier si un token est blacklisté
+ * - Marquer un compte supprimé, pour refuser ses access tokens encore valables (FIX-22)
  *
  * Sera réutilisé au Sprint 4 pour BullMQ (file de jobs rappels).
  */
@@ -59,5 +60,27 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async isTokenBlacklisted(jti: string): Promise<boolean> {
     const result = await this.client.get(`bl:${jti}`);
     return result !== null;
+  }
+
+  // ─── Comptes supprimés (FIX-22, ADR 0010) ──────────────────────
+
+  /**
+   * Marque un compte supprimé : ses access tokens encore valables sont refusés.
+   *
+   * @param ttlSeconds - Au moins la durée de vie d'un access token, après quoi plus aucun
+   *                     token émis avant la suppression ne peut être valide.
+   */
+  async markAccountDeleted(userId: string, ttlSeconds: number): Promise<void> {
+    await this.client.setex(`user-deleted:${userId}`, ttlSeconds, '1');
+  }
+
+  /**
+   * Un access token est révoqué si son jti est blacklisté (logout, changement de mot de passe)
+   * ou si son compte a été supprimé. Une seule lecture Redis (MGET) pour les deux.
+   * Une erreur Redis remonte à l'appelant : la requête échoue plutôt que de laisser passer.
+   */
+  async isAccessRevoked(jti: string, userId: string): Promise<boolean> {
+    const values = await this.client.mget(`bl:${jti}`, `user-deleted:${userId}`);
+    return values.some((value) => value !== null);
   }
 }
