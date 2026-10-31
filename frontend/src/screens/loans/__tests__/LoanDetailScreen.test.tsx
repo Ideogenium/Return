@@ -1,9 +1,10 @@
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { MD3LightTheme, PaperProvider, Dialog } from 'react-native-paper';
 import { server } from '../../../../__mocks__/server';
 import { http, HttpResponse } from 'msw';
 import { Text } from 'react-native';
+import i18n from '../../../config/i18n.config';
 import { LoanDetailScreen } from '../LoanDetailScreen';
 import { LoanListScreen } from '../LoanListScreen';
 import apiClient from '../../../api/apiClient';
@@ -585,6 +586,15 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
       expect(screen.getByTestId('edit-loan-dialog')).toBeTruthy();
     });
   }
+
+  it('preselects the API return day in the edit dialog, not the day before', async () => {
+    serveLoanWithStatus('ACTIVE');
+    await openEditDialog();
+
+    // The loan's returnDate is the date-only '2026-04-15'.
+    const expected = new Date(2026, 3, 15).toLocaleDateString(i18n.language);
+    expect(within(screen.getByTestId('edit-return-date-input')).getByText(expected)).toBeTruthy();
+  });
 
   it('keeps changed notes when the backdrop is tapped', async () => {
     serveLoanWithStatus('ACTIVE');

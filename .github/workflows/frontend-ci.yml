@@ -56,3 +56,6 @@ jobs:
 
       - name: Jest tests with coverage
         run: npm run test:coverage
+
+      - name: Date tests under UTC-5 and UTC+14
+        run: npm run test:tz
