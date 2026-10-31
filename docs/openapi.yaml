@@ -17,6 +17,18 @@ info:
     **Standards** : RFC 7807 pour toutes les erreurs, i18n FR/EN
     **Validation** : class-validator + class-transformer
 
+    **Règle 404 / 403 (ressources d'un autre utilisateur)** :
+    - Quand l'appelant **n'est pas partie** à la ressource (tiers : prêt, objet, photo, contact, rappel,
+      invitation ou notification d'un autre utilisateur), l'API répond **404**. Cette réponse est
+      strictement identique à celle d'une ressource inexistante (même `type`, même `title`, même `detail`),
+      pour qu'on ne puisse pas deviner l'existence d'une ressource en testant des identifiants.
+    - Le **403** n'est renvoyé que lorsque l'appelant **est partie** à la ressource mais n'a pas le droit
+      d'effectuer l'action (ex. l'emprunteur d'un prêt qui tente une action réservée au prêteur).
+    - **Invitations de contact** : seule la personne autorisée à l'action voit la ressource (destinataire pour
+      accepter ou refuser, émetteur pour annuler) ; tout autre utilisateur, y compris l'autre partie de
+      l'invitation, reçoit le 404.
+    - Les statistiques de fiabilité d'un emprunteur (`Borrower.statistics`) ne sont visibles que du prêteur.
+
   contact:
     name: Return Support
     email: support@return.app
@@ -339,6 +351,8 @@ paths:
       description: |
         Créer un prêt avec un objet (existant ou nouveau) et un emprunteur existant (UUID).
         L'emprunteur doit être un contact avec invitation ACCEPTED (sinon 403).
+        Un objet ou un contact référencé par UUID qui n'appartient pas au prêteur renvoie un 404,
+        identique à celui d'un objet ou contact inexistant (pas de 403).
         Le statut initial est toujours PENDING_CONFIRMATION.
         Une notification de confirmation est automatiquement envoyée à l'emprunteur.
       operationId: createLoan
@@ -430,22 +444,12 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Accès interdit — ownership ou contact non accepté
+          description: Accès interdit — contact sans invitation acceptée (le prêteur est bien propriétaire du contact)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
               examples:
-                ownershipViolation:
-                  summary: L'objet ou l'emprunteur appartient à un autre utilisateur
-                  value:
-                    type: https://api.return.app/errors/forbidden
-                    title: Forbidden
-                    status: 403
-                    detail: This item belongs to another user.
-                    instance: /v1/loans
-                    timestamp: '2026-01-15T10:30:00Z'
-                    requestId: req_example123
                 contactNotAccepted:
                   summary: Contact sans invitation acceptée
                   value:
@@ -457,7 +461,9 @@ paths:
                     timestamp: '2026-01-15T10:30:00Z'
                     requestId: req_example123
         '404':
-          description: L'objet ou l'emprunteur référencé par UUID n'existe pas
+          description: |
+            L'objet ou l'emprunteur référencé par UUID n'existe pas **ou n'appartient pas au prêteur**
+            (réponse identique dans les deux cas). Pour un contact : `borrower-not-found`.
           content:
             application/json:
               schema:
@@ -466,7 +472,7 @@ paths:
                 type: https://api.return.app/errors/item-not-found
                 title: Item Not Found
                 status: 404
-                detail: Item with the provided ID does not exist.
+                detail: "The item with ID '8a9b0c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d' does not exist."
                 instance: /v1/loans
                 timestamp: '2026-01-15T10:30:00Z'
                 requestId: req_example123
@@ -508,7 +514,11 @@ paths:
 
         **Accès** : Accessible par le prêteur (créateur du prêt) OU par l'emprunteur lié
         (dont le `Borrower.userId` correspond à l'utilisateur connecté).
-        Un utilisateur tiers (ni prêteur, ni emprunteur) reçoit une erreur 403.
+        Un utilisateur tiers (ni prêteur, ni emprunteur) reçoit une erreur 404, identique à celle d'un prêt
+        inexistant (pas de 403 : il n'existe aucun cas de partie au prêt sans droit de lecture).
+
+        **Contenu de `borrower`** : `borrower.statistics` n'est présent que pour le prêteur ; voir la description
+        de `Loan.borrower` (dont la proposition, à valider en revue, sur le profil renvoyé à l'emprunteur).
       operationId: getLoanById
       responses:
         '200':
@@ -519,8 +529,6 @@ paths:
                 $ref: '#/components/schemas/Loan'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -533,7 +541,8 @@ paths:
         **Note** : Pour changer le statut, utiliser `/loans/{loanId}/status`.
 
         **Accès** : Seul le prêteur (créateur du prêt) peut modifier un prêt.
-        L'emprunteur reçoit une erreur 403.
+        L'emprunteur (partie sans droit) reçoit une erreur 403 ; un tiers reçoit un 404,
+        identique à celui d'un prêt inexistant.
       operationId: updateLoan
       requestBody:
         required: true
@@ -628,7 +637,8 @@ paths:
         Les rappels planifiés sont automatiquement annulés.
 
         **Accès** : Seul le prêteur (créateur du prêt) peut supprimer un prêt.
-        L'emprunteur reçoit une erreur 403.
+        L'emprunteur (partie sans droit) reçoit une erreur 403 ; un tiers reçoit un 404,
+        identique à celui d'un prêt inexistant.
 
         **Attention** : Cette action est irréversible (pas de restauration en V1).
       operationId: deleteLoan
@@ -688,6 +698,9 @@ paths:
         - `AWAITING_RETURN` → `NOT_RETURNED` (clôture quand le dernier rappel `FINAL_OVERDUE` (J+21) est envoyé **ou en échec** (`FAILED`) pour l'échéance actuelle ; règle en cours de révision, voir décision du 31/10)
 
         Les transitions invalides retournent une erreur 409 Conflict.
+
+        **Accès** : le prêteur et l'emprunteur du prêt (parties) reçoivent un 403 si la transition n'est pas
+        permise à leur rôle. Un tiers reçoit un 404 identique à celui d'un prêt inexistant.
       operationId: updateLoanStatus
       requestBody:
         required: true
@@ -722,7 +735,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Transition de statut non autorisée pour votre rôle
+          description: Transition de statut non autorisée pour votre rôle (partie au prêt uniquement ; un tiers reçoit un 404)
           content:
             application/json:
               schema:
@@ -760,6 +773,9 @@ paths:
       description: |
         Raccourci pour l'emprunteur : accepter le prêt en une seule action.
         Équivalent à `PATCH /loans/{loanId}/status` avec `status: ACTIVE`.
+
+        **Accès** : réservé à l'emprunteur. Le prêteur (partie sans droit) reçoit un 403 ; un tiers reçoit
+        un 404 identique à celui d'un prêt inexistant.
       operationId: confirmLoan
       parameters:
         - name: loanId
@@ -796,6 +812,9 @@ paths:
       description: |
         L'emprunteur refuse le prêt (il nie l'avoir emprunté).
         Le statut passe à CONTESTED et les rappels sont désactivés.
+
+        **Accès** : réservé à l'emprunteur. Le prêteur (partie sans droit) reçoit un 403 ; un tiers reçoit
+        un 404 identique à celui d'un prêt inexistant.
       operationId: contestLoan
       parameters:
         - name: loanId
@@ -953,7 +972,11 @@ paths:
       tags:
         - Items
       summary: Récupérer les détails d'un objet
-      description: Retourne toutes les informations d'un objet, y compris ses photos et son historique de prêts.
+      description: |
+        Retourne toutes les informations d'un objet, y compris ses photos et son historique de prêts.
+
+        **Accès** : réservé au propriétaire de l'objet. Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un objet inexistant (pas de 403).
       operationId: getItemById
       responses:
         '200':
@@ -964,8 +987,6 @@ paths:
                 $ref: '#/components/schemas/Item'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -973,7 +994,11 @@ paths:
       tags:
         - Items
       summary: Mettre à jour un objet
-      description: Permet de modifier le nom, la description, la catégorie ou la valeur estimée d'un objet existant.
+      description: |
+        Permet de modifier le nom, la description, la catégorie ou la valeur estimée d'un objet existant.
+
+        **Accès** : réservé au propriétaire. Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un objet inexistant (pas de 403).
       operationId: updateItem
       requestBody:
         required: true
@@ -1006,8 +1031,6 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1018,14 +1041,15 @@ paths:
       description: |
         Supprime un objet s'il n'est associé à aucun prêt actif.
         Si l'objet est prêté, la suppression est refusée (409 Conflict).
+
+        **Accès** : réservé au propriétaire. Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un objet inexistant (pas de 403).
       operationId: deleteItem
       responses:
         '204':
           description: Objet supprimé avec succès
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -1058,6 +1082,9 @@ paths:
       summary: Ajouter une photo à un objet existant
       description: |
         Upload d'une photo supplémentaire (max 5 photos par objet).
+
+        **Accès** : réservé au propriétaire de l'objet. Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un objet inexistant (pas de 403).
       operationId: addPhotoToItem
       requestBody:
         required: true
@@ -1101,8 +1128,6 @@ paths:
                 requestId: req-1e2f3a4b
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1128,14 +1153,16 @@ paths:
       description: |
         Supprime une photo associée à un objet. Le fichier est supprimé du storage
         et l'enregistrement est retiré de la base de données.
+
+        **Accès** : réservé au propriétaire de l'objet. Pour tout autre utilisateur, la réponse est un 404
+        identique à celle d'un objet inexistant (pas de 403) ; la vérification de propriété précède la
+        recherche de la photo, donc un tiers ne peut pas savoir si la photo existe.
       operationId: deletePhotoFromItem
       responses:
         '204':
           description: Photo supprimée avec succès
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1255,7 +1282,12 @@ paths:
       tags:
         - Borrowers
       summary: Récupérer les détails d'un emprunteur
-      description: Retourne les informations d'un emprunteur ainsi que ses statistiques de fiabilité.
+      description: |
+        Retourne les informations d'un emprunteur ainsi que ses statistiques de fiabilité.
+
+        **Accès** : un contact appartient au prêteur qui l'a créé. Pour tout autre utilisateur (y compris la
+        personne que le contact représente), la réponse est un 404, identique à celle d'un contact inexistant
+        (pas de 403).
       operationId: getBorrowerById
       responses:
         '200':
@@ -1266,8 +1298,6 @@ paths:
                 $ref: '#/components/schemas/Borrower'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1275,7 +1305,11 @@ paths:
       tags:
         - Borrowers
       summary: Mettre à jour un contact
-      description: Permet de modifier les informations d'un emprunteur (nom, email, téléphone).
+      description: |
+        Permet de modifier les informations d'un emprunteur (nom, email, téléphone).
+
+        **Accès** : réservé au prêteur propriétaire du contact. Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un contact inexistant (pas de 403).
       operationId: updateBorrower
       requestBody:
         required: true
@@ -1308,8 +1342,6 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -1334,14 +1366,15 @@ paths:
       description: |
         Supprime un emprunteur s'il n'a aucun prêt actif.
         L'historique des prêts passés est préservé.
+
+        **Accès** : réservé au prêteur propriétaire du contact. Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un contact inexistant (pas de 403).
       operationId: deleteBorrower
       responses:
         '204':
           description: Contact supprimé avec succès
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -1372,7 +1405,11 @@ paths:
       tags:
         - Borrowers
       summary: Récupérer les statistiques de fiabilité d'un emprunteur
-      description: Retourne les statistiques détaillées de fiabilité d'un emprunteur, incluant le score de confiance et les délais moyens de retour.
+      description: |
+        Retourne les statistiques détaillées de fiabilité d'un emprunteur, incluant le score de confiance et les délais moyens de retour.
+
+        **Accès** : réservé au prêteur propriétaire du contact. Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un contact inexistant (pas de 403).
       operationId: getBorrowerStatistics
       responses:
         '200':
@@ -1383,8 +1420,6 @@ paths:
                 $ref: '#/components/schemas/BorrowerStatistics'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1401,7 +1436,12 @@ paths:
       tags:
         - Borrowers
       summary: Lister tous les prêts d'un emprunteur
-      description: Récupère l'historique complet des prêts pour cet emprunteur.
+      description: |
+        Récupère l'historique complet des prêts pour cet emprunteur.
+
+        **Accès** : réservé au prêteur propriétaire du contact (l'appelant est donc toujours le prêteur des prêts
+        renvoyés, qui incluent `borrower.statistics`). Pour tout autre utilisateur, la réponse est un 404,
+        identique à celle d'un contact inexistant (pas de 403).
       operationId: getBorrowerLoans
       parameters:
         - name: status
@@ -1424,8 +1464,6 @@ paths:
                   $ref: '#/components/schemas/Loan'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1483,6 +1521,8 @@ paths:
         Envoie une invitation à un utilisateur inscrit pour l'ajouter à son carnet de contacts.
         L'invitation expire automatiquement après 30 jours.
         Erreurs possibles : 400 self-invitation, 404 utilisateur introuvable, 409 invitation déjà envoyée.
+
+        Le destinataire reçoit une notification `CONTACT_INVITATION_RECEIVED` (voir `PushNotificationData`).
       operationId: sendContactInvitation
       requestBody:
         required: true
@@ -1602,6 +1642,11 @@ paths:
         L'emprunteur (destinataire) accepte l'invitation. Cette action crée automatiquement
         un Borrower dans le carnet de contacts de l'émetteur et émet l'événement
         `ContactInvitationAccepted`. Seul le destinataire peut accepter.
+
+        L'auteur de l'invitation reçoit une notification `CONTACT_INVITATION_ACCEPTED`.
+
+        **Accès** : tout utilisateur autre que le destinataire (l'auteur de l'invitation compris) reçoit un 404
+        identique à celui d'une invitation inexistante (pas de 403).
       operationId: acceptContactInvitation
       parameters:
         - name: invitationId
@@ -1617,8 +1662,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContactInvitation'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           description: Invitation introuvable
           content:
@@ -1656,6 +1699,10 @@ paths:
       description: |
         L'emprunteur (destinataire) refuse l'invitation. Aucun contact n'est créé.
         Seul le destinataire peut refuser. Retourne 409 si l'invitation n'est plus PENDING.
+        Le refus ne génère aucune notification.
+
+        **Accès** : tout utilisateur autre que le destinataire (l'auteur de l'invitation compris) reçoit un 404
+        identique à celui d'une invitation inexistante (pas de 403).
       operationId: rejectContactInvitation
       parameters:
         - name: invitationId
@@ -1667,8 +1714,6 @@ paths:
       responses:
         '204':
           description: Invitation refusée
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           description: Invitation introuvable
           content:
@@ -1706,6 +1751,11 @@ paths:
       description: |
         Le prêteur (émetteur) annule une invitation PENDING qu'il a envoyée.
         Impossible d'annuler une invitation déjà acceptée.
+
+        **Accès** : tout utilisateur autre que l'émetteur (le destinataire compris) reçoit un 404
+        identique à celui d'une invitation inexistante (pas de 403). Si l'invitation est annulée, la notification
+        `CONTACT_INVITATION_RECEIVED` déjà envoyée au destinataire reste dans sa liste et ouvre simplement
+        la liste des invitations.
       operationId: cancelContactInvitation
       parameters:
         - name: invitationId
@@ -1717,8 +1767,6 @@ paths:
       responses:
         '204':
           description: Invitation annulée
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           description: Invitation introuvable
           content:
@@ -1767,6 +1815,9 @@ paths:
       summary: Lister tous les rappels d'un prêt
       description: |
         Récupère la liste de tous les rappels planifiés et envoyés pour ce prêt.
+
+        **Accès** : réservé au prêteur. L'emprunteur du prêt (partie sans droit) reçoit un 403 ;
+        un tiers reçoit un 404 identique à celui d'un prêt inexistant.
       operationId: getLoanReminders
       responses:
         '200':
@@ -1797,7 +1848,11 @@ paths:
       tags:
         - Reminders
       summary: Récupérer les détails d'un rappel
-      description: Retourne les informations complètes d'un rappel, y compris son statut d'envoi et son message.
+      description: |
+        Retourne les informations complètes d'un rappel, y compris son statut d'envoi et son message.
+
+        **Accès** : réservé au prêteur du prêt associé. L'emprunteur du prêt (partie sans droit) reçoit un 403 ;
+        un tiers reçoit un 404 identique à celui d'un rappel inexistant.
       operationId: getReminderById
       responses:
         '200':
@@ -1829,6 +1884,9 @@ paths:
       description: |
         Annule un rappel qui n'a pas encore été envoyé.
         Utilisé notamment quand le prêt est rendu avant la date prévue.
+
+        **Accès** : réservé au prêteur du prêt associé. L'emprunteur du prêt (partie sans droit) reçoit un 403 ;
+        un tiers reçoit un 404 identique à celui d'un rappel inexistant.
       operationId: cancelReminder
       responses:
         '204':
@@ -1864,7 +1922,8 @@ paths:
         - Notifications
       summary: Lister toutes les notifications de l'utilisateur
       description: |
-        Récupère les notifications push reçues (rappels, confirmations, etc.).
+        Récupère les notifications push reçues (rappels, confirmations, invitations de contact, etc.).
+        Les données jointes au push correspondant sont décrites par `PushNotificationData`.
       operationId: listNotifications
       parameters:
         - name: unreadOnly
@@ -1916,15 +1975,17 @@ paths:
       tags:
         - Notifications
       summary: Marquer une notification comme lue
-      description: Met à jour le statut d'une notification pour la marquer comme lue.
+      description: |
+        Met à jour le statut d'une notification pour la marquer comme lue.
+
+        Une notification appartient à un seul utilisateur : si elle n'est pas la vôtre, la réponse est un 404,
+        identique à celle d'une notification inexistante (pas de 403).
       operationId: markNotificationAsRead
       responses:
         '204':
           description: Notification marquée comme lue
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -2614,6 +2675,19 @@ components:
           $ref: '#/components/schemas/UserSummary'
         borrower:
           $ref: '#/components/schemas/Borrower'
+          description: |
+            Emprunteur du prêt. Le contenu dépend de l'appelant :
+            - **Appelant = prêteur** : le contact tel que le prêteur l'a saisi (prénom, nom, email, `phoneNumber`)
+              avec `statistics`.
+            - **Appelant = emprunteur** : `statistics` est **omis** (les statistiques de fiabilité sont réservées
+              au prêteur).
+
+            **Proposition — à valider en revue** (Ozias) : quand l'appelant est l'emprunteur, `borrower` contient
+            son **propre profil** (`firstName`, `lastName` et `email` de son compte utilisateur), sans `phoneNumber`
+            (numéro noté par le prêteur) ni `statistics` ; `id` (identifiant du contact) et `userId` (son propre
+            identifiant) restent présents. Le nom donné par le prêteur dans ses contacts reste réservé au prêteur.
+            Cette variante reste conforme au schéma `Borrower` : `phoneNumber` et `statistics` ne font pas
+            partie des champs requis.
         returnDate:
           type: [string, 'null']
           format: date
@@ -2808,6 +2882,10 @@ components:
           description: ID utilisateur Return (null si invitation en attente)
         statistics:
           $ref: '#/components/schemas/BorrowerStatistics'
+          description: |
+            Statistiques de fiabilité de l'emprunteur, **privées au prêteur** : le champ est présent
+            uniquement quand l'appelant est le prêteur du prêt (ou propriétaire du contact). Il est **omis**
+            (jamais `null`) dans toutes les autres réponses, notamment quand l'appelant est l'emprunteur du prêt.
 
     BorrowerStatistics:
       type: object
@@ -3052,7 +3130,11 @@ components:
 
     Notification:
       type: object
-      description: Notification push reçue par l'utilisateur (V1 — push uniquement via FCM)
+      description: |
+        Notification push reçue par l'utilisateur (V1 — push uniquement via FCM).
+
+        Chaque notification est aussi envoyée en push à l'appareil de l'utilisateur ; les données jointes
+        à ce push (`data`) sont décrites par le schéma `PushNotificationData`.
       required:
         - id
         - type
@@ -3075,8 +3157,27 @@ components:
             - LOAN_RETURNED
             - REMINDER_SENT
             - REMINDER_RECEIVED
+            - CONTACT_INVITATION_RECEIVED
+            - CONTACT_INVITATION_ACCEPTED
           example: LOAN_CONFIRMED
-          description: Type de notification
+          description: |
+            Type de notification.
+            - `LOAN_CREATED` : un prêt a été enregistré pour l'emprunteur (reçue par l'emprunteur).
+            - `LOAN_CONFIRMED` : l'emprunteur a confirmé le prêt (reçue par le prêteur).
+            - `LOAN_AUTO_CONFIRMED` : le prêt a été confirmé automatiquement après 48 h (reçue par le prêteur et l'emprunteur).
+            - `LOAN_CONTESTED` : l'emprunteur a contesté le prêt (reçue par le prêteur).
+            - `LOAN_RETURNED` : le prêteur a confirmé le retour (reçue par l'emprunteur).
+            - `REMINDER_SENT` : un rappel a été envoyé à l'emprunteur (reçue par le prêteur).
+            - `REMINDER_RECEIVED` : un rappel concerne l'emprunteur (reçue par l'emprunteur).
+            - `CONTACT_INVITATION_RECEIVED` : une invitation de contact vient d'être envoyée
+              (reçue par le **destinataire** de l'invitation, à l'envoi).
+            - `CONTACT_INVITATION_ACCEPTED` : une invitation de contact a été acceptée
+              (reçue par l'**auteur** de l'invitation, au moment de l'acceptation).
+
+            Le refus et l'expiration d'une invitation ne génèrent **pas** de notification.
+
+            **Compatibilité** : un client qui ne connaît pas un type (ancien build) l'ignore sans erreur :
+            icône par défaut dans la liste, et un tap sur le push sans `loanId` n'a aucun effet.
         title:
           type: string
           example: Prêt confirmé
@@ -3090,11 +3191,68 @@ components:
           type: [string, 'null']
           format: uuid
           example: 7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d
-          description: ID du prêt associé (null si notification système)
+          description: |
+            ID du prêt associé (null si notification système).
+            Toujours `null` pour `CONTACT_INVITATION_RECEIVED` et `CONTACT_INVITATION_ACCEPTED` :
+            la ressource Notification ne porte pas d'identifiant d'invitation (il figure dans les données du push,
+            voir `PushNotificationData`).
         createdAt:
           type: string
           format: date-time
           example: '2026-02-08T14:30:00Z'
+
+    PushNotificationData:
+      type: object
+      description: |
+        Données (`data`) jointes à chaque notification push envoyée à l'appareil. Toutes les valeurs sont
+        des chaînes de caractères. Ce schéma décrit le push, pas la ressource `Notification` renvoyée par
+        `GET /notifications`.
+
+        **Prêts** (`LOAN_*`) : `{ loanId, type }` où `type` est le type de la notification (ex. `LOAN_CONFIRMED`).
+        **Rappels** : `{ loanId, reminderId, type: 'REMINDER' }` (envoyé au prêteur et à l'emprunteur ; `REMINDER`
+        est une valeur propre au push, distincte de `REMINDER_SENT` / `REMINDER_RECEIVED`).
+        **Invitations de contact** : `{ type: 'CONTACT_INVITATION_RECEIVED' | 'CONTACT_INVITATION_ACCEPTED', invitationId }`
+        (pas de `loanId`).
+
+        **Comportement au tap dans l'application** :
+        - présence de `loanId` : ouverture du détail du prêt (seule donnée lue par les builds actuels) ;
+        - `CONTACT_INVITATION_RECEIVED` : écran Contacts, onglet des invitations reçues ;
+        - `CONTACT_INVITATION_ACCEPTED` : écran Contacts, onglet des invitations envoyées ;
+        - aucune donnée exploitable (ancien build qui ne connaît pas le type) : le tap n'a aucun effet.
+
+        **Cas limite** : si l'invitation a été annulée ou a expiré avant le tap, la notification
+        `CONTACT_INVITATION_RECEIVED` reste dans la liste et ouvre simplement la liste des invitations
+        (comportement accepté).
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - LOAN_CREATED
+            - LOAN_CONFIRMED
+            - LOAN_AUTO_CONFIRMED
+            - LOAN_CONTESTED
+            - LOAN_RETURNED
+            - REMINDER
+            - CONTACT_INVITATION_RECEIVED
+            - CONTACT_INVITATION_ACCEPTED
+          example: CONTACT_INVITATION_RECEIVED
+        loanId:
+          type: string
+          format: uuid
+          description: Présent pour les push de prêt et de rappel ; absent pour les invitations.
+          example: 7f3c9a2b-4d1e-4a8f-9c7b-1e3f5a6b8c9d
+        reminderId:
+          type: string
+          format: uuid
+          description: Présent uniquement pour les push de rappel (`type = REMINDER`).
+          example: 3b2a1c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+        invitationId:
+          type: string
+          format: uuid
+          description: Présent uniquement pour les push d'invitation de contact.
+          example: 6e5d4c3b-2a19-4f8e-9d7c-6b5a4f3e2d1c
 
     PaginationMetadata:
       type: object
@@ -3632,13 +3790,18 @@ components:
                 requestId: req-1a2b3c4d
 
     Forbidden:
-      description: Non autorisé (permissions insuffisantes)
+      description: |
+        Accès interdit : l'appelant est **partie à la ressource** (par exemple l'emprunteur d'un prêt,
+        l'émetteur ou le destinataire d'une invitation) mais n'a pas le droit d'effectuer cette action.
+        Un tiers (ni partie, ni propriétaire) ne reçoit jamais de 403 : il reçoit le 404 `NotFound`,
+        identique à celui d'une ressource inexistante (voir la règle générale dans la description de l'API).
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
           examples:
             notOwner:
+              summary: Partie sans droit (emprunteur qui tente de modifier un prêt)
               value:
                 type: https://api.return.app/errors/forbidden
                 title: Forbidden
@@ -3649,7 +3812,11 @@ components:
                 requestId: req-5e6f7a8b
 
     NotFound:
-      description: Ressource introuvable
+      description: |
+        Ressource introuvable **ou qui n'appartient pas à l'appelant** (tiers).
+        Les deux cas renvoient une réponse strictement identique (même `type`, même `title`, même `detail`),
+        afin qu'il soit impossible de deviner l'existence d'une ressource en testant des identifiants.
+        Seuls `instance`, `timestamp` et `requestId` varient d'une requête à l'autre.
       content:
         application/json:
           schema:

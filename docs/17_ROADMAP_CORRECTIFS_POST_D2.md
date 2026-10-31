@@ -49,11 +49,11 @@ Identique au doc 13 :
 | FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —         | ☐      |
 | FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | à décider | ☐      |
 | FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —         | ☐      |
-| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | oui       | ☐      |
+| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ☐      |
 | FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —         | ☐      |
 | FIX-26 | Envoi de fichiers : aucune limite Multer, erreurs étiquetées `INVALID_UUID`           | 🟠 Majeur   | 2   | Ozias   | S      | —         | ☐      |
-| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | oui       | ☐      |
-| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | oui       | ☐      |
+| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | ☐      |
+| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | ☐      |
 | FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
 | FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —         | ☐      |
 | FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
@@ -186,6 +186,11 @@ Identique au doc 13 :
   (`GET /loans`, `GET /loans/{id}`). L'app ne l'affiche pas : la fuite est dans la réponse JSON.
 - **Hors fiche** : le score global sur le profil (`LenderStats`, `GET /users/me/trust-score`) est voulu (FIX-15).
 - **Correctif** : ne renvoyer `statistics` qu'au prêteur ; contrat mis à jour d'abord.
+- **Décision (01/11, Ismael + Ozias)** : `Borrower.statistics` n'est présent que si l'appelant est le prêteur du prêt,
+  omis (pas `null`) sinon ; `GET /borrowers/{borrowerId}/statistics` reste réservé au prêteur (inchangé).
+  **Proposition en attente de validation (Ozias, en revue de la PR contrat)** : pour l'emprunteur, `loan.borrower`
+  contient son propre profil (prénom, nom, email de son compte), sans `phoneNumber` ni `statistics` ; le nom saisi
+  par le prêteur dans ses contacts lui reste réservé.
 
 ### FIX-25 — Date de retour minimale : J+2 local côté app, J+2 UTC côté API
 
@@ -211,6 +216,13 @@ Identique au doc 13 :
 - **Cause** : `contact-invitations.service.ts:149-217` n'émet aucun événement ; `NotificationType`
   (`schema.prisma:342-350`) n'a pas de type invitation.
 - **Correctif** : inventaire des événements qui méritent une notification, puis contrat, enum, listener, push.
+- **Décision (01/11, Ismael + Ozias)** : notifier la réception (au destinataire) et l'acceptation (à l'auteur) ;
+  ni le refus ni l'expiration. Nouveaux types `CONTACT_INVITATION_RECEIVED` et `CONTACT_INVITATION_ACCEPTED`,
+  `relatedLoanId` reste `null` ; données du push `{ type, invitationId }` (voir `PushNotificationData` dans le
+  contrat). Tap : réception -> Contacts, invitations reçues ; acceptation -> Contacts, invitations envoyées. Les
+  anciens builds ignorent un type inconnu (icône par défaut, tap sans effet). Invitation annulée ou expirée : la
+  notification reste et ouvre la liste des invitations. **Migration Prisma** : ajout de 2 valeurs à l'enum
+  `NotificationType` (`schema.prisma:342-350`).
 
 ### FIX-28 — 403 au lieu de 404 révèle l'existence d'une ressource
 
@@ -219,6 +231,12 @@ Identique au doc 13 :
   identifiants. Le contrat (`openapi.yaml:507-524`) prévoit ce 403. Le message du 403 sur un GET parle de « change
   this loan status » (`loans.service.ts:686`).
 - **Décision** : 404 pour tout ce qui n'appartient pas à l'utilisateur, ou garder 403.
+- **Décision (01/11, Ismael + Ozias)** : 404 quand l'appelant n'est pas partie à la ressource, 403 seulement quand il
+  est partie sans le droit (ex. emprunteur qui tente une action réservée au prêteur). Le 404 est strictement
+  identique (`type`, `title`, `detail`) que la ressource existe ou non. Exception tranchée par Ozias : pour les
+  invitations de contact, seule la personne autorisée à l'action voit la ressource (destinataire pour accepter ou
+  refuser, émetteur pour annuler), tout autre utilisateur, l'autre partie comprise, reçoit le 404 (plus de 403). Le message du 403 sur un GET de prêt
+  (« change this loan status », `loans.service.ts:686`) disparaît avec ce cas (le tiers reçoit un 404).
 
 ### FIX-29 — Avertissement `path-to-regexp` sur la route `/v1/*`
 
