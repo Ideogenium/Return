@@ -35,6 +35,7 @@ function visibleFields(
 describe('ItemsService', () => {
   let service: ItemsService;
   let prisma: {
+    user: { findFirst: jest.Mock };
     item: {
       create: jest.Mock;
       findMany: jest.Mock;
@@ -89,6 +90,8 @@ describe('ItemsService', () => {
 
   beforeEach(async () => {
     prisma = {
+      // A live account by default (FIX-22: a deleted account cannot create anything).
+      user: { findFirst: jest.fn().mockResolvedValue({ id: USER_ID }) },
       item: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -129,6 +132,15 @@ describe('ItemsService', () => {
   // ===========================================================================
 
   describe('create', () => {
+    it('refuses a deleted account still holding an access token, with 401 (FIX-22 review C1)', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(USER_ID, { name: 'Perceuse', category: ItemCategory.TOOLS }),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(prisma.item.create).not.toHaveBeenCalled();
+    });
+
     it('should create an item and return ItemResponse', async () => {
       prisma.item.create.mockResolvedValue({ ...mockItem, photos: [] });
 
@@ -409,6 +421,16 @@ describe('ItemsService', () => {
   // ===========================================================================
 
   describe('addPhoto', () => {
+    it('refuses a deleted account: no photo stored again after the R2 purge (FIX-22 review C1)', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.item.findUnique.mockResolvedValue({ ...mockItem, photos: [] });
+
+      await expect(
+        service.addPhoto(ITEM_ID, USER_ID, Buffer.from('x'), 'photo.jpg'),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(photoStorage.upload).not.toHaveBeenCalled();
+    });
+
     it('should upload photo and create record', async () => {
       prisma.item.findUnique.mockResolvedValue({
         ...mockItem,

@@ -13,6 +13,7 @@ import type { CreateItemDto } from './dto/create-item.dto.js';
 import type { UpdateItemDto } from './dto/update-item.dto.js';
 import type { Item, Photo, ItemCategory } from '@prisma/client';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
+import { assertLiveAccount } from '../common/utils/live-account.util.js';
 
 // =============================================================================
 // ItemsService — Logique métier du module Items
@@ -37,6 +38,9 @@ export class ItemsService {
   // ---------------------------------------------------------------------------
 
   async create(userId: string, dto: CreateItemDto): Promise<ItemResponse> {
+    // A deleted account (tombstone, FIX-22) cannot create anything with a leftover token.
+    await assertLiveAccount(this.prisma, userId, '/v1/items');
+
     // Règle métier : estimatedValue obligatoire si category = MONEY
     if (
       dto.category === 'MONEY' &&
@@ -212,6 +216,8 @@ export class ItemsService {
   ): Promise<PhotoResponse> {
     const item = await this.findItemOrFail(itemId);
     this.assertOwnership(item, userId);
+    // A deleted account must not store a photo again after its photos were purged (FIX-22).
+    await assertLiveAccount(this.prisma, userId, `/v1/items/${itemId}/photos`);
 
     // Vérifier la limite de photos
     const photoCount = await this.prisma.photo.count({ where: { itemId } });

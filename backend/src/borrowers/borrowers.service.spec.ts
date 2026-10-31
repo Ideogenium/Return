@@ -80,6 +80,8 @@ describe('BorrowersService', () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaService>();
+    // A live account by default (FIX-22: a deleted account cannot create anything).
+    prisma.user.findFirst.mockResolvedValue({ id: LENDER_USER_ID } as never);
     trustScoreService = {
       computeGlobalTrustScore: jest.fn().mockResolvedValue({
         trustScore: 0,
@@ -106,6 +108,19 @@ describe('BorrowersService', () => {
   // ===========================================================================
 
   describe('create', () => {
+    it('refuses a deleted account still holding an access token, with 401 (FIX-22 review C1)', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(LENDER_USER_ID, {
+          firstName: 'Marie',
+          lastName: 'Dupont',
+          email: 'marie.dupont@example.com',
+        }),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(prisma.borrower.create).not.toHaveBeenCalled();
+    });
+
     it('should create a borrower without userId when no registered user matches the email', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.borrower.create.mockResolvedValue(MOCK_BORROWER);

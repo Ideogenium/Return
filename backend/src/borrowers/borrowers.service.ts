@@ -14,6 +14,7 @@ import type { UpdateBorrowerDto } from './dto/update-borrower.dto.js';
 import type { Borrower } from '@prisma/client';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { TrustScoreService } from '../trust-score/trust-score.service.js';
+import { assertLiveAccount } from '../common/utils/live-account.util.js';
 
 // =============================================================================
 // BorrowersService — Logique métier du module Borrowers
@@ -31,6 +32,9 @@ export class BorrowersService {
   // ---------------------------------------------------------------------------
 
   async create(lenderUserId: string, dto: CreateBorrowerDto): Promise<BorrowerResponse> {
+    // A deleted account (tombstone, FIX-22) cannot create anything with a leftover token.
+    await assertLiveAccount(this.prisma, lenderUserId, '/v1/borrowers');
+
     // If a registered user already exists with this email, link immediately.
     // This handles the case where the contact is added AFTER the user has registered.
     const registeredUser = await this.prisma.user.findUnique({
