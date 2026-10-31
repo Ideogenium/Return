@@ -24,6 +24,7 @@ afterEach(async () => {
   server.resetHandlers();
   await clearTokens();
   useAuthStore.getState().reset();
+  useNotificationStore.getState().reset();
 });
 afterAll(() => server.close());
 
@@ -53,6 +54,33 @@ function expectSessionStoresEmpty() {
   expect(useContactInvitationStore.getState().pendingCount).toBe(0);
   expect(useNotificationStore.getState().notifications).toEqual([]);
   expect(useNotificationStore.getState().unreadCount).toBe(0);
+}
+
+// Records every call in order, with the Authorization header the request carried
+function recordCalls(
+  deleteResponse: () => Response = () => new HttpResponse(null, { status: 204 }),
+) {
+  const calls: { name: string; authorization: string | null; body?: unknown }[] = [];
+  server.use(
+    http.delete(`${API_BASE}/notifications/device-token`, async ({ request }) => {
+      calls.push({
+        name: 'unregister',
+        authorization: request.headers.get('Authorization'),
+        body: await request.json(),
+      });
+      return deleteResponse();
+    }),
+    http.post(`${API_BASE}/auth/logout`, ({ request }) => {
+      calls.push({ name: 'logout', authorization: request.headers.get('Authorization') });
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  return calls;
+}
+
+async function loginWithDeviceToken() {
+  await useAuthStore.getState().login('test@example.com', 'password');
+  useNotificationStore.setState({ deviceToken: 'expo-token-123' });
 }
 
 describe('useAuthStore', () => {
@@ -190,6 +218,86 @@ describe('useAuthStore', () => {
 
       expect(await getAccessToken()).toBeNull();
       expect(await getRefreshToken()).toBeNull();
+    });
+
+    it('unregisters the phone before POST /auth/logout, with the access token still sent', async () => {
+      await loginWithDeviceToken();
+      const calls = recordCalls();
+
+      await useAuthStore.getState().logout();
+
+      expect(calls.map((c) => c.name)).toEqual(['unregister', 'logout']);
+      expect(calls[0]).toEqual(
+        expect.objectContaining({
+          authorization: 'Bearer mock-access-token',
+          body: { token: 'expo-token-123' },
+        }),
+      );
+    });
+
+    it('still logs out and clears the tokens when the unregistration fails with a server error', async () => {
+      await loginWithDeviceToken();
+      const calls = recordCalls(() => new HttpResponse(null, { status: 500 }));
+
+      await useAuthStore.getState().logout();
+
+      expect(calls.map((c) => c.name)).toEqual(['unregister', 'logout']);
+      const state = useAuthStore.getState();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.user).toBeNull();
+      expect(state.accessToken).toBeNull();
+      expect(await getAccessToken()).toBeNull();
+      expect(await getRefreshToken()).toBeNull();
+    });
+
+    it('still logs out and clears the tokens when the unregistration fails on the network', async () => {
+      await loginWithDeviceToken();
+      server.use(http.delete(`${API_BASE}/notifications/device-token`, () => HttpResponse.error()));
+
+      await useAuthStore.getState().logout();
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(await getAccessToken()).toBeNull();
+      expect(await getRefreshToken()).toBeNull();
+    });
+
+    it('forgets the device token once logged out', async () => {
+      await loginWithDeviceToken();
+
+      await useAuthStore.getState().logout();
+
+      expect(useNotificationStore.getState().deviceToken).toBeNull();
+    });
+
+    it('does not call DELETE /notifications/device-token without a device token', async () => {
+      await useAuthStore.getState().login('test@example.com', 'password');
+      const calls = recordCalls();
+
+      await useAuthStore.getState().logout();
+
+      expect(calls.map((c) => c.name)).toEqual(['logout']);
+    });
+
+    it('does not call DELETE /notifications/device-token when the token refresh fails', async () => {
+      await setRefreshToken('expired');
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+      const calls = recordCalls();
+      server.use(http.post(`${API_BASE}/auth/refresh`, () => HttpResponse.error()));
+
+      await useAuthStore.getState().refreshToken();
+
+      expect(calls.filter((c) => c.name === 'unregister')).toHaveLength(0);
+    });
+
+    it('does not call DELETE /notifications/device-token when the session restore fails', async () => {
+      await setAccessToken('invalid-token');
+      useNotificationStore.setState({ deviceToken: 'expo-token-123' });
+      const calls = recordCalls();
+      server.use(http.get(`${API_BASE}/users/me`, () => HttpResponse.error()));
+
+      await useAuthStore.getState().hydrate();
+
+      expect(calls.filter((c) => c.name === 'unregister')).toHaveLength(0);
     });
   });
 
