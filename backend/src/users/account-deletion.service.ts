@@ -83,7 +83,7 @@ export class AccountDeletionService {
         userId,
         lenderLoans.map((loan) => loan.id),
       );
-      await this.deleteOthersInvitationNotifications();
+      await this.deleteOthersInvitationNotifications(tx, userId);
 
       if (droppedIds.length > 0) {
         await tx.loan.deleteMany({ where: { id: { in: droppedIds } } });
@@ -121,17 +121,13 @@ export class AccountDeletionService {
   }
 
   /**
-   * Notifications d'invitation d'autres utilisateurs qui le nomment : elles ne sont liées à aucun
-   * prêt, seulement à leur acteur.
-   *
-   * TODO(FIX-22, #45) : dépend de la colonne interne `Notification.actorUserId` ajoutée par
-   * FIX-27 (PR #45, pas encore dans main). Une fois #45 fusionnée :
-   * `tx.notification.deleteMany({ where: { actorUserId: userId } })` pour la pierre tombale ;
-   * la suppression complète est couverte par `onDelete: Cascade`. Aucune notification
-   * d'invitation n'existe en prod avant FIX-27 : rien à rattraper.
+   * Notifications d'autres utilisateurs qui le nomment sans être liées à un prêt (invitations,
+   * FIX-27) : retrouvées par leur acteur, colonne interne `actorUserId`. La cascade de la clé
+   * couvre déjà la suppression complète ; elle ne joue pas pour la pierre tombale, dont la ligne
+   * `users` reste : la suppression est donc explicite dans les deux cas.
    */
-  private async deleteOthersInvitationNotifications(): Promise<void> {
-    // Volontairement vide jusqu'à la fusion de #45 (voir ci-dessus) : recevra alors `tx` et `userId`.
+  private async deleteOthersInvitationNotifications(tx: Tx, userId: string): Promise<void> {
+    await tx.notification.deleteMany({ where: { actorUserId: userId } });
   }
 
   /** Pierre tombale : la ligne `users` reste, sans aucune donnée d'origine. */

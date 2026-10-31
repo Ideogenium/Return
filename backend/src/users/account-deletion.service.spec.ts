@@ -216,10 +216,20 @@ describe('AccountDeletionService.erase (FIX-22, ADR 0010)', () => {
       );
     });
 
-    // Depends on the internal column Notification.actorUserId added by FIX-27 (#45), not on
-    // main yet: invitation notifications of other users that name him are not linked to a loan.
-    it.todo(
-      "deletes the other users' invitation notifications naming him (WHERE actorUserId = id, needs #45)",
+    it.each([
+      ['deleted', []],
+      ['pseudonymised', [loanRow({ id: 'kept' })]],
+    ])(
+      "deletes the other users' invitation notifications naming him, by actorUserId (%s)",
+      async (_outcome, rows) => {
+        givenLenderLoans(rows);
+
+        await service.erase(USER_ID, UNUSABLE_HASH);
+
+        expect(tx.notification.deleteMany).toHaveBeenCalledWith({
+          where: { actorUserId: USER_ID },
+        });
+      },
     );
   });
 });

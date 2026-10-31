@@ -216,6 +216,13 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
             relatedLoanId: borrowedLoanId,
           },
           { userId: borrower.id, type: 'LOAN_CREATED', title: 't', body: 'unrelated' },
+          {
+            userId: borrower.id,
+            type: 'CONTACT_INVITATION_RECEIVED',
+            title: 't',
+            body: 'Alice invited you',
+            actorUserId: lender.id,
+          },
         ],
       });
       await prisma.refreshToken.create({
@@ -387,8 +394,20 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
       deletedAt: new Date(),
     });
 
+    const other = await createUser('Kim');
+    await prisma.notification.create({
+      data: {
+        userId: other.id,
+        type: 'CONTACT_INVITATION_ACCEPTED',
+        title: 't',
+        body: 'Dan accepted',
+        actorUserId: lender.id,
+      },
+    });
+
     await users.deleteAccount(lender.id, DTO);
 
+    await expect(prisma.notification.count({ where: { actorUserId: lender.id } })).resolves.toBe(0);
     await expect(prisma.user.count({ where: { id: lender.id } })).resolves.toBe(0);
     await expect(prisma.item.count()).resolves.toBe(0);
     await expect(prisma.borrower.count()).resolves.toBe(0);
