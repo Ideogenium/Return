@@ -249,7 +249,9 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
         expect.objectContaining({
           firstName: 'Compte',
           lastName: 'supprimé',
-          email: `deleted+${lender.id}@deleted.invalid`,
+          email: expect.stringMatching(
+            new RegExp(`^deleted\\+${lender.id}\\.[0-9a-f]{16}@deleted\\.invalid$`),
+          ),
           phone: null,
           profilePicture: null,
           lastLoginAt: null,
@@ -258,6 +260,25 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
         }),
       );
       await expect(bcrypt.compare(PASSWORD, tombstone.password)).resolves.toBe(false);
+    });
+
+    it('cannot be blocked by someone holding the predictable tombstone address (review B1)', async () => {
+      // An attacker who managed to own the old, guessable address before the deletion.
+      await prisma.user.create({
+        data: {
+          email: `deleted+${lender.id}@deleted.invalid`,
+          password: passwordHash,
+          firstName: 'Mallory',
+          lastName: 'Attacker',
+        },
+      });
+
+      await expect(users.deleteAccount(lender.id, DTO)).resolves.toBeUndefined();
+      await expect(
+        prisma.user.findUniqueOrThrow({ where: { id: lender.id } }),
+      ).resolves.toMatchObject({
+        deletedAt: expect.any(Date),
+      });
     });
 
     it('keeps the closed loans the borrower still sees, CONTESTED included, without notes', async () => {

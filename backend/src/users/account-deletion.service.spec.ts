@@ -124,7 +124,9 @@ describe('AccountDeletionService.erase (FIX-22, ADR 0010)', () => {
         data: expect.objectContaining({
           firstName: DELETED_ACCOUNT_FIRST_NAME,
           lastName: DELETED_ACCOUNT_LAST_NAME,
-          email: deletedAccountEmail(USER_ID),
+          email: expect.stringMatching(
+            new RegExp(`^deleted\\+${USER_ID}\\.[0-9a-f]{16}@deleted\\.invalid$`),
+          ),
           password: UNUSABLE_HASH,
           phone: null,
           profilePicture: null,
@@ -138,7 +140,10 @@ describe('AccountDeletionService.erase (FIX-22, ADR 0010)', () => {
       });
       expect(DELETED_ACCOUNT_FIRST_NAME).toBe('Compte');
       expect(DELETED_ACCOUNT_LAST_NAME).toBe('supprimé');
-      expect(deletedAccountEmail(USER_ID)).toBe(`deleted+${USER_ID}@deleted.invalid`);
+      // A random part makes the address impossible to guess and take first (security review B1).
+      expect(deletedAccountEmail(USER_ID, 'a1b2')).toBe(`deleted+${USER_ID}.a1b2@deleted.invalid`);
+      const emails = tx.user.update.mock.calls.map(([args]) => args.data.email);
+      expect(new Set(emails).size).toBe(emails.length);
     });
 
     it('empties the free texts he wrote: loan notes and item descriptions', async () => {

@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ConflictException } from '../common/exceptions/problem-details.exception.js';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
+import { RESERVED_EMAIL_DOMAIN } from '../common/validators/is-not-reserved-email.validator.js';
 
 // =============================================================================
 // AccountDeletionService — effacement d'un compte en base (FIX-22, ADR 0010)
@@ -18,9 +20,16 @@ import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 export const DELETED_ACCOUNT_FIRST_NAME = 'Compte';
 export const DELETED_ACCOUNT_LAST_NAME = 'supprimé';
 
-/** Adresse unique et non routable (RFC 2606) : l'adresse d'origine est libérée. */
-export function deletedAccountEmail(userId: string): string {
-  return `deleted+${userId}@deleted.invalid`;
+/**
+ * Adresse unique et non routable (domaine réservé, RFC 2606) : l'adresse d'origine est libérée.
+ * La partie aléatoire la rend impossible à deviner, donc à prendre avant la suppression (revue
+ * de sécurité B1) ; le domaine est de toute façon refusé à l'inscription et au changement d'email.
+ */
+export function deletedAccountEmail(
+  userId: string,
+  random = randomBytes(8).toString('hex'),
+): string {
+  return `deleted+${userId}.${random}@${RESERVED_EMAIL_DOMAIN}`;
 }
 
 /** Préférences remises aux valeurs par défaut du schéma. */
