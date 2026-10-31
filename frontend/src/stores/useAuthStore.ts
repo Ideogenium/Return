@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import apiClient from '../api/apiClient';
+import apiClient, { UPLOAD_TIMEOUT_MS } from '../api/apiClient';
 import {
   setAccessToken,
   setRefreshToken,
@@ -164,6 +164,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         formData,
         {
           headers: { 'Content-Type': undefined },
+          timeout: UPLOAD_TIMEOUT_MS,
         },
       );
       const currentUser = useAuthStore.getState().user;
