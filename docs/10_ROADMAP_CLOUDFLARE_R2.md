@@ -8,6 +8,37 @@
 
 ---
 
+## État au 31/10/2026 — implémenté (FEAT-01), en attente du déploiement D2
+
+> Le code est livré dans la branche de livraison `ozias/livraison-d1` (PR #30, merge FEAT-01 `9a6ca53`, purge RGPD
+> `c1a8347`). Les étapes ci-dessous sont **le plan initial** : le code réel en diffère sur les points suivants, qui
+> font foi.
+
+| Sujet | Décision réelle |
+|---|---|
+| Choix du stockage | `photo-storage.factory.ts` + `readR2Settings()` (`config/r2-settings.ts`) : **les 5 variables `R2_*` ou aucune**. Une configuration partielle fait échouer le démarrage (pas de repli silencieux sur le disque). |
+| Production | **R2 obligatoire** (`config.validation.ts`) : l'API refuse de démarrer en `NODE_ENV=production` sans R2. Poser les secrets **avant** `fly deploy`. Voir ADR 0008. |
+| Validation | Account ID = 32 caractères hexadécimaux ; `R2_PUBLIC_URL` en https, sans identifiants, requête ni fragment. |
+| Clés d'objet | Photos d'objet `users/<userId>/items/<itemId>/<uuid>.<ext>` ; avatar `users/<userId>/avatar-<uuid>.<ext>` (un nouvel avatar a une nouvelle clé). |
+| `/uploads` | Servi par l'API **uniquement** quand le stockage est local (dev) ; avec R2, les photos sont servies par l'URL publique du bucket. |
+| `UPLOAD_BASE_URL` | Retiré de `fly.toml` : inutile avec R2 (FIX-01/02). |
+| Écriture | `Content-Type` posé, cache `public, max-age=31536000, s-maxage=86400, immutable`, checksums `WHEN_REQUIRED` (compatibilité R2), délais et nombre de tentatives bornés. |
+| Cohérence | Ajout de photo : rollback de l'objet si l'enregistrement en base échoue. Suppression : base d'abord, objet ensuite. |
+| RGPD | Suppression de compte : purge de tout le préfixe `users/<userId>/` après la suppression en base (best-effort journalisé, reprise manuelle si des objets restent). La purge refuse tout préfixe qui ne désigne pas un dossier précis (`users/` est refusé). |
+
+**Bucket de préprod** : `return-photos-preprod` (Standard), accès public par l'URL de développement `r2.dev`, token
+API de compte limité à ce bucket en lecture/écriture d'objets. Smoke test réel du 26/10/2026 : envoi, lecture publique
+200, suppression puis 404 ; `ListBuckets` refusé au token ; purge par préfixe d'un compte sans toucher un autre compte.
+
+**Secrets Fly** (noms uniquement) : `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`,
+`R2_PUBLIC_URL` — posés en `--stage` le 26/10/2026, appliqués au prochain `fly deploy` (D2).
+
+**Reste après le déploiement D2** : upload photo + avatar sur `return-api.fly.dev`, puis preuve qu'une photo survit à
+un `fly deploy`. Reporté (post-sprint) : nettoyage EXIF/GPS, domaine personnalisé du bucket, nettoyage des anciennes
+URL `fly.dev/uploads` en base, reprise automatique d'une purge interrompue.
+
+---
+
 ## Contexte
 
 Le stockage photos utilise actuellement `LocalPhotoStorageService` (disque local). En preprod sur Fly.io, les fichiers
@@ -324,14 +355,14 @@ fly logs --app return-api
 
 ## Checklist avant merge
 
-- [ ] `npm install @aws-sdk/client-s3` OK
-- [ ] `R2PhotoStorageService` implémente `PhotoStorage` (upload, delete, getUrl)
-- [ ] `photo-storage.module.ts` utilise `useFactory` pour switch R2/local
-- [ ] `main.ts` conditionne `useStaticAssets` à l'absence de R2
-- [ ] Variables R2 dans `.env.example` et `env.validation.ts`
-- [ ] Tests unitaires R2 passent
-- [ ] Tous les tests existants passent (`npx jest --verbose`)
-- [ ] TypeScript compile (`npx tsc --noEmit`)
-- [ ] Secrets configurés sur Fly.io (`fly secrets list`)
-- [ ] Redéploiement OK (`fly deploy`)
-- [ ] Photo uploadée visible après redéploiement
+- [x] `npm install @aws-sdk/client-s3` OK
+- [x] `R2PhotoStorageService` implémente `PhotoStorage` (upload, delete, getUrl, + `deleteByPrefix` pour la purge)
+- [x] `photo-storage.module.ts` utilise `useFactory` pour switch R2/local (`photo-storage.factory.ts`)
+- [x] `main.ts` conditionne `useStaticAssets` au stockage local
+- [x] Variables R2 dans `.env.example` et `env.validation.ts` (+ validation « tout ou rien » et obligatoire en prod)
+- [x] Tests unitaires R2 passent
+- [x] Tous les tests existants passent (`npx jest --verbose`)
+- [x] TypeScript compile (`npx tsc --noEmit`)
+- [ ] Secrets configurés sur Fly.io (`fly secrets list`) — posés en `--stage`, effectifs au déploiement D2
+- [ ] Redéploiement OK (`fly deploy`) — déploiement D2
+- [ ] Photo uploadée visible après redéploiement — recette après D2
