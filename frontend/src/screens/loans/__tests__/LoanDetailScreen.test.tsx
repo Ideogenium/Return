@@ -536,6 +536,43 @@ describe('LoanDetailScreen — return date lock (409 loan-return-date-locked)', 
     expect(screen.queryByTestId('edit-return-date-input')).toBeNull();
   });
 
+  it('drops the cached reminders once the return date is changed, since the backend reschedules them', async () => {
+    serveLoanWithStatus('ACTIVE');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    await waitFor(() => {
+      expect(useReminderStore.getState().reminders.length).toBeGreaterThan(0);
+    });
+    fireEvent.press(screen.getByTestId('edit-return-date-input'));
+    fireEvent.press(screen.getByTestId('mock-calendar-select'));
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toHaveProperty('returnDate');
+      expect(useReminderStore.getState().loanId).toBeNull();
+    });
+    expect(useReminderStore.getState().reminders).toEqual([]);
+  });
+
+  it('keeps the cached reminders when only the notes change', async () => {
+    serveLoanWithStatus('ACTIVE');
+    const captured = capturePatchBody();
+
+    await openEditDialog();
+    await waitFor(() => {
+      expect(useReminderStore.getState().reminders.length).toBeGreaterThan(0);
+    });
+    fireEvent.changeText(screen.getByTestId('edit-notes-input'), 'new notes');
+    fireEvent.press(screen.getByTestId('confirm-edit-btn'));
+
+    await waitFor(() => {
+      expect(captured.body).toEqual({ notes: 'new notes' });
+      expect(editDialog()?.props.visible).toBe(false);
+    });
+    expect(useReminderStore.getState().reminders.length).toBeGreaterThan(0);
+  });
+
   it('closes the edit dialog once the changes are saved', async () => {
     serveLoanWithStatus('ACTIVE');
     const captured = capturePatchBody();

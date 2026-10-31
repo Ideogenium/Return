@@ -166,13 +166,15 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     if (!loan) return;
     const originalReturnDate = loan.returnDate?.slice(0, 10) ?? '';
     const returnDateChanged = editReturnDate.slice(0, 10) !== originalReturnDate;
+    const sendReturnDate = isReturnDateEditable(loan.status) && returnDateChanged;
     try {
       await useLoanStore.getState().updateLoan(id, {
         notes: editNotes || null,
-        ...(isReturnDateEditable(loan.status) && returnDateChanged
-          ? { returnDate: editReturnDate || null }
-          : {}),
+        ...(sendReturnDate ? { returnDate: editReturnDate || null } : {}),
       });
+      // The backend reschedules the reminders asynchronously after a date change: drop the cached
+      // ones rather than show outdated dates; the next focus reloads them.
+      if (sendReturnDate) useReminderStore.getState().reset();
       setEditDialogVisible(false);
     } catch (err) {
       // Keep the dialog (and the typed notes) open so the lender can retry.
