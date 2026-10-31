@@ -144,8 +144,8 @@
       `--stage`.
     - **Audit vs `env.validation.ts`** : obligatoires en prod et présents sur Fly — `DATABASE_URL`,
       `JWT_ACCESS_SECRET`, `REDIS_URL` ; R2 obligatoire (5 `R2_*` stagés) ; `NODE_ENV`, `PORT`, `API_PREFIX`,
-      `LOG_LEVEL`, `CORS_ORIGIN` dans `fly.toml`. Écarts relevés : `REDIS_URL` a une valeur par défaut `localhost` qui
-      n'est pas refusée en prod (remarque de relecture PR #30) ; le secret `JWT_REFRESH_SECRET` existe sur Fly mais
+      `LOG_LEVEL`, `CORS_ORIGIN` dans `fly.toml`. `REDIS_URL` est obligatoire en prod
+      (URL `redis://`/`rediss://`, commit `5b6066d`, remarque de relecture PR #30). Écart relevé : le secret `JWT_REFRESH_SECRET` existe sur Fly mais
       n'est lu par aucun code.
 
 ### CORR-13 — Incompatibilité Expo Push Token ↔ Firebase Admin SDK (FCM)
