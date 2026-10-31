@@ -65,6 +65,8 @@ export function LoanDetailScreen({ route, navigation }: Props) {
   const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
   const [contestDialogVisible, setContestDialogVisible] = useState(false);
   const [contestReason, setContestReason] = useState('');
+  const [isContesting, setIsContesting] = useState(false);
+  const [contestApiError, setContestApiError] = useState<string | undefined>();
   const [editDialogVisible, setEditDialogVisible] = useState(false);
   const [editNotes, setEditNotes] = useState('');
   const [editReturnDate, setEditReturnDate] = useState('');
@@ -163,16 +165,21 @@ export function LoanDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  // Like the confirmation dialog: the dialog stays open while the contest is sent, and only
+  // a success closes it, so a failure keeps the typed reason and shows its error inside.
   const handleContestLoan = async () => {
     if (contestReason.length < 10) return;
-    setContestDialogVisible(false);
-    setApiError(undefined);
+    setContestApiError(undefined);
+    setIsContesting(true);
     try {
       await useLoanStore.getState().contestLoan(id, { reason: contestReason });
+      setContestDialogVisible(false);
       setContestReason('');
     } catch (err) {
       const problem = parseProblemDetails(err as AxiosError);
-      setApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+      setContestApiError(problem ? getErrorMessage(problem, t) : t('errors.unknownError'));
+    } finally {
+      setIsContesting(false);
     }
   };
 
@@ -355,6 +362,7 @@ export function LoanDetailScreen({ route, navigation }: Props) {
               icon="close"
               onPress={() => {
                 setContestReason('');
+                setContestApiError(undefined);
                 setContestDialogVisible(true);
               }}
               style={[styles.dangerButton, styles.contestBtn]}
@@ -462,7 +470,8 @@ export function LoanDetailScreen({ route, navigation }: Props) {
               </Button>
               <Button
                 onPress={handleContestLoan}
-                disabled={contestReason.length < 10}
+                disabled={contestReason.length < 10 || isContesting}
+                loading={isContesting}
                 textColor="#D97A6B"
                 testID="submit-contest-btn"
               >
@@ -489,6 +498,11 @@ export function LoanDetailScreen({ route, navigation }: Props) {
           >
             {contestReason.length}/500 (min 10)
           </HelperText>
+          {contestApiError && (
+            <HelperText type="error" testID="contest-dialog-error">
+              {contestApiError}
+            </HelperText>
+          )}
         </FormDialog>
 
         {/* Delete dialog */}

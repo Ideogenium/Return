@@ -244,49 +244,113 @@ describe('LoanDetailScreen', () => {
     expect(screen.queryByTestId('delete-loan-btn')).toBeNull();
   });
 
-  it('keeps the contest dialog and its typed reason when the backdrop is tapped', async () => {
-    server.use(
-      http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
-        HttpResponse.json({
-          id: params.id,
-          item: {
-            id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
-            name: 'Perceuse Bosch',
-            category: 'TOOLS',
-            createdAt: '2026-02-10T10:00:00Z',
-          },
-          lender: {
-            id: 'other-user-id',
-            firstName: 'Alice',
-            lastName: 'Martin',
-            profilePicture: null,
-          },
-          borrower: {
-            id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
-            firstName: 'John',
-            lastName: 'Doe',
-            email: 'test@example.com',
-          },
-          status: 'PENDING_CONFIRMATION',
-          returnDate: '2026-04-15',
-          confirmationDate: null,
-          returnedDate: null,
-          notes: null,
-          contestReason: null,
-          createdAt: '2026-02-01T10:00:00Z',
-          updatedAt: '2026-02-01T10:00:00Z',
+  describe('contest by the borrower', () => {
+    // A loan waiting for the confirmation of the current user, its borrower.
+    const pendingLoan = (id: string) => ({
+      id,
+      item: {
+        id: '9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d',
+        name: 'Perceuse Bosch',
+        category: 'TOOLS',
+        createdAt: '2026-02-10T10:00:00Z',
+      },
+      lender: {
+        id: 'other-user-id',
+        firstName: 'Alice',
+        lastName: 'Martin',
+        profilePicture: null,
+      },
+      borrower: {
+        id: '5d6e7f8a-1b2c-4d3e-a5f6-7a8b9c0d1e2f',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'test@example.com',
+      },
+      status: 'PENDING_CONFIRMATION',
+      returnDate: '2026-04-15',
+      confirmationDate: null,
+      returnedDate: null,
+      notes: null,
+      contestReason: null,
+      createdAt: '2026-02-01T10:00:00Z',
+      updatedAt: '2026-02-01T10:00:00Z',
+    });
+
+    function servePendingLoanForBorrower() {
+      server.use(
+        http.get('http://localhost:3000/v1/loans/:id', ({ params }) =>
+          HttpResponse.json(pendingLoan(String(params.id))),
+        ),
+      );
+    }
+
+    const contestDialog = () =>
+      screen.UNSAFE_getAllByType(Dialog).find((d) => d.props.testID === 'contest-loan-dialog');
+
+    async function typeContestReason(reason: string) {
+      servePendingLoanForBorrower();
+      renderDetailScreen();
+      await waitFor(() => expect(screen.getByTestId('contest-loan-btn')).toBeTruthy());
+      fireEvent.press(screen.getByTestId('contest-loan-btn'));
+      fireEvent.changeText(screen.getByTestId('contest-reason-input'), reason);
+    }
+
+    it('keeps the dialog and its typed reason when the backdrop is tapped', async () => {
+      await typeContestReason('Not the right item');
+
+      fireEvent.press(screen.getByTestId('contest-loan-dialog-backdrop'));
+
+      expect(contestDialog()?.props.visible).toBe(true);
+      expect(screen.getByTestId('contest-reason-input').props.value).toBe('Not the right item');
+    });
+
+    it('keeps the dialog open while the contest is sent, then closes it', async () => {
+      let release: () => void = () => {};
+      const sent = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.post('http://localhost:3000/v1/loans/:id/contest', async ({ params }) => {
+          await sent;
+          return HttpResponse.json({ ...pendingLoan(String(params.id)), status: 'CONTESTED' });
         }),
-      ),
-    );
-    renderDetailScreen();
-    await waitFor(() => expect(screen.getByTestId('contest-loan-btn')).toBeTruthy());
+      );
+      await typeContestReason('Not the right item');
 
-    fireEvent.press(screen.getByTestId('contest-loan-btn'));
-    fireEvent.changeText(screen.getByTestId('contest-reason-input'), 'Not the right item');
-    fireEvent.press(screen.getByTestId('contest-loan-dialog-backdrop'));
+      fireEvent.press(screen.getByTestId('submit-contest-btn'));
 
-    expect(screen.getByTestId('contest-loan-dialog').props.pointerEvents).toBe('auto');
-    expect(screen.getByTestId('contest-reason-input').props.value).toBe('Not the right item');
+      expect(contestDialog()?.props.visible).toBe(true);
+      expect(screen.getByTestId('submit-contest-btn').props.accessibilityState).toEqual(
+        expect.objectContaining({ disabled: true }),
+      );
+
+      await act(async () => release());
+      await waitFor(() => expect(contestDialog()?.props.visible).toBe(false));
+    });
+
+    it('keeps the dialog, the reason and shows the error inside it when the contest fails', async () => {
+      server.use(
+        http.post('http://localhost:3000/v1/loans/:id/contest', () =>
+          HttpResponse.json(
+            {
+              type: 'https://api.return.app/errors/internal-server-error',
+              title: 'Internal Server Error',
+              status: 500,
+              detail: 'boom',
+            },
+            { status: 500 },
+          ),
+        ),
+      );
+      await typeContestReason('Not the right item');
+
+      fireEvent.press(screen.getByTestId('submit-contest-btn'));
+
+      await waitFor(() => expect(screen.getByTestId('contest-dialog-error')).toBeTruthy());
+      expect(contestDialog()?.props.visible).toBe(true);
+      expect(screen.getByTestId('contest-reason-input').props.value).toBe('Not the right item');
+      expect(screen.queryByTestId('api-error')).toBeNull();
+    });
   });
 
   it('should delete and go back on confirm', async () => {
