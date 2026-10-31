@@ -76,10 +76,11 @@ function matchesScalar(value: unknown, cond: unknown): boolean {
       (value instanceof Date && cond instanceof Date ? value.getTime() === cond.getTime() : false)
     );
   }
-  const c = cond as { in?: unknown[]; not?: unknown; lt?: Date };
+  const c = cond as { in?: unknown[]; not?: unknown; lt?: Date; lte?: Date };
   if (c.in && !c.in.includes(value)) return false;
   if ('not' in c && value === c.not) return false;
   if (c.lt && !(value instanceof Date && value.getTime() < c.lt.getTime())) return false;
+  if (c.lte && !(value instanceof Date && value.getTime() <= c.lte.getTime())) return false;
   return true;
 }
 
@@ -215,30 +216,38 @@ describe('FEAT-10 overdue lifecycle (e2e, in-memory Prisma fake)', () => {
       return Promise.resolve(borrower);
     }) as never);
 
-    prisma.reminder.findMany.mockImplementation((() => {
-      const now = Date.now();
-      const due = loans.flatMap((l) =>
-        l.reminders
-          .filter((r) => r.status === ReminderStatus.SCHEDULED && r.scheduledFor.getTime() <= now)
-          .map((r) => ({
-            ...r,
-            loan: {
-              id: l.id,
-              borrowerId: l.borrowerId,
-              lenderId: l.lenderId,
-              borrower: { userId: null },
-            },
-          })),
-      );
+    // Interprets the where of RemindersCronService.sendScheduledReminders, including the
+    // defense-in-depth `loan: { deletedAt, status }` filter (REMINDABLE_LOAN_STATUSES).
+    prisma.reminder.findMany.mockImplementation(((args: { where: Where & { loan?: Where } }) => {
+      const { loan: loanWhere, ...reminderWhere } = args.where;
+      const due = loans
+        .filter((l) => !loanWhere || matchesLoan(l, loanWhere))
+        .flatMap((l) =>
+          l.reminders
+            .filter((r) => matchesReminder(r, reminderWhere))
+            .map((r) => ({
+              ...r,
+              loan: {
+                id: l.id,
+                borrowerId: l.borrowerId,
+                lenderId: l.lenderId,
+                borrower: { userId: null },
+              },
+            })),
+        );
       return Promise.resolve(due);
     }) as never);
-    prisma.reminder.update.mockImplementation(((args: {
-      where: { id: string };
+    // Conditional update (where.id + where.status), returning { count } like Prisma:
+    // a reminder cancelled meanwhile is not overwritten.
+    prisma.reminder.updateMany.mockImplementation(((args: {
+      where: Where;
       data: Partial<FakeReminder>;
     }) => {
-      const target = loans.flatMap((l) => l.reminders).find((r) => r.id === args.where.id);
-      if (target) Object.assign(target, args.data);
-      return Promise.resolve(target);
+      const matching = loans
+        .flatMap((l) => l.reminders)
+        .filter((r) => matchesReminder(r, args.where));
+      matching.forEach((r) => Object.assign(r, args.data));
+      return Promise.resolve({ count: matching.length });
     }) as never);
   }
 
@@ -447,6 +456,24 @@ describe('FEAT-10 overdue lifecycle (e2e, in-memory Prisma fake)', () => {
         LoanStatus.ACTIVE,
       ]);
       expect(statusChanges().map((e) => e.loanId)).toEqual([eligible.id]);
+    });
+
+    it('does not send scheduled reminders of a RETURNED or soft-deleted loan', async () => {
+      loans = [];
+      const returned = addLoan('41', {
+        status: LoanStatus.RETURNED,
+        reminders: [reminder(ReminderType.ON_DUE_DATE, '2026-03-10T08:00:00.000Z')],
+      });
+      const deleted = addLoan('42', {
+        deletedAt: new Date('2026-03-01T00:00:00.000Z'),
+        reminders: [reminder(ReminderType.ON_DUE_DATE, '2026-03-10T08:00:00.000Z')],
+      });
+      setNow('2026-03-11T10:00:00.000Z');
+
+      await remindersCron.sendScheduledReminders();
+
+      expect(returned.reminders[0].status).toBe(ReminderStatus.SCHEDULED);
+      expect(deleted.reminders[0].status).toBe(ReminderStatus.SCHEDULED);
     });
 
     it('catch-up never closes a soft-deleted or RETURNED loan, even with a SENT FINAL_OVERDUE', async () => {
