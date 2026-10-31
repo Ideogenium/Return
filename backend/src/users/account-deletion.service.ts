@@ -3,7 +3,18 @@ import { randomBytes } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service.js';
-import { ConflictException } from '../common/exceptions/problem-details.exception.js';
+import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service.js';
+import {
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '../common/exceptions/problem-details.exception.js';
+import {
+  isPrismaForeignKeyError,
+  isPrismaUniqueConstraintError,
+} from '../common/utils/prisma-errors.util.js';
+import { accessTokenTtlSeconds } from '../common/utils/duration.util.js';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { RESERVED_EMAIL_DOMAIN } from '../common/validators/is-not-reserved-email.validator.js';
 
@@ -45,9 +56,27 @@ export type AccountErasureOutcome = 'deleted' | 'pseudonymised';
 
 type Tx = Prisma.TransactionClient;
 
+/** Bornes de la transaction : attente du verrou et durée maximale (revue de sécurité C3). */
+const TRANSACTION_OPTIONS = { timeout: 30_000, maxWait: 5_000 } as const;
+
+const PATH = '/v1/users/me';
+
+function activeLoansConflict(): ConflictException {
+  return new ConflictException(
+    'active-loans-exist',
+    'Active Loans Exist',
+    'Cannot delete account while active loans exist. Please close all loans first.',
+    PATH,
+  );
+}
+
 @Injectable()
 export class AccountDeletionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * Efface le compte en base. Les contrôles (mot de passe, prêts en cours) sont faits avant
@@ -55,61 +84,111 @@ export class AccountDeletionService {
    * prêt créé entre-temps ne soit jamais perdu.
    *
    * @param unusablePasswordHash - Hash d'un secret aléatoire jeté : aucun mot de passe ne le valide.
-   * @throws ConflictException (409 active-loans-exist) si un prêt en cours existe
+   * @throws ConflictException (409 active-loans-exist) si un prêt en cours existe, y compris créé
+   *         pendant la suppression
+   * @throws NotFoundException (404) si le compte est déjà supprimé (second appel simultané)
+   * @throws ServiceUnavailableException (503) si la révocation Redis échoue : rien n'est effacé
    */
   async erase(userId: string, unusablePasswordHash: string): Promise<AccountErasureOutcome> {
-    return this.prisma.$transaction(async (tx) => {
-      const lenderLoans = await tx.loan.findMany({
-        where: { lenderId: userId },
-        select: {
-          id: true,
-          status: true,
-          deletedAt: true,
-          itemId: true,
-          borrowerId: true,
-          borrower: { select: { userId: true } },
-        },
-      });
-
-      const live = lenderLoans.filter((loan) => loan.deletedAt === null);
-      if (live.some((loan) => ACTIVE_LOAN_STATUSES.includes(loan.status))) {
-        throw new ConflictException(
-          'active-loans-exist',
-          'Active Loans Exist',
-          'Cannot delete account while active loans exist. Please close all loans first.',
-          '/v1/users/me',
-        );
-      }
-
-      // Conservés : les prêts clos (CONTESTED compris) qu'un emprunteur relié à un compte voit encore.
-      const kept = live.filter((loan) => loan.borrower.userId !== null);
-      const keptIds = new Set(kept.map((loan) => loan.id));
-      const droppedIds = lenderLoans.filter((loan) => !keptIds.has(loan.id)).map((l) => l.id);
-
-      // Avant de supprimer des prêts : leurs notifications chez les autres utilisateurs le nomment.
-      await this.deleteOthersLoanNotifications(
-        tx,
-        userId,
-        lenderLoans.map((loan) => loan.id),
+    try {
+      return await this.prisma.$transaction(
+        (tx) => this.eraseInTransaction(tx, userId, unusablePasswordHash),
+        TRANSACTION_OPTIONS,
       );
-      await this.deleteOthersInvitationNotifications(tx, userId);
-
-      if (droppedIds.length > 0) {
-        await tx.loan.deleteMany({ where: { id: { in: droppedIds } } });
+    } catch (error) {
+      // Une écriture concurrente (prêt créé pendant la suppression) bute sur une contrainte :
+      // c'est le refus du contrat, pas une erreur serveur. Rien n'a été effacé.
+      if (isPrismaForeignKeyError(error) || isPrismaUniqueConstraintError(error)) {
+        throw activeLoansConflict();
       }
+      throw error;
+    }
+  }
 
-      // Ses emprunts : les contacts qui le représentaient chez d'autres prêteurs sont détachés.
-      await tx.borrower.updateMany({ where: { userId }, data: { userId: null } });
+  private async eraseInTransaction(
+    tx: Tx,
+    userId: string,
+    unusablePasswordHash: string,
+  ): Promise<AccountErasureOutcome> {
+    // Verrou sur la ligne du compte encore actif : une création de prêt (FOR SHARE) attend la fin
+    // de la suppression, et un second appel simultané ne trouve plus de compte actif (404).
+    const live = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM users WHERE id = ${userId}::uuid AND deleted_at IS NULL FOR UPDATE`;
+    if (live.length === 0) {
+      throw new NotFoundException('User', userId, PATH);
+    }
 
-      if (kept.length === 0) {
-        // Plus aucun prêt ne le référence : suppression complète, les cascades font le reste.
-        await tx.user.delete({ where: { id: userId } });
-        return 'deleted';
-      }
-
-      await this.pseudonymise(tx, userId, unusablePasswordHash, kept);
-      return 'pseudonymised';
+    const lenderLoans = await tx.loan.findMany({
+      where: { lenderId: userId },
+      select: {
+        id: true,
+        status: true,
+        deletedAt: true,
+        itemId: true,
+        borrowerId: true,
+        borrower: { select: { userId: true } },
+      },
     });
+
+    const notDeleted = lenderLoans.filter((loan) => loan.deletedAt === null);
+    if (notDeleted.some((loan) => ACTIVE_LOAN_STATUSES.includes(loan.status))) {
+      throw activeLoansConflict();
+    }
+
+    // Conservés : les prêts clos (CONTESTED compris) qu'un AUTRE compte voit encore. Un prêt à
+    // soi-même ne concerne que lui (revue S6).
+    const kept = notDeleted.filter(
+      (loan) => loan.borrower.userId !== null && loan.borrower.userId !== userId,
+    );
+    const keptIds = new Set(kept.map((loan) => loan.id));
+    const droppedIds = lenderLoans.filter((loan) => !keptIds.has(loan.id)).map((l) => l.id);
+
+    // Avant de supprimer des prêts : leurs notifications chez les autres utilisateurs le nomment.
+    await this.deleteOthersLoanNotifications(
+      tx,
+      userId,
+      lenderLoans.map((loan) => loan.id),
+    );
+    await this.deleteOthersInvitationNotifications(tx, userId);
+
+    if (droppedIds.length > 0) {
+      await tx.loan.deleteMany({ where: { id: { in: droppedIds } } });
+    }
+
+    await this.detachBorrowings(tx, userId);
+
+    let outcome: AccountErasureOutcome;
+    if (kept.length === 0) {
+      // Plus aucun prêt ne le référence : suppression complète, les cascades font le reste.
+      await tx.user.delete({ where: { id: userId } });
+      outcome = 'deleted';
+    } else {
+      await this.pseudonymise(tx, userId, unusablePasswordHash, kept);
+      outcome = 'pseudonymised';
+    }
+
+    // Dernière étape, dans la transaction : si la révocation des access tokens encore valables ne
+    // peut pas être enregistrée, rien n'est effacé (503) plutôt que de laisser ces tokens agir.
+    await this.revokeRemainingAccess(userId);
+    return outcome;
+  }
+
+  private async revokeRemainingAccess(userId: string): Promise<void> {
+    try {
+      await this.redis.markAccountDeleted(userId, accessTokenTtlSeconds(this.config));
+    } catch {
+      throw new ServiceUnavailableException(
+        'The account could not be deleted right now. Nothing was erased, please try again.',
+        PATH,
+      );
+    }
+  }
+
+  /**
+   * Ses emprunts : les contacts qui le représentaient chez d'autres prêteurs sont détachés.
+   */
+  private async detachBorrowings(tx: Tx, userId: string): Promise<void> {
+    await tx.borrower.updateMany({ where: { userId }, data: { userId: null } });
   }
 
   /** Notifications d'autres utilisateurs liées à un de ses prêts, comme prêteur ou emprunteur. */

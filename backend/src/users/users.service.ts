@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 
@@ -16,8 +15,10 @@ import {
 } from '../common/exceptions/problem-details.exception.js';
 import { toSafeUser } from '../common/mappers/user.mapper.js';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
-import { isPrismaUniqueConstraintError } from '../common/utils/prisma-errors.util.js';
-import { accessTokenTtlSeconds } from '../common/utils/duration.util.js';
+import {
+  isPrismaRecordNotFoundError,
+  isPrismaUniqueConstraintError,
+} from '../common/utils/prisma-errors.util.js';
 import { AccountDeletionService } from './account-deletion.service.js';
 import {
   PHOTO_STORAGE,
@@ -42,9 +43,14 @@ import type { User } from '@prisma/client';
 // Sécurité :
 //   - Le userId vient toujours du JWT (req.user.userId), jamais du body
 //   - Suppression et changement de mot de passe requièrent le mot de passe actuel
-//   - Suppression de compte : AccountDeletionService (FIX-22, ADR 0010), puis révocation des
-//     access tokens encore valables (Redis) et purge des photos stockées
+//   - Suppression de compte : AccountDeletionService (FIX-22, ADR 0010), puis purge des photos
+//   - Un compte supprimé (pierre tombale) répond comme un compte inconnu (404)
 // =============================================================================
+
+/** Cible d'une écriture : seulement un compte encore actif, jamais une pierre tombale (FIX-22). */
+function liveAccount(userId: string) {
+  return { id: userId, deletedAt: null };
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -58,7 +64,6 @@ export class UsersService {
     private readonly redis: RedisService,
     @Inject(PHOTO_STORAGE) private readonly photoStorage: PhotoStorage,
     private readonly accountDeletion: AccountDeletionService,
-    private readonly config: ConfigService,
   ) {}
 
   // ===========================================================================
@@ -86,11 +91,14 @@ export class UsersService {
   async updateProfile(userId: string, dto: UpdateUserDto) {
     try {
       const updated = await this.prisma.user.update({
-        where: { id: userId },
+        where: liveAccount(userId),
         data: dto,
       });
       return toSafeUser(updated);
     } catch (error: unknown) {
+      if (isPrismaRecordNotFoundError(error)) {
+        throw new NotFoundException('User', userId, '/v1/users/me');
+      }
       if (isPrismaUniqueConstraintError(error)) {
         throw new ConflictException(
           'email-already-exists',
@@ -110,9 +118,9 @@ export class UsersService {
    * Le texte de confirmation est validé par le DTO (@Equals).
    *
    * 1. Effacement en base, dans une transaction (AccountDeletionService) : suppression complète,
-   *    ou pierre tombale pseudonymisée si des prêts clos restent visibles pour un emprunteur.
-   * 2. Révocation des access tokens encore valables : clé Redis lue par JwtStrategy.
-   * 3. Purge des photos stockées.
+   *    ou pierre tombale pseudonymisée si des prêts clos restent visibles pour un emprunteur. La
+   *    révocation des access tokens encore valables (Redis) en est la dernière étape.
+   * 2. Purge des photos stockées.
    *
    * @throws NotFoundException (404) si l'utilisateur n'existe plus
    * @throws UnauthorizedException (401) si le mot de passe est incorrect
@@ -158,24 +166,7 @@ export class UsersService {
 
     this.logger.log(`Account deleted (${outcome}): ${userId}`);
 
-    await this.revokeRemainingAccess(userId);
     await this.purgeStoredPhotos(userId);
-  }
-
-  /**
-   * Les refresh tokens sont supprimés en base, mais un access token reste valable jusqu'à son
-   * expiration sans lecture de la base : JwtStrategy le refuse grâce à cette clé. Le compte est
-   * déjà effacé : un échec est journalisé (fenêtre résiduelle d'au plus la durée d'un access
-   * token), jamais remonté.
-   */
-  private async revokeRemainingAccess(userId: string): Promise<void> {
-    try {
-      await this.redis.markAccountDeleted(userId, accessTokenTtlSeconds(this.config));
-    } catch (error) {
-      this.logger.error(
-        `Deleted account ${userId} could not be marked in Redis, its access tokens stay valid until they expire: ${(error as Error).message}`,
-      );
-    }
   }
 
   /**
@@ -287,11 +278,18 @@ export class UsersService {
    * Les champs absents du DTO ne sont pas modifiés (PATCH sémantique).
    */
   async updateSettings(userId: string, dto: UpdateSettingsDto): Promise<UserSettings> {
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: dto,
-    });
-    return this.extractSettings(updated);
+    try {
+      const updated = await this.prisma.user.update({
+        where: liveAccount(userId),
+        data: dto,
+      });
+      return this.extractSettings(updated);
+    } catch (error: unknown) {
+      if (isPrismaRecordNotFoundError(error)) {
+        throw new NotFoundException('User', userId, '/v1/users/me/settings');
+      }
+      throw error;
+    }
   }
 
   // ===========================================================================
@@ -383,7 +381,8 @@ export class UsersService {
       where: { id: userId },
     });
 
-    if (!user) {
+    // Une pierre tombale (FIX-22) répond comme un compte inconnu, même avec un token encore valable.
+    if (!user || user.deletedAt) {
       throw new NotFoundException('User', userId, '/v1/users/me');
     }
 

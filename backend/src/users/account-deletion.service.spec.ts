@@ -1,7 +1,9 @@
 import { HttpStatus } from '@nestjs/common';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { LoanStatus, type Prisma } from '@prisma/client';
+import type { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { RedisService } from '../redis/redis.service.js';
 import {
   AccountDeletionService,
   DELETED_ACCOUNT_FIRST_NAME,
@@ -44,12 +46,111 @@ describe('AccountDeletionService.erase (FIX-22, ADR 0010)', () => {
       )) as never);
   }
 
+  let redis: { markAccountDeleted: jest.Mock };
+
   beforeEach(() => {
     prisma = mockDeep<PrismaService>();
     tx = mockDeep<Prisma.TransactionClient>();
     prisma.$transaction.mockImplementation(((fn: (client: Prisma.TransactionClient) => unknown) =>
       fn(tx)) as never);
-    service = new AccountDeletionService(prisma);
+    // The account row is found and locked.
+    tx.$queryRaw.mockResolvedValue([{ id: USER_ID }] as never);
+    tx.borrower.findMany.mockResolvedValue([]);
+    redis = { markAccountDeleted: jest.fn().mockResolvedValue(undefined) };
+    const config = {
+      get: (_key: string, fallback: string) => fallback,
+    } as unknown as ConfigService;
+    service = new AccountDeletionService(prisma, redis as unknown as RedisService, config);
+  });
+
+  describe('transaction guards (security review C1, C2, C3)', () => {
+    it('runs in one transaction with bounded wait and duration', async () => {
+      givenLenderLoans([]);
+
+      await service.erase(USER_ID, UNUSABLE_HASH);
+
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        timeout: 30_000,
+        maxWait: 5_000,
+      });
+    });
+
+    it('locks the live account row first, so a concurrent loan creation waits', async () => {
+      givenLenderLoans([]);
+
+      await service.erase(USER_ID, UNUSABLE_HASH);
+
+      const [sql] = tx.$queryRaw.mock.calls[0] as unknown as [TemplateStringsArray];
+      expect(sql.join('?')).toMatch(/FOR UPDATE/);
+      expect(sql.join('?')).toMatch(/deleted_at IS NULL/);
+      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        tx.loan.findMany.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('answers 404 when the account is already deleted (double tap)', async () => {
+      tx.$queryRaw.mockResolvedValue([] as never);
+
+      const error = (await service.erase(USER_ID, UNUSABLE_HASH).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
+
+      expect(error.getStatus()).toBe(HttpStatus.NOT_FOUND);
+      expect(error.getResponse().type).toContain('user-not-found');
+      expect(tx.loan.findMany).not.toHaveBeenCalled();
+    });
+
+    it.each(['deleted', 'pseudonymised'] as const)(
+      'marks the account deleted in Redis as the last step inside the transaction (%s)',
+      async (outcome) => {
+        givenLenderLoans(outcome === 'deleted' ? [] : [loanRow({ id: 'kept' })]);
+
+        await service.erase(USER_ID, UNUSABLE_HASH);
+
+        expect(redis.markAccountDeleted).toHaveBeenCalledWith(USER_ID, 900);
+        const lastWrite = Math.max(
+          ...tx.user.delete.mock.invocationCallOrder,
+          ...tx.user.update.mock.invocationCallOrder,
+        );
+        expect(redis.markAccountDeleted.mock.invocationCallOrder[0]).toBeGreaterThan(lastWrite);
+      },
+    );
+
+    it('answers 503 when Redis cannot be written, so the transaction rolls back', async () => {
+      givenLenderLoans([loanRow({ id: 'kept' })]);
+      redis.markAccountDeleted.mockRejectedValue(new Error('Redis down'));
+
+      const error = (await service.erase(USER_ID, UNUSABLE_HASH).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
+
+      expect(error.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+      expect(error.getResponse().type).toContain('service-unavailable');
+    });
+
+    it.each(['P2003', 'P2002'])(
+      'turns a constraint error raised by a concurrent write (%s) into 409 active-loans-exist',
+      async (code) => {
+        prisma.$transaction.mockRejectedValue(Object.assign(new Error('constraint'), { code }));
+
+        const error = (await service.erase(USER_ID, UNUSABLE_HASH).catch((e: unknown) => e)) as {
+          getStatus: () => number;
+          getResponse: () => ProblemDetails;
+        };
+
+        expect(error.getStatus()).toBe(HttpStatus.CONFLICT);
+        expect(error.getResponse().type).toContain('active-loans-exist');
+      },
+    );
+
+    it('never keeps a loan to himself (review S6)', async () => {
+      givenLenderLoans([loanRow({ id: 'self', borrower: { userId: USER_ID } })]);
+
+      await expect(service.erase(USER_ID, UNUSABLE_HASH)).resolves.toBe('deleted');
+      expect(tx.loan.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['self'] } } });
+    });
   });
 
   it('re-checks the in-progress loans inside the transaction and refuses with 409', async () => {

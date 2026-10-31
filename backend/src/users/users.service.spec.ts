@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { UsersService } from './users.service.js';
 import { AccountDeletionService } from './account-deletion.service.js';
-import { ConfigService } from '@nestjs/config';
 import { UserRole } from '@prisma/client';
 import {
   PHOTO_STORAGE,
@@ -61,7 +60,6 @@ describe('UsersService', () => {
   let redisService: {
     blacklistToken: jest.Mock;
     isTokenBlacklisted: jest.Mock;
-    markAccountDeleted: jest.Mock;
   };
   let accountDeletion: { erase: jest.Mock };
   let photoStorage: {
@@ -78,7 +76,6 @@ describe('UsersService', () => {
     redisService = {
       blacklistToken: jest.fn().mockResolvedValue(undefined),
       isTokenBlacklisted: jest.fn().mockResolvedValue(false),
-      markAccountDeleted: jest.fn().mockResolvedValue(undefined),
     };
     accountDeletion = { erase: jest.fn().mockResolvedValue('deleted') };
     photoStorage = {
@@ -95,7 +92,6 @@ describe('UsersService', () => {
         { provide: RedisService, useValue: redisService },
         { provide: PHOTO_STORAGE, useValue: photoStorage },
         { provide: AccountDeletionService, useValue: accountDeletion },
-        { provide: ConfigService, useValue: { get: (_key: string, fallback: string) => fallback } },
       ],
     }).compile();
 
@@ -169,7 +165,7 @@ describe('UsersService', () => {
 
       // Assert
       expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: MOCK_USER.id },
+        where: { id: MOCK_USER.id, deletedAt: null },
         data: { firstName: 'Jane', lastName: 'Smith' },
       });
       expect(result.firstName).toBe('Jane');
@@ -227,7 +223,7 @@ describe('UsersService', () => {
 
       // Assert — Prisma est quand même appelé, data sera un objet vide
       expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: MOCK_USER.id },
+        where: { id: MOCK_USER.id, deletedAt: null },
         data: {},
       });
     });
@@ -236,6 +232,46 @@ describe('UsersService', () => {
   // ===========================================================================
   // DELETE /users/me — deleteAccount
   // ===========================================================================
+
+  describe('a deleted account still holding an access token (security review C1)', () => {
+    const TOMBSTONE = { ...MOCK_USER, deletedAt: new Date('2026-10-31T20:00:00Z') };
+
+    it.each([
+      ['getProfile', () => service.getProfile(MOCK_USER.id)],
+      ['getSettings', () => service.getSettings(MOCK_USER.id)],
+      ['deleteAvatar', () => service.deleteAvatar(MOCK_USER.id)],
+      [
+        'deleteAccount (double tap)',
+        () =>
+          service.deleteAccount(MOCK_USER.id, {
+            password: 'StrongPass1!',
+            confirmationText: 'DELETE MY ACCOUNT',
+          }),
+      ],
+    ])('%s answers 404 as for an unknown account', async (_name, call) => {
+      prisma.user.findUnique.mockResolvedValue(TOMBSTONE);
+
+      const error = (await call().catch((e: unknown) => e)) as { getStatus: () => number };
+
+      expect(error.getStatus()).toBe(HttpStatus.NOT_FOUND);
+    });
+
+    it.each([
+      ['updateProfile', () => service.updateProfile(MOCK_USER.id, { firstName: 'Real' })],
+      ['updateSettings', () => service.updateSettings(MOCK_USER.id, { language: 'en' })],
+    ])('%s only targets a live account and answers 404 otherwise', async (_name, call) => {
+      prisma.user.update.mockRejectedValue(
+        Object.assign(new Error('Record not found'), { code: 'P2025' }),
+      );
+
+      const error = (await call().catch((e: unknown) => e)) as { getStatus: () => number };
+
+      expect(error.getStatus()).toBe(HttpStatus.NOT_FOUND);
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: MOCK_USER.id, deletedAt: null } }),
+      );
+    });
+  });
 
   describe('deleteAccount', () => {
     const DTO = { password: 'StrongPass1!', confirmationText: 'DELETE MY ACCOUNT' as const };
@@ -296,32 +332,6 @@ describe('UsersService', () => {
 
       expect(error.getStatus()).toBe(HttpStatus.NOT_FOUND);
       expect(accountDeletion.erase).not.toHaveBeenCalled();
-    });
-
-    describe('access tokens still valid (up to the access token lifetime)', () => {
-      it.each(['deleted', 'pseudonymised'] as const)(
-        'marks the account deleted in Redis for the access token lifetime (%s)',
-        async (outcome) => {
-          accountDeletion.erase.mockResolvedValue(outcome);
-
-          await service.deleteAccount(MOCK_USER.id, DTO);
-
-          expect(redisService.markAccountDeleted).toHaveBeenCalledWith(MOCK_USER.id, 900);
-          expect(accountDeletion.erase.mock.invocationCallOrder[0]).toBeLessThan(
-            redisService.markAccountDeleted.mock.invocationCallOrder[0],
-          );
-        },
-      );
-
-      it('still succeeds, and logs an error, when Redis cannot be written: the account is gone', async () => {
-        const logError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-        redisService.markAccountDeleted.mockRejectedValue(new Error('Redis down'));
-
-        await expect(service.deleteAccount(MOCK_USER.id, DTO)).resolves.toBeUndefined();
-        expect(logError).toHaveBeenCalledWith(expect.stringContaining(MOCK_USER.id));
-        expect(photoStorage.deleteByPrefix).toHaveBeenCalled();
-        logError.mockRestore();
-      });
     });
 
     describe('purge of the stored photos (GDPR right to erasure)', () => {
@@ -388,14 +398,13 @@ describe('UsersService', () => {
         expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
       });
 
-      it('does not purge anything, nor mark the account in Redis, when the database erasure fails', async () => {
+      it('does not purge anything when the database erasure fails (503, 409, 404 included)', async () => {
         accountDeletion.erase.mockRejectedValue(new Error('database unavailable'));
 
         await expect(service.deleteAccount(MOCK_USER.id, DTO)).rejects.toThrow(
           'database unavailable',
         );
         expect(photoStorage.deleteByPrefix).not.toHaveBeenCalled();
-        expect(redisService.markAccountDeleted).not.toHaveBeenCalled();
       });
     });
   });
@@ -535,7 +544,7 @@ describe('UsersService', () => {
 
       // Assert
       expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: MOCK_USER.id },
+        where: { id: MOCK_USER.id, deletedAt: null },
         data: { language: 'en', pushNotificationsEnabled: false },
       });
       expect(result).toEqual({

@@ -33,7 +33,10 @@ const DTO = { password: PASSWORD, confirmationText: 'DELETE MY ACCOUNT' as const
 /** In-memory stand-in for the two Redis calls involved (logout blacklist is not exercised). */
 class FakeRedis {
   readonly deleted = new Map<string, number>();
+  /** Makes the next writes fail, as a Redis outage would (security review C1). */
+  failWrites = false;
   markAccountDeleted(userId: string, ttlSeconds: number): Promise<void> {
+    if (this.failWrites) return Promise.reject(new Error('Redis down'));
     this.deleted.set(userId, ttlSeconds);
     return Promise.resolve();
   }
@@ -140,8 +143,7 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
       prisma,
       redis as unknown as RedisService,
       photoStorage,
-      new AccountDeletionService(prisma),
-      config,
+      new AccountDeletionService(prisma, redis as unknown as RedisService, config),
     );
   });
 

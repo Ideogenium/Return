@@ -91,3 +91,15 @@ export class BadRequestException extends ProblemDetailsException {
     super(HttpStatus.BAD_REQUEST, type, title, detail, path);
   }
 }
+
+export class ServiceUnavailableException extends ProblemDetailsException {
+  constructor(detail: string, path: string) {
+    super(
+      HttpStatus.SERVICE_UNAVAILABLE,
+      'service-unavailable',
+      'Service Unavailable',
+      detail,
+      path,
+    );
+  }
+}
