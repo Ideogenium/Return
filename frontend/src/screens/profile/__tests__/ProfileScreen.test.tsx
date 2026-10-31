@@ -10,6 +10,8 @@ import { useAuthStore } from '../../../stores/useAuthStore';
 import { useHistoryStore } from '../../../stores/useHistoryStore';
 import type { ProfileStackParamList } from '../../../navigation/types';
 import i18n from '../../../config/i18n.config';
+import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator } from 'expo-image-manipulator';
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
 
@@ -116,6 +118,25 @@ describe('ProfileScreen', () => {
       fireEvent.press(await screen.findByTestId('history-btn'));
 
       await waitFor(() => expect(screen.getByText('HistoryScreen')).toBeTruthy());
+    });
+
+    it('should send an avatar scaled down to 1024 px, well under the 2 MB avatar limit', async () => {
+      const updateAvatar = jest.fn().mockResolvedValue(undefined);
+      act(() => useAuthStore.setState({ updateAvatar }));
+      (ImagePicker.launchImageLibraryAsync as jest.Mock).mockResolvedValueOnce({
+        canceled: false,
+        assets: [{ uri: 'file:///tmp/IMG_0002.HEIC', width: 4032, height: 3024 }],
+      });
+      const manipulate = ImageManipulator.manipulate as unknown as jest.Mock;
+      manipulate.mockClear();
+      renderProfile();
+
+      fireEvent.press(await screen.findByTestId('photo-picker-btn'));
+      fireEvent.press(await screen.findByTestId('photo-picker-gallery'));
+
+      await waitFor(() => expect(updateAvatar).toHaveBeenCalled());
+      expect(manipulate.mock.results[0]!.value.resize).toHaveBeenCalledWith({ width: 1024 });
+      act(() => useAuthStore.setState({ updateAvatar: authDefaults.updateAvatar }));
     });
   });
 });
