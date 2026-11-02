@@ -48,6 +48,7 @@ const CONTACT: Borrower = {
   phoneNumber: '+33612345678',
   userId: BORROWER_USER_ID,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 42,
   totalLoans: 3,
   returnedOnTime: 1,
@@ -179,5 +180,18 @@ describe('toLoanResponse — lender of a deleted account (FIX-22)', () => {
       profilePicture: null,
       accountDeleted: true,
     });
+  });
+});
+
+describe('toLoanResponse — contact of a deleted account (FIX-22 review C4)', () => {
+  it('flags the contact for the lender only when its account was deleted', () => {
+    expect(toLoanResponse(buildLoan(), LENDER_USER_ID).borrower).not.toHaveProperty(
+      'accountDeleted',
+    );
+
+    const loan = buildLoan(null);
+    loan.borrower = { ...loan.borrower, userId: null, accountDeletedAt: NOW };
+
+    expect(toLoanResponse(loan, LENDER_USER_ID).borrower).toMatchObject({ accountDeleted: true });
   });
 });

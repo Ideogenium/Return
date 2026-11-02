@@ -235,6 +235,8 @@ export class BorrowersService {
       email: borrower.email,
       phoneNumber: borrower.phoneNumber,
       userId: borrower.userId,
+      // FIX-22 (C4): the account this contact represented was deleted; its email is a placeholder.
+      ...(borrower.accountDeletedAt ? { accountDeleted: true as const } : {}),
       statistics: {
         totalLoans: borrower.totalLoans,
         returnedOnTime: borrower.returnedOnTime,

@@ -292,16 +292,31 @@ describe('AccountDeletionService.erase (FIX-22, ADR 0010)', () => {
     it.each([
       ['deleted', []],
       ['pseudonymised', [loanRow({ id: 'kept' })]],
-    ])('detaches his borrowings from his account (%s)', async (_outcome, rows) => {
-      givenLenderLoans(rows);
+    ])(
+      'detaches his borrowings for good: email and phone erased, never relinked (%s, review C4)',
+      async (_outcome, rows) => {
+        givenLenderLoans(rows);
+        tx.borrower.findMany.mockResolvedValue([{ id: 'contact-at-carol' }] as never);
 
-      await service.erase(USER_ID, UNUSABLE_HASH);
+        await service.erase(USER_ID, UNUSABLE_HASH);
 
-      expect(tx.borrower.updateMany).toHaveBeenCalledWith({
-        where: { userId: USER_ID },
-        data: { userId: null },
-      });
-    });
+        expect(tx.borrower.findMany).toHaveBeenCalledWith({
+          where: { userId: USER_ID },
+          select: { id: true },
+        });
+        expect(tx.borrower.update).toHaveBeenCalledWith({
+          where: { id: 'contact-at-carol' },
+          data: {
+            userId: null,
+            email: expect.stringMatching(
+              /^deleted\+contact-at-carol\.[0-9a-f]{16}@deleted\.invalid$/,
+            ),
+            phoneNumber: null,
+            accountDeletedAt: expect.any(Date),
+          },
+        });
+      },
+    );
 
     it("deletes the other users' loan notifications that name him, before any loan is dropped", async () => {
       givenLenderLoans(

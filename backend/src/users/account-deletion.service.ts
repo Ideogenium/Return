@@ -185,10 +185,26 @@ export class AccountDeletionService {
   }
 
   /**
-   * Ses emprunts : les contacts qui le représentaient chez d'autres prêteurs sont détachés.
+   * Ses emprunts : les contacts qui le représentaient chez d'autres prêteurs sont détachés pour de
+   * bon (revue C4). Leur email devient une adresse non routable unique : l'adresse n'étant pas
+   * vérifiée, une nouvelle inscription avec l'ancienne adresse ne doit jamais récupérer cet
+   * historique (BorrowerLinkingListener relie par email), et une nouvelle invitation crée un
+   * nouveau contact. Le nom donné par le prêteur, ses prêts et ses statistiques restent.
    */
   private async detachBorrowings(tx: Tx, userId: string): Promise<void> {
-    await tx.borrower.updateMany({ where: { userId }, data: { userId: null } });
+    const contacts = await tx.borrower.findMany({ where: { userId }, select: { id: true } });
+    const detachedAt = new Date();
+    for (const contact of contacts) {
+      await tx.borrower.update({
+        where: { id: contact.id },
+        data: {
+          userId: null,
+          email: deletedAccountEmail(contact.id),
+          phoneNumber: null,
+          accountDeletedAt: detachedAt,
+        },
+      });
+    }
   }
 
   /** Notifications d'autres utilisateurs liées à un de ses prêts, comme prêteur ou emprunteur. */

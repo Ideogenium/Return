@@ -41,6 +41,7 @@ const MOCK_BORROWER: Borrower = {
   phoneNumber: '+33612345678',
   userId: null,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 0,
   totalLoans: 0,
   returnedOnTime: 0,
@@ -59,6 +60,7 @@ const MOCK_BORROWER_2: Borrower = {
   phoneNumber: null,
   userId: null,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 0,
   totalLoans: 0,
   returnedOnTime: 0,
@@ -431,6 +433,21 @@ describe('BorrowersService', () => {
   // ===========================================================================
 
   describe('findById', () => {
+    it('flags a contact whose account was deleted, and only then (FIX-22 review C4)', async () => {
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      await expect(service.findById(BORROWER_ID, LENDER_USER_ID)).resolves.not.toHaveProperty(
+        'accountDeleted',
+      );
+
+      prisma.borrower.findUnique.mockResolvedValue({
+        ...MOCK_BORROWER,
+        accountDeletedAt: new Date('2026-10-31T20:00:00Z'),
+      });
+      await expect(service.findById(BORROWER_ID, LENDER_USER_ID)).resolves.toMatchObject({
+        accountDeleted: true,
+      });
+    });
+
     it('should return the borrower with default statistics', async () => {
       prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
 

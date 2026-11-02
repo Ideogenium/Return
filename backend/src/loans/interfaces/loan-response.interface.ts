@@ -29,6 +29,8 @@ export interface LoanBorrowerResponse {
   email: string;
   phoneNumber?: string | null;
   userId: string | null;
+  /** Present and true only when the account this contact represented was deleted (FIX-22). */
+  accountDeleted?: true;
   /** Omitted (not null) unless the caller is the lender of the loan. */
   statistics?: BorrowerStatistics;
 }

@@ -64,6 +64,7 @@ const MOCK_BORROWER: Borrower = {
   phoneNumber: '+33612345678',
   userId: BORROWER_USER_ID,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 80,
   totalLoans: 5,
   returnedOnTime: 4,
