@@ -119,4 +119,18 @@ describe('validate (environment)', () => {
       }),
     ).toThrow(/R2_ACCESS_KEY_ID/);
   });
+
+  describe('JWT_ACCESS_EXPIRATION (FIX-22 review S3)', () => {
+    // The Redis mark of a deleted account lives as long as an access token: both must read the
+    // same value, so only the `<number><s|m|h|d>` format shared by both is accepted.
+    it.each(['15m', '900s', '1h', '1d'])('accepts %s', (value) => {
+      expect(() => validate({ ...BASE_ENV, JWT_ACCESS_EXPIRATION: value })).not.toThrow();
+    });
+
+    it.each(['15', '15 minutes', '1w', 'soon', ''])('refuses to start with %p', (value) => {
+      expect(() => validate({ ...BASE_ENV, JWT_ACCESS_EXPIRATION: value })).toThrow(
+        /JWT_ACCESS_EXPIRATION/,
+      );
+    });
+  });
 });

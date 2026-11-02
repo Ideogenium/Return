@@ -291,7 +291,7 @@ describe('AuthService', () => {
       });
     });
 
-    it('answers a deleted account exactly like an unknown one, without checking the password (FIX-22)', async () => {
+    it('answers a deleted account exactly like an unknown one, never checking its stored hash (FIX-22)', async () => {
       prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, deletedAt: new Date() });
 
       const error = (await service.login(LOGIN_DTO).catch((e: unknown) => e)) as {
@@ -306,8 +306,19 @@ describe('AuthService', () => {
           detail: 'Email or password is incorrect.',
         }),
       );
-      expect(bcrypt.compare).not.toHaveBeenCalled();
+      // Same bcrypt work as for a real account, so the response time does not tell (review S1).
+      expect(bcrypt.compare).toHaveBeenCalledTimes(1);
+      expect(bcrypt.compare).not.toHaveBeenCalledWith(LOGIN_DTO.password, MOCK_USER.password);
       expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('compares the password against a dummy hash for an unknown email too (review S1)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.login(LOGIN_DTO)).rejects.toMatchObject({ status: 401 });
+      expect(bcrypt.compare).toHaveBeenCalledTimes(1);
+      const [, hash] = bcrypt.compare.mock.calls[0] as [string, string];
+      expect(hash).toMatch(/^\$2b\$12\$/);
     });
 
     it('should return AuthResponse for valid credentials', async () => {

@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Matches, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export enum Environment {
@@ -29,7 +29,12 @@ export class EnvironmentVariables {
   @IsString()
   JWT_ACCESS_SECRET!: string;
 
+  // Même format que celui lu pour la durée de la marque Redis d'un compte supprimé (FIX-22, S3) :
+  // une valeur illisible donnerait une marque plus courte que la vie réelle du token.
   @IsString()
+  @Matches(/^\d+[smhd]$/, {
+    message: 'JWT_ACCESS_EXPIRATION must be <number><s|m|h|d>, e.g. 15m',
+  })
   JWT_ACCESS_EXPIRATION: string = '15m';
 
   @IsString()

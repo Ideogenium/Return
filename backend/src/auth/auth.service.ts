@@ -20,6 +20,12 @@ import { accessTokenTtlSeconds, parseDurationMs } from '../common/utils/duration
 import type { AuthResponse, TokenPair } from './interfaces/auth-response.interface.js';
 import type { User } from '@prisma/client';
 
+/**
+ * Hash bcrypt (coût 12, comme les vrais) d'un secret sans usage : comparé quand le compte
+ * n'existe pas ou est supprimé, pour que la connexion prenne le même temps dans tous les cas.
+ */
+const DUMMY_PASSWORD_HASH = '$2b$12$Z6NCitg5inO6xBwtQXNWI.Uvzk6.Ev.OyUQs2or3rMKpDTOKaE1B2';
+
 // =============================================================================
 // AuthService — Gestion complète de l'authentification
 // =============================================================================
@@ -131,8 +137,10 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    // Un compte supprimé (pierre tombale, FIX-22) répond comme un compte inexistant.
+    // Un compte supprimé (pierre tombale, FIX-22) répond comme un compte inexistant. Le même
+    // travail bcrypt est fait contre un hash factice : le temps de réponse ne révèle rien (S1).
     if (!user || user.deletedAt) {
+      await bcrypt.compare(dto.password, DUMMY_PASSWORD_HASH);
       throw new UnauthorizedException(
         'invalid-credentials',
         'Invalid Credentials',
