@@ -58,6 +58,46 @@ jobs:
           name: coverage-report
           path: backend/coverage/
 
+  db-e2e:
+    # FIX-22: account deletion relies on real Postgres behaviour (RESTRICT foreign keys, one
+    # transaction, row locks). This spec is skipped locally unless DB_E2E_DATABASE_URL is set.
+    name: E2E on Postgres
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ret
+          POSTGRES_PASSWORD: ret
+          POSTGRES_DB: ret
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U ret -d ret"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_E2E_DATABASE_URL: 'postgresql://ret:ret@localhost:55432/ret'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Apply the migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ env.DB_E2E_DATABASE_URL }}
+      - name: Account deletion on a real database
+        run: npm run test:e2e -- --runInBand account-deletion.db
+
   build:
     name: Build
     runs-on: ubuntu-latest
