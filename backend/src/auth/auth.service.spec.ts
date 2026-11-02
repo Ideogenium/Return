@@ -48,6 +48,7 @@ const MOCK_USER = {
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const REGISTER_DTO: RegisterDto = {
@@ -290,6 +291,36 @@ describe('AuthService', () => {
       });
     });
 
+    it('answers a deleted account exactly like an unknown one, never checking its stored hash (FIX-22)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, deletedAt: new Date() });
+
+      const error = (await service.login(LOGIN_DTO).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
+
+      expect(error.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
+      expect(error.getResponse()).toEqual(
+        expect.objectContaining({
+          type: 'https://api.return.app/errors/invalid-credentials',
+          detail: 'Email or password is incorrect.',
+        }),
+      );
+      // Same bcrypt work as for a real account, so the response time does not tell (review S1).
+      expect(bcrypt.compare).toHaveBeenCalledTimes(1);
+      expect(bcrypt.compare).not.toHaveBeenCalledWith(LOGIN_DTO.password, MOCK_USER.password);
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('compares the password against a dummy hash for an unknown email too (review S1)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.login(LOGIN_DTO)).rejects.toMatchObject({ status: 401 });
+      expect(bcrypt.compare).toHaveBeenCalledTimes(1);
+      const [, hash] = bcrypt.compare.mock.calls[0] as [string, string];
+      expect(hash).toMatch(/^\$2b\$12\$/);
+    });
+
     it('should return AuthResponse for valid credentials', async () => {
       // Act
       const result = await service.login(LOGIN_DTO);
@@ -420,6 +451,19 @@ describe('AuthService', () => {
           user: expect.objectContaining({ id: MOCK_USER.id }),
         }),
       );
+    });
+
+    it('refuses a refresh token of a deleted account and issues no new token (FIX-22)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...MOCK_USER, deletedAt: new Date() });
+
+      const error = (await service.refreshTokens(RAW_REFRESH_TOKEN).catch((e: unknown) => e)) as {
+        getStatus: () => number;
+        getResponse: () => ProblemDetails;
+      };
+
+      expect(error.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
+      expect(error.getResponse().type).toContain('invalid-refresh-token');
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException for unknown refresh token', async () => {

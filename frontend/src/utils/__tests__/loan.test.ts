@@ -1,4 +1,4 @@
-import { getContactForUser } from '../loan';
+import { getContactForUser, getContactName } from '../loan';
 import type { Loan, UserSummary, Borrower } from '../../types/api.types';
 
 // Minimal valid factories
@@ -83,5 +83,25 @@ describe('getContactForUser', () => {
     // Assert
     expect(result).toBe(loan.lender);
     expect(result.firstName).toBe('Alice');
+  });
+});
+
+describe('getContactName', () => {
+  const t = (key: string) => (key === 'loans.deletedAccount' ? 'Deleted account' : key);
+
+  it('joins the first and last name of a contact', () => {
+    expect(getContactName(makeLender(), t)).toBe('Alice Martin');
+    expect(getContactName(makeBorrower(), t)).toBe('Bob Dupont');
+  });
+
+  it('shows a translated label for a lender who deleted his account (FIX-22)', () => {
+    const deleted: UserSummary = {
+      ...makeLender(),
+      firstName: 'Compte',
+      lastName: 'supprimé',
+      accountDeleted: true,
+    };
+
+    expect(getContactName(deleted, t)).toBe('Deleted account');
   });
 });

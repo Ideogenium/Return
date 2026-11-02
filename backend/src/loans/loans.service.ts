@@ -36,6 +36,7 @@ import type {
 import { isPrismaRecordNotFoundError } from '../common/utils/prisma-errors.util.js';
 import { startOfUtcDay } from '../common/utils/date.util.js';
 import { LoanStatus, Prisma } from '@prisma/client';
+import { lockLiveAccount } from '../common/utils/live-account.util.js';
 
 const MAX_LOANS_PER_DAY = 15;
 
@@ -96,6 +97,10 @@ export class LoansService {
     // Atomic transaction: resolve/create item + resolve borrower + loan in one go
     // Prevents orphaned records if any step fails
     const loan = await this.prisma.$transaction(async (tx) => {
+      // Shared lock on the lender row: a deletion in progress (FOR UPDATE) is waited for, and a
+      // deleted lender is refused, so no loan can appear in the middle of a deletion (FIX-22).
+      await lockLiveAccount(tx, lenderId, '/v1/loans');
+
       const itemId = await this.resolveItem(tx, dto.item, lenderId);
 
       // FIX-04: an item can only be lent once at a time. Reject if it already

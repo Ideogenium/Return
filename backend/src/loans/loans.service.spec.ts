@@ -57,6 +57,7 @@ const MOCK_USER: User = {
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const MOCK_ITEM: Item = {
@@ -87,6 +88,7 @@ const MOCK_BORROWER: Borrower = {
   phoneNumber: '+33612345678',
   userId: BORROWER_USER_ID,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 0,
   totalLoans: 0,
   returnedOnTime: 0,
@@ -140,6 +142,8 @@ describe('LoansService', () => {
     (prisma.$transaction as jest.Mock).mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
       fn(prisma),
     );
+    // The lender's row is live and locked (FIX-22 review C2).
+    prisma.$queryRaw.mockResolvedValue([{ id: LENDER_USER_ID }] as never);
     eventEmitter = { emit: jest.fn() };
     redisClient = createMockRedisClient();
     redisService = { getClient: jest.fn().mockReturnValue(redisClient) };
@@ -278,6 +282,18 @@ describe('LoansService', () => {
       returnDate: '2099-06-01',
       notes: 'Test loan',
     };
+
+    it('locks the live lender row first and refuses a deleted lender with 401 (FIX-22 review C1, C2)', async () => {
+      prisma.$queryRaw.mockResolvedValue([] as never);
+
+      await expect(service.create(LENDER_USER_ID, CREATE_DTO)).rejects.toMatchObject({
+        status: 401,
+      });
+      const [sql] = prisma.$queryRaw.mock.calls[0] as unknown as [TemplateStringsArray];
+      expect(sql.join('?')).toMatch(/FOR SHARE/);
+      expect(prisma.item.findUnique).not.toHaveBeenCalled();
+      expect(prisma.loan.create).not.toHaveBeenCalled();
+    });
 
     it('should create a loan with existing item UUID and borrower UUID', async () => {
       prisma.item.findUnique.mockResolvedValue(MOCK_ITEM);

@@ -57,6 +57,8 @@ export class ContactInvitationsService {
     // Search by email (exact), firstName or lastName (contains, case-insensitive)
     const where: Prisma.UserWhereInput = {
       id: { not: senderId },
+      // A deleted account (tombstone, FIX-22) is never offered as a contact.
+      deletedAt: null,
       OR: [
         { email: { equals: query, mode: 'insensitive' } },
         { firstName: { contains: query, mode: 'insensitive' } },
@@ -156,6 +158,7 @@ export class ContactInvitationsService {
     const recipient = await this.prisma.user.findFirst({
       where: {
         email: { equals: recipientEmail, mode: 'insensitive' },
+        deletedAt: null,
       },
     });
 

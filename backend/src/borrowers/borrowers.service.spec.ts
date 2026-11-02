@@ -41,6 +41,7 @@ const MOCK_BORROWER: Borrower = {
   phoneNumber: '+33612345678',
   userId: null,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 0,
   totalLoans: 0,
   returnedOnTime: 0,
@@ -59,6 +60,7 @@ const MOCK_BORROWER_2: Borrower = {
   phoneNumber: null,
   userId: null,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 0,
   totalLoans: 0,
   returnedOnTime: 0,
@@ -80,6 +82,8 @@ describe('BorrowersService', () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaService>();
+    // A live account by default (FIX-22: a deleted account cannot create anything).
+    prisma.user.findFirst.mockResolvedValue({ id: LENDER_USER_ID } as never);
     trustScoreService = {
       computeGlobalTrustScore: jest.fn().mockResolvedValue({
         trustScore: 0,
@@ -106,6 +110,19 @@ describe('BorrowersService', () => {
   // ===========================================================================
 
   describe('create', () => {
+    it('refuses a deleted account still holding an access token, with 401 (FIX-22 review C1)', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(LENDER_USER_ID, {
+          firstName: 'Marie',
+          lastName: 'Dupont',
+          email: 'marie.dupont@example.com',
+        }),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(prisma.borrower.create).not.toHaveBeenCalled();
+    });
+
     it('should create a borrower without userId when no registered user matches the email', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       prisma.borrower.create.mockResolvedValue(MOCK_BORROWER);
@@ -126,6 +143,24 @@ describe('BorrowersService', () => {
           phoneNumber: '+33612345678',
           lenderUserId: LENDER_USER_ID,
         },
+      });
+    });
+
+    it('does not link the contact to a deleted account (FIX-22)', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'deleted-user',
+        deletedAt: new Date(),
+      } as never);
+      prisma.borrower.create.mockResolvedValue(MOCK_BORROWER);
+
+      await service.create(LENDER_USER_ID, {
+        firstName: 'Marie',
+        lastName: 'Dupont',
+        email: 'marie.dupont@example.com',
+      });
+
+      expect(prisma.borrower.create).toHaveBeenCalledWith({
+        data: expect.not.objectContaining({ userId: expect.anything() }),
       });
     });
 
@@ -398,6 +433,21 @@ describe('BorrowersService', () => {
   // ===========================================================================
 
   describe('findById', () => {
+    it('flags a contact whose account was deleted, and only then (FIX-22 review C4)', async () => {
+      prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
+      await expect(service.findById(BORROWER_ID, LENDER_USER_ID)).resolves.not.toHaveProperty(
+        'accountDeleted',
+      );
+
+      prisma.borrower.findUnique.mockResolvedValue({
+        ...MOCK_BORROWER,
+        accountDeletedAt: new Date('2026-10-31T20:00:00Z'),
+      });
+      await expect(service.findById(BORROWER_ID, LENDER_USER_ID)).resolves.toMatchObject({
+        accountDeleted: true,
+      });
+    });
+
     it('should return the borrower with default statistics', async () => {
       prisma.borrower.findUnique.mockResolvedValue(MOCK_BORROWER);
 

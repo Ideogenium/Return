@@ -8,36 +8,10 @@ import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { loggerConfig } from './common/logger/winston.config.js';
 import { AllExceptionsFilter } from './common/exceptions/all-exceptions.filter.js';
+import { constraintToCode } from './common/exceptions/constraint-codes.js';
 import { PHOTO_STORAGE } from './storage/interfaces/photo-storage.interface.js';
 import { LocalPhotoStorageService } from './storage/local-photo-storage.service.js';
 import { applyTrustProxy } from './common/throttling/trust-proxy.js';
-
-// =============================================================================
-// class-validator constraint name → OpenAPI-compatible error code mapping
-// =============================================================================
-const CONSTRAINT_CODE_MAP: Record<string, string> = {
-  isEmail: 'INVALID_EMAIL',
-  isNotEmpty: 'REQUIRED',
-  isString: 'INVALID_TYPE',
-  isInt: 'INVALID_TYPE',
-  isNumber: 'INVALID_TYPE',
-  isBoolean: 'INVALID_TYPE',
-  isEnum: 'INVALID_ENUM',
-  isIn: 'INVALID_ENUM',
-  isUuid: 'INVALID_UUID',
-  minLength: 'TOO_SHORT',
-  maxLength: 'TOO_LONG',
-  min: 'TOO_SMALL',
-  max: 'TOO_LARGE',
-  matches: 'INVALID_FORMAT',
-  equals: 'INVALID_VALUE',
-  isOptional: 'VALIDATION_ERROR',
-  whitelistValidation: 'UNKNOWN_FIELD',
-};
-
-function constraintToCode(constraintName: string): string {
-  return CONSTRAINT_CODE_MAP[constraintName] ?? 'VALIDATION_ERROR';
-}
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

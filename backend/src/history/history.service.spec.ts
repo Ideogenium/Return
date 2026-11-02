@@ -33,6 +33,7 @@ const MOCK_USER: User = {
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const MOCK_ITEM: Item = {
@@ -63,6 +64,7 @@ const MOCK_BORROWER: Borrower = {
   phoneNumber: '+33612345678',
   userId: BORROWER_USER_ID,
   lenderUserId: LENDER_USER_ID,
+  accountDeletedAt: null,
   trustScore: 80,
   totalLoans: 5,
   returnedOnTime: 4,

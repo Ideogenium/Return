@@ -1,3 +1,4 @@
+import { IsNotReservedEmail } from '../../common/validators/is-not-reserved-email.validator.js';
 import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validator';
 
 /**
@@ -10,6 +11,7 @@ import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validato
  */
 export class RegisterDto {
   @IsEmail()
+  @IsNotReservedEmail()
   email!: string;
 
   @IsString()

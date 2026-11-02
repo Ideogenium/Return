@@ -1,7 +1,9 @@
 import { View, StyleSheet } from 'react-native';
 import { Text, TouchableRipple } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 import { ui } from '../../config/theme.config';
 import type { Borrower } from '../../types/api.types';
+import { getContactEmailLine } from '../../utils/loan';
 
 interface BorrowerCardProps {
   borrower: Borrower;
@@ -9,6 +11,7 @@ interface BorrowerCardProps {
 }
 
 export function BorrowerCard({ borrower, onPress }: BorrowerCardProps) {
+  const { t } = useTranslation();
   const initials = `${borrower.firstName[0]}${borrower.lastName[0]}`.toUpperCase();
 
   return (
@@ -28,7 +31,7 @@ export function BorrowerCard({ borrower, onPress }: BorrowerCardProps) {
             {borrower.firstName} {borrower.lastName}
           </Text>
           <Text variant="bodyMedium" style={styles.email} testID={`borrower-email-${borrower.id}`}>
-            {borrower.email}
+            {getContactEmailLine(borrower, t)}
           </Text>
           {borrower.phoneNumber && (
             <Text variant="bodySmall" style={styles.phone}>
