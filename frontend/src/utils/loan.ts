@@ -18,3 +18,9 @@ export function getContactName(
   if ('accountDeleted' in contact && contact.accountDeleted) return t('loans.deletedAccount');
   return `${contact.firstName} ${contact.lastName}`;
 }
+
+// Second line of a contact for its lender: the email, or a translated label when the account the
+// contact represented was deleted (FIX-22): its email is then a placeholder that means nothing.
+export function getContactEmailLine(contact: Borrower, t: (key: string) => string): string {
+  return contact.accountDeleted ? t('loans.deletedAccount') : contact.email;
+}

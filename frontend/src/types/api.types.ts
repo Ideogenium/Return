@@ -99,6 +99,9 @@ export interface Borrower {
   email: string;
   phoneNumber?: string | null;
   userId?: string | null;
+  /** Present and true when the account this contact represented was deleted (FIX-22): the email
+   * is then a placeholder that must not be shown. */
+  accountDeleted?: boolean;
   statistics?: BorrowerStatistics;
 }
 
