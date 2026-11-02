@@ -9,6 +9,9 @@ import { AccountDeletionService } from '../src/users/account-deletion.service';
 import { ContactInvitationsService } from '../src/contact-invitations/contact-invitations.service';
 import { BorrowerLinkingListener } from '../src/borrowers/borrower-linking.listener';
 import { JwtStrategy } from '../src/auth/strategies/jwt.strategy';
+import { JwtService } from '@nestjs/jwt';
+import { AuthService } from '../src/auth/auth.service';
+import { LoansService } from '../src/loans/loans.service';
 import { LOAN_INCLUDE, toLoanResponse } from '../src/common/mappers/loan-response.mapper';
 import type { RedisService } from '../src/redis/redis.service';
 import type { PhotoStorage } from '../src/storage/interfaces/photo-storage.interface';
@@ -42,6 +45,14 @@ class FakeRedis {
   }
   isAccessRevoked(_jti: string, userId: string): Promise<boolean> {
     return Promise.resolve(this.deleted.has(userId));
+  }
+  /** Daily loan counter used by LoansService: always below the limit here. */
+  getClient() {
+    return {
+      get: () => Promise.resolve(null),
+      incr: () => Promise.resolve(1),
+      expire: () => Promise.resolve(1),
+    };
   }
 }
 
@@ -145,6 +156,224 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
       photoStorage,
       new AccountDeletionService(prisma, redis as unknown as RedisService, config),
     );
+  });
+
+  function loansService(): LoansService {
+    const events = new EventEmitter2();
+    return new LoansService(
+      prisma,
+      redis as unknown as RedisService,
+      events,
+      new ContactInvitationsService(prisma, events),
+    );
+  }
+
+  function authService(): AuthService {
+    return new AuthService(
+      prisma,
+      new JwtService({ secret: 'test-secret' }),
+      config,
+      redis as unknown as RedisService,
+      new EventEmitter2(),
+    );
+  }
+
+  /** A lender with an accepted contact, ready to lend (no loan yet). */
+  async function lenderWithAcceptedContact(label: string) {
+    const lender = await createUser(label);
+    const friend = await createUser(`${label}Friend`);
+    const contact = await prisma.borrower.create({
+      data: {
+        firstName: 'Friend',
+        lastName: 'OfLender',
+        email: friend.email,
+        lenderUserId: lender.id,
+        userId: friend.id,
+      },
+    });
+    await prisma.contactInvitation.create({
+      data: {
+        senderUserId: lender.id,
+        recipientUserId: friend.id,
+        recipientEmail: friend.email,
+        status: 'ACCEPTED',
+        acceptedAt: new Date(),
+        expiresAt: new Date(Date.now() + 1e9),
+      },
+    });
+    return { lender, friend, contact };
+  }
+
+  function newLoanDto(contactId: string) {
+    return {
+      item: { name: 'Raced item', category: ItemCategory.TOOLS },
+      borrowerId: contactId,
+      returnDate: new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10),
+    };
+  }
+
+  describe('security review (C1, C2, C4)', () => {
+    it('erases nothing when Redis cannot record the revocation: 503 and a full rollback', async () => {
+      const { lender, contact } = await lenderWithAcceptedContact('Nora');
+      await createLoan({
+        lender,
+        borrowerUser: await createUser('Olga'),
+        status: LoanStatus.RETURNED,
+      });
+      const before = {
+        loans: await prisma.loan.count(),
+        items: await prisma.item.count(),
+        contacts: await prisma.borrower.count(),
+        invitations: await prisma.contactInvitation.count(),
+      };
+      redis.failWrites = true;
+
+      await expect(users.deleteAccount(lender.id, DTO)).rejects.toMatchObject({ status: 503 });
+
+      const untouched = await prisma.user.findUniqueOrThrow({ where: { id: lender.id } });
+      expect(untouched).toMatchObject({ deletedAt: null, firstName: 'Nora', email: lender.email });
+      await expect(
+        prisma.borrower.findUniqueOrThrow({ where: { id: contact.id } }),
+      ).resolves.toMatchObject({
+        userId: expect.any(String),
+      });
+      expect({
+        loans: await prisma.loan.count(),
+        items: await prisma.item.count(),
+        contacts: await prisma.borrower.count(),
+        invitations: await prisma.contactInvitation.count(),
+      }).toEqual(before);
+      expect(purged).toEqual([]);
+    });
+
+    it('refuses a stale access token: profile update 404, loan creation 401', async () => {
+      const { lender, contact } = await lenderWithAcceptedContact('Paul');
+      await createLoan({
+        lender,
+        borrowerUser: await createUser('Quinn'),
+        status: LoanStatus.RETURNED,
+      });
+
+      await users.deleteAccount(lender.id, DTO);
+
+      await expect(
+        users.updateProfile(lender.id, { firstName: 'Paul', email: 'paul-again@example.com' }),
+      ).rejects.toMatchObject({ status: 404 });
+      await expect(loansService().create(lender.id, newLoanDto(contact.id))).rejects.toMatchObject({
+        status: 401,
+      });
+      const tombstone = await prisma.user.findUniqueOrThrow({ where: { id: lender.id } });
+      expect(tombstone.firstName).toBe('Compte');
+    });
+
+    it('never lets a loan created during the deletion slip through (C2 race)', async () => {
+      for (let round = 0; round < 5; round += 1) {
+        const { lender, contact } = await lenderWithAcceptedContact(`Race${round}`);
+
+        const [deletion, creation] = await Promise.allSettled([
+          users.deleteAccount(lender.id, DTO),
+          loansService().create(lender.id, newLoanDto(contact.id)),
+        ]);
+
+        const statusOf = (r: PromiseSettledResult<unknown>) =>
+          r.status === 'fulfilled' ? 'ok' : (r.reason as { status?: number }).status;
+        const outcome = `${statusOf(deletion)}/${statusOf(creation)}`;
+        // Either the deletion wins (the creation is refused) or the loan wins (the deletion is refused).
+        expect(['ok/401', '409/ok']).toContain(outcome);
+        const live = await prisma.user.findUnique({ where: { id: lender.id } });
+        const liveLoans = await prisma.loan.count({ where: { lenderId: lender.id } });
+        if (outcome === 'ok/401') expect(liveLoans).toBe(0);
+        if (outcome === '409/ok') expect(live?.deletedAt).toBeNull();
+      }
+    });
+
+    it('answers a double tap with one deletion and one 404, never a 500', async () => {
+      const lender = await createUser('Rita');
+      await createLoan({
+        lender,
+        borrowerUser: await createUser('Sam'),
+        status: LoanStatus.RETURNED,
+      });
+
+      const results = await Promise.allSettled([
+        users.deleteAccount(lender.id, DTO),
+        users.deleteAccount(lender.id, DTO),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      expect((failed.reason as { status?: number }).status).toBe(404);
+    });
+
+    it('refuses login and refresh of a deleted account on the real database', async () => {
+      const auth = authService();
+      const lender = await createUser('Tess');
+      await createLoan({
+        lender,
+        borrowerUser: await createUser('Ugo'),
+        status: LoanStatus.RETURNED,
+      });
+      const session = await auth.login({ email: lender.email, password: PASSWORD });
+
+      await users.deleteAccount(lender.id, DTO);
+
+      await expect(auth.login({ email: lender.email, password: PASSWORD })).rejects.toMatchObject({
+        status: 401,
+      });
+      await expect(auth.refreshTokens(session.refreshToken)).rejects.toMatchObject({ status: 401 });
+    });
+
+    it('detaches a borrower for good: re-registration links nothing, a new invitation makes a new contact (C4)', async () => {
+      const lender = await createUser('Vera');
+      const borrower = await createUser('Will');
+      const oldLoan = await createLoan({
+        lender,
+        borrowerUser: borrower,
+        status: LoanStatus.RETURNED,
+      });
+      const oldContactId = oldLoan.borrowerId;
+
+      await users.deleteAccount(borrower.id, DTO);
+
+      const detached = await prisma.borrower.findUniqueOrThrow({ where: { id: oldContactId } });
+      expect(detached).toMatchObject({
+        userId: null,
+        phoneNumber: null,
+        firstName: 'Alias',
+        accountDeletedAt: expect.any(Date),
+        email: expect.stringMatching(/@deleted\.invalid$/),
+      });
+
+      // The same person (or anyone holding the address) signs up again: nothing is relinked.
+      const reborn = await authService().register({
+        email: borrower.email,
+        password: PASSWORD,
+        firstName: 'Will',
+        lastName: 'Again',
+      });
+      await new BorrowerLinkingListener(prisma).handleUserRegistered({
+        userId: reborn.user.id,
+        email: borrower.email,
+      });
+      await expect(
+        prisma.borrower.findUniqueOrThrow({ where: { id: oldContactId } }),
+      ).resolves.toMatchObject({ userId: null });
+
+      // The lender invites the new account: accepting it creates a fresh contact, without history.
+      const invitations = new ContactInvitationsService(prisma, new EventEmitter2());
+      const invitation = await invitations.sendInvitation(lender.id, {
+        recipientEmail: borrower.email,
+      });
+      await invitations.acceptInvitation(invitation.id, reborn.user.id);
+
+      const contacts = await prisma.borrower.findMany({ where: { lenderUserId: lender.id } });
+      expect(contacts).toHaveLength(2);
+      const fresh = contacts.find((c) => c.id !== oldContactId);
+      expect(fresh?.userId).toBe(reborn.user.id);
+      await expect(
+        prisma.loan.count({ where: { borrower: { userId: reborn.user.id } } }),
+      ).resolves.toBe(0);
+    });
   });
 
   describe('a lender whose closed loans are still visible to a borrower', () => {
@@ -349,6 +578,8 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
         include: { borrower: true },
       });
       expect(borrowed.borrower.userId).toBeNull();
+      expect(borrowed.borrower.email).toMatch(/@deleted\.invalid$/);
+      expect(borrowed.borrower.phoneNumber).toBeNull();
       expect(borrowed.contestReason).toBe('Written by Alice');
       expect(borrowed.status).toBe(LoanStatus.ACTIVE);
     });
@@ -363,7 +594,7 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
       expect(purged).toEqual([`users/${lender.id}/`]);
     });
 
-    it('frees the address: a new account with it gets back the detached borrowings', async () => {
+    it('frees the address for a new, unrelated account: nothing of his is relinked (C4)', async () => {
       const originalEmail = lender.email;
       await users.deleteAccount(lender.id, DTO);
 
@@ -384,7 +615,8 @@ describeWithDb('DELETE /users/me on a real database (FIX-22)', () => {
         where: { id: borrowedLoanId },
         include: { borrower: true },
       });
-      expect(borrowed.borrower.userId).toBe(reborn.id);
+      expect(borrowed.borrower.userId).toBeNull();
+      expect(borrowed.borrower.accountDeletedAt).toEqual(expect.any(Date));
     });
 
     it('is never found by the contact search', async () => {
