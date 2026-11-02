@@ -11,6 +11,7 @@ import { AllExceptionsFilter } from './common/exceptions/all-exceptions.filter.j
 import { constraintToCode } from './common/exceptions/constraint-codes.js';
 import { PHOTO_STORAGE } from './storage/interfaces/photo-storage.interface.js';
 import { LocalPhotoStorageService } from './storage/local-photo-storage.service.js';
+import { applyTrustProxy } from './common/throttling/trust-proxy.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -25,6 +26,9 @@ async function bootstrap(): Promise<void> {
   if (app.get(PHOTO_STORAGE, { strict: false }) instanceof LocalPhotoStorageService) {
     app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
   }
+
+  // FIX-37: behind the Fly proxy, req.ip must be the client's, not the proxy's.
+  applyTrustProxy(app, Number(config.get<string>('TRUST_PROXY_HOPS') ?? 0));
 
   // Security
   app.use(helmet());
