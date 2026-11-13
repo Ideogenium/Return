@@ -23,7 +23,7 @@
 **Return** : application mobile de suivi de prêts d'objets et d'argent entre particuliers (rappels automatiques,
 confirmation par l'emprunteur, historique, statistiques). Voir `00_BIBLE_PROJET.md` pour la vision.
 
-- **Backend** : NestJS 11, Prisma, PostgreSQL, Redis (blacklist JWT uniquement), sur Fly.io (`return-api`, région
+- **Backend** : NestJS 11, Prisma, PostgreSQL, Redis (blacklist JWT, compteur quotidien de prêts, comptes supprimés), sur Fly.io (`return-api`, région
   `cdg`). Photos sur Cloudflare R2. Notifications par Expo Push Service. CRON in-process (`@nestjs/schedule`).
 - **Frontend** : Expo / React Native (TypeScript, Zustand), builds EAS Android et iOS.
 - **Organisation** : par fonctionnalité depuis le 25/10/2026 (ADR 0007, voir section 11) : chaque porteur fait contrat,
@@ -31,8 +31,10 @@ confirmation par l'emprunteur, historique, statistiques). Voir `00_BIBLE_PROJET.
 
 **État au 13/11/2026**
 
-1. Sprints 1 à 6 et sprint fonctionnalités (doc 16, FEAT-00 à FEAT-11) livrés ; **la production est au D2** (release
-   Fly v12, 31/10/2026, commit `fa416a9`).
+1. Sprints 1 à 6 et sprint fonctionnalités (doc 16, FEAT-00 à FEAT-11) livrés ; **l'API de production est au D2**
+   (release Fly v12, 31/10/2026 à 15:20 UTC, commit `3564e29` = fusion de #32). Les builds installés (iOS 5, Android
+   `versionCode` 4) viennent de `fa416a9` (fusion de #50, 19:40 UTC) : ils contiennent la partie app des correctifs
+   fusionnés avant, mais parlent à l'API `3564e29`.
 2. **Le D3 n'a jamais été déployé** : `main` contient du code qui n'a jamais tourné en prod (section 3).
 3. L'app n'est **publiée sur aucun store** : TestFlight (Ozias seul testeur) et piste de test interne Play.
 4. Trois PR en suspens à fusionner : #54, #51, #53 (section 4).
@@ -62,35 +64,37 @@ rappels annulés ou replanifiés (11). PR #30 et #31. Détail et statuts : doc 1
 
 ### Correctifs du doc 17
 
-Numéros de PR vérifiés avec `gh`. Release D2 : #32 (#30 + #31) ; build 5 : #50 (commit `fa416a9`) ; roadmap doc 17 :
-#33. **PR fusionnées après `fa416a9` (donc jamais en prod)** : #37, #38, #39, #40, #41, #42, #43, #44, #45, #46,
-#47, #48, #49, #52.
+Numéros de PR et heures vérifiés avec `gh` et `fly releases`. Release D2 de l'API : #32 (#30 + #31, commit `3564e29`,
+fusionné à 14:58 UTC, déployé à 15:20 UTC) ; roadmap doc 17 : #33 ; build 5 : #50 (commit `fa416a9`).
+**Aucun correctif du doc 17 n'est dans l'API de production.** Fusionnées avant `fa416a9` (donc dans les builds 5 pour
+leur partie app) : #34 à #42, #44, #46. Fusionnées après (dans aucun build) : #43, #45, #47, #48, #49, #52, puis #54.
 
-| Lot | Fiche  | Sujet                                          | PR                                                     | En prod ? |
-| --- | ------ | ---------------------------------------------- | ------------------------------------------------------ | --------- |
-| 1   | FIX-18 | Fenêtres avec champ de texte, clavier (iPhone) | #34                                                    | Oui (D2)  |
-| 1   | FIX-19 | Champ multiligne, clavier (Android)           | #35                                                    | Oui (D2)  |
-| 1   | FIX-20 | Photos HEIC de l'iPhone                        | #36                                                    | Oui (D2)  |
-| 1   | FIX-21 | Photos dans le détail du prêt, plein écran     | #41                                                    | Non (D3)  |
-| 2   | FIX-22 | Suppression de compte (pseudonymisation)       | contrat #43 (fusionnée), code #54 (ouverte, fusion décidée) | Non  |
-| 2   | FIX-23 | Désinscription du téléphone à la déconnexion   | #37                                                    | Non (D3)  |
-| 2   | FIX-24 | Statistiques privées du prêteur                | contrat #40, code #42                                  | Non (D3)  |
-| 2   | FIX-25 | Date de retour minimale en UTC                 | #38 (+ correctif d'affichage `parseIsoDate`)           | Non (D3)  |
-| 2   | FIX-26 | Limites d'envoi de fichiers, codes d'erreur    | #44, contrat #48                                       | Non (D3)  |
-| 2   | FIX-27 | Notifications d'invitation de contact          | #45 (+ colonne `actorUserId`), contrat #40             | Non (D3)  |
-| 2   | FIX-28 | 404 au lieu de 403 pour les tiers              | #49, contrat #40                                       | Non (D3)  |
-| 2   | FIX-29 | Avertissement `path-to-regexp`                 | #46                                                    | Non (D3)  |
-| 2   | FIX-30 | Périmètre de `prettier --check`                | #39                                                    | Non (D3)  |
-| 2   | FIX-31 | Secret `JWT_REFRESH_SECRET` inutilisé          | #47                                                    | Non (D3)  |
-| 2   | FIX-37 | Limite de débit par IP client derrière Fly     | #52                                                    | Non (D3)  |
+| Lot | Fiche  | Sujet                                          | PR                                                     | API en prod ? | Builds 5 ? |
+| --- | ------ | ---------------------------------------------- | ------------------------------------------------------ | ------------- | ---------- |
+| 1   | FIX-18 | Fenêtres avec champ de texte, clavier (iPhone) | #34                                                    | Sans objet    | Oui        |
+| 1   | FIX-19 | Champ multiligne, clavier (Android)           | #35                                                    | Sans objet    | Oui        |
+| 1   | FIX-20 | Photos HEIC de l'iPhone                        | #36                                                    | Sans objet    | Oui        |
+| 1   | FIX-21 | Photos dans le détail du prêt, plein écran     | #41                                                    | Sans objet    | Oui        |
+| 2   | FIX-22 | Suppression de compte (pseudonymisation)       | contrat #43 (fusionnée), code #54 (ouverte, fusion décidée) | Non           | Non        |
+| 2   | FIX-23 | Désinscription du téléphone à la déconnexion   | #37                                                    | Sans objet    | Oui        |
+| 2   | FIX-24 | Statistiques privées du prêteur                | contrat #40, code #42                                  | Non           | Sans objet |
+| 2   | FIX-25 | Date de retour minimale en UTC                 | #38 (+ correctif d'affichage `parseIsoDate`)           | Sans objet    | Oui        |
+| 2   | FIX-26 | Limites d'envoi de fichiers, codes d'erreur    | #44, contrat #48                                       | Non           | Sans objet |
+| 2   | FIX-27 | Notifications d'invitation de contact          | #45 (+ colonne `actorUserId`), contrat #40             | Non           | Non        |
+| 2   | FIX-28 | 404 au lieu de 403 pour les tiers              | #49, contrat #40                                       | Non           | Non        |
+| 2   | FIX-29 | Avertissement `path-to-regexp`                 | #46                                                    | Non           | Sans objet |
+| 2   | FIX-30 | Périmètre de `prettier --check`                | #39                                                    | Sans objet    | Sans objet |
+| 2   | FIX-31 | Secret `JWT_REFRESH_SECRET` inutilisé          | #47                                                    | Sans objet    | Sans objet |
+| 2   | FIX-37 | Limite de débit par IP client derrière Fly     | #52                                                    | Non           | Sans objet |
 
-> Les statuts de la colonne « Statut » du doc 17 sont tous restés à ☐ : la colonne ci-dessus fait foi (voir
-> section 11).
+> « Sans objet » : le correctif ne touche pas cette partie (vérifié sur les fichiers de chaque PR). FIX-30 ne touche
+> que la configuration de Prettier, FIX-31 que la doc et un secret Fly. Les statuts du doc 17 sont à jour depuis #51.
 
 ### Tests (ordres de grandeur, comptage des fichiers du dépôt, suites non lancées)
 
 - Backend : environ **50 fichiers `*.spec.ts`** (`backend/src`) et **5 fichiers e2e** (`backend/test/*.e2e-spec.ts`).
 - Frontend : environ **65 fichiers `*.test.ts(x)`** (`frontend/src`).
+- Dernier passage complet (branche de #54, 02/11) : backend **960 tests** (couverture 93,08 % des instructions), e2e sur un vrai PostgreSQL **20/20** ; app **745 tests**.
 - Seuils de couverture en place (FEAT-09) ; la CI lance `--coverage` côté back et `test:coverage` côté front.
 
 ---
@@ -99,22 +103,24 @@ Numéros de PR vérifiés avec `gh`. Release D2 : #32 (#30 + #31) ; build 5 : #5
 
 | Élément                  | Valeur                                                                                           |
 | ------------------------ | ------------------------------------------------------------------------------------------------ |
-| API                      | `https://return-api.fly.dev`, release Fly **v12** du 31/10/2026, commit **`fa416a9`** (D2)        |
+| API                      | `https://return-api.fly.dev`, release Fly **v12** du 31/10/2026 (15:20 UTC), commit **`3564e29`** (D2) |
 | Version en prod          | **D2**. **Le D3 n'a jamais été déployé.**                                                         |
-| Tags prévus              | `prod-v12` sur `fa416a9` ; `cloture` sur le `main` final [À mettre à jour après pose]            |
+| Tags prévus              | `prod-v12` sur `3564e29` (API) ; `build-5` sur `fa416a9` (apps) ; `cloture` sur le `main` final [À mettre à jour après pose] |
 | Android                  | `versionCode` **4** (build 5), piste de test interne Play, 31/10/2026                            |
 | iOS                      | `buildNumber` **5**, TestFlight, 31/10/2026, **expire vers fin janvier 2027**                     |
 | Build installés          | **Sans FIX-27 côté app** (fusionné après le build 5) : les builds ignorent les nouveaux types de notification |
 
 ### Ce que `main` contient et que la prod n'a jamais eu (le « D3 »)
 
-FIX-21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 37, et FIX-22 une fois #54 fusionnée. À recouper avec
-`git log fa416a9..main` et `gh pr list --state merged`.
+Côté API : FIX-24, 26, 27, 28, 29, 37, et FIX-22 une fois #54 fusionnée (`git log --first-parent 3564e29..main`).
+Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte supprimé »).
 
 - **Migrations Prisma à appliquer** (le `release_command` de `fly.toml` lance `prisma migrate deploy`) :
   1. `20261031120000_add_contact_invitation_notification_types` (enum `NotificationType`, FIX-27) ;
   2. `20261031130000_add_notification_actor_user_id` (`notifications.actor_user_id`, FIX-27) ;
-  3. `users.deleted_at` (FIX-22) : **arrive avec #54** ; elle n'est pas encore dans `main` au 13/11.
+  3. `20261031210000_add_user_deleted_at` (`users.deleted_at`, FIX-22) ;
+  4. `20261031220000_add_borrower_account_deleted_at` (`borrowers.account_deleted_at`, FIX-22).
+  Les deux dernières arrivent avec #54. Les quatre sont additives (colonnes nullables, valeurs d'enum).
 - **Secrets Fly** : `JWT_REFRESH_SECRET` n'apparaît plus dans `fly secrets list` (vérifié par Ozias le 13/11/2026,
   FIX-31) ; `OVERDUE_JOB_ENABLED` présent.
 - **Variables dans `backend/fly.toml`** (pas des secrets) : `CLIENT_IP_HEADER = 'fly-client-ip'`,
@@ -228,7 +234,10 @@ Avis convergents des deux développeurs, **aucun ADR ni code écrits** :
 ### Responsable du traitement et statut DSA « trader »
 
 **Non tranchés.** Ils conditionnent le remplissage de la politique de confidentialité (#53) et la publication
-(section 5). [À compléter par Ozias]
+(section 5). Les deux comptes de développeur sont **Individual** : le vendeur affiché serait Ozias sur l'App Store et
+Ismael sur Google Play (doc 15). À trancher avant toute publication : qui est responsable du traitement (l'un, les
+deux, ou une structure juridique créée pour l'occasion), avec quelle adresse publique, et si chacun se déclare
+« trader » au sens du DSA (ce qui rend son nom, son adresse et son téléphone publics sur la fiche).
 
 ---
 
@@ -241,7 +250,7 @@ Dans cet ordre :
 2. **Recréer l'infrastructure** (section 9) ou réactiver celle qui existe encore.
 3. **Déployer le D3** (`cd backend && fly deploy`), puis la recette :
    - `CLIENT_IP_HEADER` présent dans `backend/fly.toml` ;
-   - **3 migrations** appliquées (les 2 de FIX-27 + `users.deleted_at` de FIX-22) ;
+   - **4 migrations** appliquées (les 2 de FIX-27 et les 2 de FIX-22) ;
    - ligne `Overdue tick` dans les logs (`fly logs | grep tick`) ;
    - connexion depuis deux téléphones sur des réseaux différents sans « Too many attempts » (FIX-37) ;
    - invitation de contact puis notification (FIX-27 ; la partie app nécessite un build 6) ;
@@ -274,9 +283,15 @@ Commandes de base : `docs/CLAUDE.md` (section Commandes) et `07_GUIDE_LANCEMENT_
 Squelette ; les procédures détaillées sont dans les docs 07 (lancement backend), 08 et 09 (Fly), 10 (R2), 14 (push) et
 15 (comptes et distribution). Les valeurs ne sont **jamais** écrites dans le dépôt.
 
-1. **Fly** : `fly apps create return-api --org personal` ; PostgreSQL `return-db` (région `cdg`, volume 1 Go) rattaché
-   avec `fly postgres attach` (pose `DATABASE_URL`) ; Redis `return-redis` chez Upstash via Fly (pose `REDIS_URL`).
-   **[À compléter par Ozias : commandes exactes réellement utilisées, plan Postgres.]**
+1. **Fly** (configuration relevée le 13/11 avec `fly machines list`, `fly volumes list`, `fly redis status`) :
+   - `fly apps create return-api --org personal` ; la machine est décrite par `backend/fly.toml` (`cdg`,
+     shared-cpu-1x 512 Mo, `min_machines_running = 1`) ;
+   - `fly postgres create --name return-db --region cdg --initial-cluster-size 1 --vm-size shared-cpu-1x
+     --volume-size 1` : image `flyio/postgres-flex:17.2`, 256 Mo, volume chiffré de 1 Go, **non managé**,
+     instantanés quotidiens gardés 5 jours ; puis `fly postgres attach return-db -a return-api` (pose `DATABASE_URL`) ;
+   - `fly redis create` : nom `return-redis`, région `cdg`, plan Pay-as-you-go, éviction **désactivée** (la liste
+     noire ne doit jamais être évincée) ; copier l'URL affichée dans `fly secrets set REDIS_URL=… -a return-api`.
+   Les commandes exactes de mars 2026 ne sont pas conservées ; celles-ci reproduisent la configuration relevée.
 2. **Secrets Fly** (`fly secrets set … -a return-api`, **avant** le premier déploiement) : variables de
    `backend/src/config/env.validation.ts`, modèle dans `backend/.env.example` :
    - obligatoires : `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET` ;
@@ -286,8 +301,10 @@ Squelette ; les procédures détaillées sont dans les docs 07 (lancement backen
      `OVERDUE_JOB_BATCH_SIZE`, `OVERDUE_JOB_MAX_SHARE`, `JWT_ACCESS_EXPIRATION`, `JWT_REFRESH_EXPIRATION` ;
    - déjà dans `fly.toml` (pas des secrets) : `NODE_ENV`, `PORT`, `API_PREFIX`, `LOG_LEVEL`, `CORS_ORIGIN`,
      `CLIENT_IP_HEADER`, `TRUST_PROXY_HOPS`.
-3. **R2** : bucket + jeton d'API restreint au bucket + URL publique, puis les cinq `R2_*`.
-   **[À compléter par Ozias : nom du bucket, domaine public, détails du jeton.]**
+3. **R2** (doc 10, « État au 31/10 ») : bucket `return-photos-preprod` (Standard), lecture publique par l'URL de
+   développement `r2.dev` (pas de domaine personnalisé) ; jeton d'API **de compte** limité à ce bucket, en lecture et
+   écriture d'objets (`ListBuckets` refusé). Puis les cinq `R2_*`. Une vraie publication devrait passer par un domaine
+   personnalisé : Cloudflare limite le débit de `r2.dev` et le réserve au développement.
 4. **Déploiement** : `cd backend && fly deploy` (applique les migrations via `release_command`), puis
    `GET https://return-api.fly.dev/health`.
 5. **EAS** : `eas build --platform android|ios --profile production`, `eas submit --profile production --platform
@@ -305,7 +322,7 @@ d'export.
 
 | #  | Action                                                                                          | Qui    | Fait |
 | -- | ----------------------------------------------------------------------------------------------- | ------ | ---- |
-| 1  | Poser les tags : `prod-v12` sur `fa416a9`, `cloture` sur le `main` final                          | Ismael | ☐    |
+| 1  | Poser les tags : `prod-v12` sur `3564e29`, `build-5` sur `fa416a9`, `cloture` sur le `main` final | Ismael | ☐    |
 | 2  | Fly : supprimer l'API `return-api` (arrête les CRON)                                              | Ozias  | ☐    |
 | 3  | Fly : supprimer `return-redis` (Upstash)                                                          | Ozias  | ☐    |
 | 4  | Fly : supprimer la base `return-db` (et ses instantanés)                                          | Ozias  | ☐    |
@@ -348,7 +365,7 @@ Les anciens docs ne sont pas réécrits : ce tableau les corrige.
 | 17 | Colonne « Statut » : tout à ☐ ; build « 5 » et « main (`3564e29`) » | Plusieurs fiches fusionnées ; build 5 livré le 31/10. Corrigé dans #51. |
 | 00 à 06 | Planning et statuts d'origine | Historique ; pour l'état réel, voir sections 2 à 4. |
 | `docs/openapi.yaml` | — | Reste la référence du contrat. |
-| ADR 0007 | Citée par les docs 16 et 17 (« organisation par fonctionnalité ») | **Le fichier n'existe pas** dans `docs/adr/` (0008 à 0010 seulement). [Ozias l'ajoute.] |
+| ADR 0007 | Citée par les docs 16 et 17 (« organisation par fonctionnalité ») | Écrite le 25/10 mais jamais commitée ; ajoutée à la clôture (`docs/adr/0007-organisation-par-fonctionnalite.md`). |
 
 Nom trompeur : `backend/src/firebase/` (importé par `app.module.ts`) n'est pas du code mort. `FirebaseService`
 envoie les push via `expo-server-sdk` (Expo Push Service) ; seul le nom est resté (dette mineure : renommer le module,
@@ -358,9 +375,10 @@ section 12).
 
 ## 12. Dette connue et pièges
 
-- **La CI ne lance aucun test e2e** : `.github/workflows/ci.yml` exécute lint, `npm run test -- --coverage`, build,
-  Docker, Spectral ; `frontend-ci.yml` : typecheck, lint, Prettier, Jest `test:coverage`, `test:tz`. Les 5 fichiers
-  `backend/test/*.e2e-spec.ts` ne tournent qu'à la main.
+- **La CI lance un seul test e2e** : `.github/workflows/ci.yml` exécute lint, `npm run test -- --coverage`, build,
+  Docker, Spectral, et depuis #54 le job « E2E on Postgres » (`test/account-deletion.db.e2e-spec.ts` sur un vrai
+  PostgreSQL 17). `frontend-ci.yml` : typecheck, lint, Prettier, Jest `test:coverage`, `test:tz`. Les 5 autres
+  fichiers `backend/test/*.e2e-spec.ts` ne tournent qu'à la main.
 - **`/health` e2e échoue en local** sans Redis ni `JWT_ACCESS_SECRET`.
 - **CRLF** : certains docs sont en fins de ligne Windows (00, 01, 02, 04, 05, 06, `CLAUDE.md`, `FRONTEND.md`,
   `API_*`). Les modifier **en place** (pas de réécriture complète) pour garder des diffs lisibles. Les docs 07 à 18
@@ -374,10 +392,11 @@ section 12).
   CORR-09).
 - **Test `LoanWizard` « MONEY flow »** dépendant du fuseau horaire.
 - **`frontend/google-services.json`** public dans le dépôt : clé à restreindre (section 5).
-- **ADR 0007** jamais commitée [Ozias l'ajoute].
 - **Module `backend/src/firebase/`** : porte l'envoi Expo Push malgré son nom ; renommer le module (dette mineure).
-- **Réinscription après suppression de compte** : `BorrowerLinkingListener` relie les anciens contacts au nouveau
-  compte (accepté, ADR 0010).
+- **Réinscription après suppression de compte** : l'historique n'est **pas** récupéré. Les contacts qui
+  représentaient le compte supprimé sont détachés pour de bon (email remplacé par une adresse `deleted.invalid`,
+  téléphone effacé) : `BorrowerLinkingListener` ne peut donc pas les relier au nouveau compte. Un prêteur qui réinvite
+  la personne crée un nouveau contact (décision C4 de la revue de #54, ADR 0010).
 - **`NOT_RETURNED` est irréversible** : le job de retard (FEAT-10) a un disjoncteur ; déployer coupé, compter, puis
   activer (`backend/.env.example`).
 
@@ -387,4 +406,4 @@ section 12).
 
 `00_BIBLE_PROJET.md` (vision) · `01_ARCHITECTURE_TECHNIQUE.md` (partiellement daté, section 11) ·
 `07_GUIDE_LANCEMENT_BACKEND.md` · `08`, `09` (Fly) · `10` (R2) · `14` (push Expo) · `15` (comptes et distribution) ·
-`16_ROADMAP_FEATURES.md` · `17_ROADMAP_CORRECTIFS_POST_D2.md` · `docs/adr/` (0008 à 0010) · `openapi.yaml`.
+`16_ROADMAP_FEATURES.md` · `17_ROADMAP_CORRECTIFS_POST_D2.md` · `docs/adr/` (0007 à 0010) · `openapi.yaml`.
