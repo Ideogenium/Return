@@ -23,6 +23,11 @@ class ProbeController {
     return { requestId: getRequestId() };
   }
 
+  @Get('privacy')
+  privacy() {
+    return { requestId: getRequestId() };
+  }
+
   @Get('loans')
   root() {
     return { requestId: getRequestId() };
@@ -51,7 +56,7 @@ describe('AppModule middleware routes (FIX-29)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [ProbeModule] }).compile();
     app = moduleRef.createNestApplication({ logger: false });
     // Same prefix and exclusions as main.ts.
-    app.setGlobalPrefix('v1', { exclude: ['health', 'ready'] });
+    app.setGlobalPrefix('v1', { exclude: ['health', 'ready', 'privacy'] });
     await app.init();
   });
 
@@ -60,7 +65,7 @@ describe('AppModule middleware routes (FIX-29)', () => {
     await app.close();
   });
 
-  it.each(['/v1/loans', '/v1/loans/3b2a1c4d/reminders', '/health', '/ready'])(
+  it.each(['/v1/loans', '/v1/loans/3b2a1c4d/reminders', '/health', '/ready', '/privacy'])(
     'runs the request context middleware on %s',
     async (path) => {
       const res = await request(app.getHttpServer()).get(path).set('X-Request-Id', 'req-probe');

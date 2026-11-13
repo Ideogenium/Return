@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { getErrorMessage, getFieldErrors } from '../../utils/error';
 import type { AuthStackParamList } from '../../navigation/types';
 import { FormScrollView } from '../../components/common/FormScrollView';
+import { openPrivacyPolicy } from '../../utils/privacy';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -14,7 +15,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 const REGISTER_FIELDS = ['email', 'password', 'firstName', 'lastName'] as const;
 
 export function RegisterScreen({ navigation }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isLoading, error, register, clearError } = useAuthStore();
   // A field validation error is shown under its field; anything else as a form message.
   const fieldErrors = error ? getFieldErrors(error, t, REGISTER_FIELDS) : {};
@@ -55,6 +56,19 @@ export function RegisterScreen({ navigation }: Props) {
         fieldErrors={hasFieldErrors ? fieldErrors : undefined}
       />
 
+      <Text variant="bodySmall" style={styles.consent}>
+        {t('auth.privacyConsent')}{' '}
+        <Text
+          variant="bodySmall"
+          style={styles.consentLink}
+          onPress={() => openPrivacyPolicy(i18n.language)}
+          accessibilityRole="link"
+          testID="register-privacy-link"
+        >
+          {t('auth.privacyConsentLink')}
+        </Text>
+      </Text>
+
       <Button
         mode="text"
         onPress={() => {
@@ -81,5 +95,7 @@ const styles = StyleSheet.create({
   },
   logo: { width: 200, height: 58 },
   title: { textAlign: 'center', marginBottom: 24, color: '#6B7A8D' },
+  consent: { textAlign: 'center', color: '#6B7A8D', marginTop: 16 },
+  consentLink: { color: '#6B8E7B', textDecorationLine: 'underline' },
   linkLabel: { fontSize: 14, letterSpacing: 0.3 },
 });

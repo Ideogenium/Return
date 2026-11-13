@@ -10,6 +10,7 @@ import { RedisModule } from './redis/redis.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { HealthModule } from './health/health.module.js';
+import { LegalModule } from './legal/legal.module.js';
 import { BorrowersModule } from './borrowers/borrowers.module.js';
 import { ItemsModule } from './items/items.module.js';
 import { LoansModule } from './loans/loans.module.js';
@@ -49,6 +50,7 @@ import { clientIpCeiling } from './common/throttling/client-ip-ceiling.js';
     // --- Features ---
     UsersModule,
     HealthModule,
+    LegalModule,
     BorrowersModule,
     ItemsModule,
     LoansModule,
