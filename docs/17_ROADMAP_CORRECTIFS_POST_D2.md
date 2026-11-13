@@ -7,6 +7,8 @@
 > backlog relevé pendant les revues des PR #30 et #31. Chaque fiche a été **revérifiée dans le code de `main`**
 > (`3564e29`) avant d'être écrite.
 > **Prod** : API v12 sur Fly.io (`return-api.fly.dev`), déployée le 31/10 depuis `main`.
+> **Clôture (13/11)** : projet arrêté. Le D3 n'a pas été déployé : les correctifs du lot 2 sont dans `main` mais pas
+> en prod, et le lot 3 est reporté. L'état final et la reprise sont décrits dans `18_CLOTURE_PROJET.md`.
 > **Organisation** : par fonctionnalité (ADR 0007). Chaque fiche a **un seul porteur**, qui fait contrat → back →
 > front → tests ; l'autre relit la PR.
 > **Suite de** : `13_ROADMAP_CORRECTIFS_TESTS.md` (FIX-01 → FIX-17). La numérotation continue à FIX-18.
@@ -39,32 +41,47 @@ Identique au doc 13 :
 
 ## Tableau récapitulatif
 
-**Lot 1** = build 5, à faire maintenant. **Lot 2** = avant la publication sur les stores.
+**Lot 1** = build 5. **Lot 2** = avant la publication sur les stores. **Lot 3** = suivis relevés en relecture,
+qui ne bloquent pas une mise en production.
 
-| ID     | Titre                                                                                 | Gravité     | Lot | Porteur | Effort | Contrat   | Statut |
-| ------ | ------------------------------------------------------------------------------------- | ----------- | --- | ------- | ------ | --------- | ------ |
-| FIX-18 | Fenêtres avec champ de texte : clavier par-dessus, contestation impossible sur iPhone | 🔴 Critique | 1   | Ozias   | S      | —         | ☐      |
-| FIX-19 | Champ multiligne caché par le clavier ; défiler ferme le clavier (Android)            | 🟠 Majeur   | 1   | Ozias   | S      | —         | ☐      |
-| FIX-20 | Photos HEIC de l'iPhone refusées                                                      | 🟠 Majeur   | 1   | Ozias   | S      | —         | ☐      |
-| FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —         | ☐      |
-| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | oui       | ☐      |
-| FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —         | ☐      |
-| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ☐      |
-| FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —         | ☐      |
-| FIX-26 | Envoi de fichiers : aucune limite Multer, erreurs étiquetées `INVALID_UUID`           | 🟠 Majeur   | 2   | Ozias   | S      | —         | ☐      |
-| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | ☐      |
-| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | ☐      |
-| FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —         | ☐      |
-| FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —         | ☐      |
-| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —         | 🟡      |
-| FIX-37 | Limite de débit partagée par tous les utilisateurs derrière le proxy Fly             | 🔴 Critique | 2   | Ozias   | S      | —         | 🟡 PR  |
+**Statut** : ✅ fusionné dans `main` ; « build 5 » : partie app dans les builds iOS 5 et Android `versionCode` 4
+(#50, `fa416a9`) ; « pas en prod » : correctif serveur jamais déployé (l'API est restée sur `3564e29`) ; ⏸ reporté à
+la clôture.
+
+| ID     | Titre                                                                                 | Gravité     | Lot | Porteur | Effort | Contrat    | Statut                                |
+| ------ | ------------------------------------------------------------------------------------- | ----------- | --- | ------- | ------ | ---------- | ------------------------------------- |
+| FIX-18 | Fenêtres avec champ de texte : clavier par-dessus, contestation impossible sur iPhone | 🔴 Critique | 1   | Ozias   | S      | —          | ✅ #34, build 5                       |
+| FIX-19 | Champ multiligne caché par le clavier ; défiler ferme le clavier (Android)            | 🟠 Majeur   | 1   | Ozias   | S      | —          | ✅ #35, build 5                       |
+| FIX-20 | Photos HEIC de l'iPhone refusées                                                      | 🟠 Majeur   | 1   | Ozias   | S      | —          | ✅ #36, build 5                       |
+| FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —          | ✅ #41, build 5                       |
+| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | oui        | ✅ #54 ; pas en prod (clôture)        |
+| FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —          | ✅ #37, build 5                       |
+| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ✅ #42 ; pas en prod (clôture)        |
+| FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —          | ✅ #38 + `17e1d9c`, build 5           |
+| FIX-26 | Envoi de fichiers : aucune limite Multer, erreurs étiquetées `INVALID_UUID`           | 🟠 Majeur   | 2   | Ozias   | S      | —          | ✅ #44, contrat #48 ; pas en prod     |
+| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | ✅ #45 ; pas en prod (clôture)        |
+| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | ✅ #49 ; pas en prod (clôture)        |
+| FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #46 ; pas en prod (clôture)        |
+| FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —          | ✅ #39                                |
+| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #47 ; secret retiré                |
+| FIX-37 | Limite de débit partagée par tous les utilisateurs derrière le proxy Fly              | 🔴 Critique | 2   | Ozias   | S      | —          | ✅ #52 ; pas en prod (clôture)        |
+| FIX-32 | Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits      | 🟡 Mineur   | 3   | Ismael  | M      | —          | ⏸ reporté (clôture)                  |
+| FIX-33 | Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app | 🟡 Mineur   | 3   | Ozias   | S      | fait (#48) | ⏸ reporté (clôture)                  |
+| FIX-34 | Notifications écrites en français en dur côté serveur                                 | 🟡 Mineur   | 3   | Ismael  | M      | oui        | ⏸ reporté (clôture)                  |
+| FIX-35 | Réponses de prêt sans `Cache-Control: private` alors qu'elles dépendent du lecteur    | 🟡 Mineur   | 3   | Ozias   | XS     | —          | ⏸ reporté (clôture)                  |
+| FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)  | 🟡 Mineur   | 3   | Ismael  | S      | —          | ⏸ reporté (clôture)                  |
+| FIX-38 | Aucune notification quand le prêteur change la date de retour                         | 🟠 Majeur   | 3   | Ismael  | M      | oui        | ⏸ reporté (clôture)                  |
+| FIX-39 | Limites de connexion : par email seul, et compteurs en mémoire                        | 🟡 Mineur   | 3   | Ozias   | S      | —          | ⏸ reporté (clôture)                  |
+| FIX-40 | Inscription sans vérification de l'email                                              | 🟠 Majeur   | 3   | Ozias   | M      | oui        | ⏸ reporté (clôture)                  |
+| FIX-41 | Pierres tombales orphelines après la suppression de l'emprunteur                      | 🟡 Mineur   | 3   | Ozias   | S      | —          | ⏸ reporté (clôture)                  |
 
 ### Répartition
 
 - **Ozias** : FIX-18 et FIX-19 (clavier : il a écrit `FormScrollView` et a l'iPhone pour vérifier), FIX-20 (photos,
-  FEAT-01, test iPhone obligatoire), puis FIX-22, FIX-26, FIX-29, FIX-31 (back, prod).
+  FEAT-01, test iPhone obligatoire), puis FIX-22, FIX-26, FIX-29, FIX-31, FIX-37 (back, prod) ; lot 3 : FIX-33,
+  FIX-35, FIX-39, FIX-40, FIX-41.
 - **Ismael** : FIX-21 (affichage des prêts, vérifiable sur Android), puis FIX-23 (il a écrit la remise à zéro au
-  logout), FIX-24, FIX-25, FIX-27, FIX-28 (contrat), FIX-30.
+  logout), FIX-24, FIX-25, FIX-27, FIX-28 (contrat), FIX-30 ; lot 3 : FIX-32, FIX-34, FIX-36, FIX-38.
 
 ### Fichiers partagés (lot 1)
 
@@ -77,6 +94,7 @@ Identique au doc 13 :
 1. Une branche par fiche depuis `main` (`fix/FIX-18-dialog-keyboard`, …), une PR vers `main`, relue par l'autre.
 2. TDD : le test qui reproduit le bug échoue d'abord.
 3. Quand les 4 fiches du lot 1 sont fusionnées : build iOS 5 et Android `versionCode` 4 depuis `main`, puis tests.
+   ✅ Fait le 31/10 (#50, `fa416a9`) ; tests iOS faits, tests Android du build 5 non faits avant la clôture.
 4. Une fiche qui touche `docs/openapi.yaml` attend l'accord des deux, **avant** le code.
 
 ---
@@ -190,11 +208,11 @@ Identique au doc 13 :
   est conservé ; `Loan.lender` et son `accountDeleted` (second élément de son `allOf`) ; la recherche de
   contacts exclut les comptes supprimés.
 - **Code, après validation du contrat** : migration `users.deleted_at` ; suppression en une transaction ; ordre
-  mot de passe puis 409 (aujourd'hui inversé dans `users.service.ts`) ; clé Redis dans `JwtStrategy` ; `deletedAt`
+  mot de passe puis 409 ; clé Redis dans `JwtStrategy` ; `deletedAt`
   filtré à la connexion, au refresh, à la recherche et aux invitations ; `accountDeleted` dans le mapper du prêteur ;
   libellé traduit côté app. Un test par point d'entrée qui lit des utilisateurs.
 - **Builds installés** : ils ignorent `accountDeleted` et affichent « Compte supprimé » tel quel.
-- **Statut** : 🟡 code livré sur `fix/FIX-22-account-deletion`, tout le contrat (#43, puis les ajouts de la revue de
+- **Statut** : ✅ #54, pas en prod. Tout le contrat (#43, puis les ajouts de la revue de
   sécurité : `404`, `503`, domaine `deleted.invalid` réservé, contacts détachés `accountDeleted`). Revue de sécurité
   traitée : adresse de pierre tombale imprévisible et domaine refusé (B1) ; révocation Redis dans la transaction,
   `503` et rollback en cas d'échec, `404` pour un compte supprimé, `401` à la création (C1) ; verrous `FOR UPDATE` /
@@ -257,13 +275,13 @@ Identique au doc 13 :
 - **Suite contrat** (PR contrat seul, branche `docs/contract-upload-errors`, accord d'Ismael) : règle transversale
   413 / 415 dans `info.description` avec les composants `PayloadTooLarge` et `UnsupportedMediaType` ; `TOO_LARGE`
   étendu à la taille d'un fichier ; exemples 400 des deux routes d'envoi, avec les champs `photo` et `avatar`.
-- **Suites de code, après la fusion du contrat** :
-    - filtre : erreurs d'envoi sur `photo` / `avatar` (nom réel de la partie multipart) au lieu de `file` ;
-    - piste : un `exceptionFactory` sur le `ParseFilePipe` de chaque route, qui porte le nom du champ, plutôt que de
-      reconnaître les messages de NestJS dans le filtre ;
-    - limite exacte : `MaxFileSizeValidator` refuse une taille **égale** à la limite (`<`), Multer et l'app
-      l'acceptent (`<=`) ; aligner les trois sur la même règle ;
-    - app : `payload-too-large` dans `ERROR_TYPE_MAP`, et un message dédié pour `TOO_LARGE` sur une photo.
+- **Suites de code, après la fusion du contrat** (reprises dans FIX-33) :
+  - filtre : erreurs d'envoi sur `photo` / `avatar` (nom réel de la partie multipart) au lieu de `file` ;
+  - piste : un `exceptionFactory` sur le `ParseFilePipe` de chaque route, qui porte le nom du champ, plutôt que de
+    reconnaître les messages de NestJS dans le filtre ;
+  - limite exacte : `MaxFileSizeValidator` refuse une taille **égale** à la limite (`<`), Multer et l'app
+    l'acceptent (`<=`) ; aligner les trois sur la même règle ;
+  - app : `payload-too-large` dans `ERROR_TYPE_MAP`, et un message dédié pour `TOO_LARGE` sur une photo.
 
 ### FIX-27 — Aucune notification à la réception d'une invitation de contact
 
@@ -322,7 +340,7 @@ Identique au doc 13 :
 - **Cause** : les refresh tokens sont opaques et stockés hachés ; aucun code ne lit ce secret.
 - **Correctif** : `fly secrets unset JWT_REFRESH_SECRET --stage -a return-api`, appliqué au prochain déploiement ;
   retirer la variable de `.env.example` et des docs.
-- **Statut** : 🟡 secret mis en attente de suppression sur Fly le 31/10 (`--stage`), effectif au prochain déploiement ; variable retirée de `.env.example`, `backend/.env.example`, `docker-compose.yml` et du doc 07. Aucun code ne la lit (`git grep`). Les docs 08, 09 et 11 sont des traces datées, laissées telles quelles.
+- **Statut** : ✅ secret mis en attente de suppression sur Fly le 31/10 (`--stage`) ; il n'apparaît plus dans `fly secrets list` le 13/11 ; variable retirée de `.env.example`, `backend/.env.example`, `docker-compose.yml` et du doc 07. Aucun code ne la lit (`git grep`). Les docs 08, 09 et 11 sont des traces datées, laissées telles quelles.
 
 ### FIX-37 — Limite de débit partagée par tous les utilisateurs derrière le proxy Fly
 
@@ -333,21 +351,141 @@ Identique au doc 13 :
   10 connexions par 15 min (`auth.controller.ts`) et 100 requêtes par minute (`app.module.ts`) **pour toute l'app**.
   N'importe qui peut bloquer la connexion de tout le monde avec 10 requêtes.
 - **Correctif** :
-    - `ClientIpThrottlerGuard` remplace le garde global : il compte par IP réelle du client, lue dans l'en-tête posé
-      par le proxy (`CLIENT_IP_HEADER`, sur Fly `fly-client-ip`), sinon `req.ip` ;
-    - `trust proxy` Express réglé par `TRUST_PROXY_HOPS` : **2** sur Fly, car le proxy ajoute sa propre adresse en
-      dernier dans `X-Forwarded-For` (`<forgée…>, <client>, <Fly>`). Avec 1, `req.ip` serait l'adresse de Fly ;
-    - connexion : compteur par IP **et** email normalisé (`@ThrottleByBodyField('email')`), 10 / 15 min, plus un
-      plafond par IP seule (`clientIpCeiling`, 50 / 15 min) contre le « password spraying » (une IP qui essaie
-      beaucoup d'emails) ;
-    - les deux variables sont dans `fly.toml` (pas de secret) ; en production, l'API refuse de démarrer sans
-      `CLIENT_IP_HEADER` (`TRUST_PROXY_HOPS` seul ne suffit pas).
+  - `ClientIpThrottlerGuard` remplace le garde global : il compte par IP réelle du client, lue dans l'en-tête posé
+    par le proxy (`CLIENT_IP_HEADER`, sur Fly `fly-client-ip`), sinon `req.ip` ;
+  - `trust proxy` Express réglé par `TRUST_PROXY_HOPS` : **2** sur Fly, car le proxy ajoute sa propre adresse en
+    dernier dans `X-Forwarded-For` (`<forgée…>, <client>, <Fly>`). Avec 1, `req.ip` serait l'adresse de Fly ;
+  - connexion : compteur par IP **et** email normalisé (`@ThrottleByBodyField('email')`), 10 / 15 min, plus un
+    plafond par IP seule (`clientIpCeiling`, 50 / 15 min) contre le « password spraying » (une IP qui essaie
+    beaucoup d'emails) ;
+  - les deux variables sont dans `fly.toml` (pas de secret) ; en production, l'API refuse de démarrer sans
+    `CLIENT_IP_HEADER` (`TRUST_PROXY_HOPS` seul ne suffit pas).
 - **Hypothèse** : sur Fly, tout le trafic passe par le proxy, qui pose `Fly-Client-IP` sur chaque requête. Hors Fly,
   l'en-tête n'est lu que s'il est configuré, sinon un client pourrait choisir son compteur.
-- **Suivis (lot 3)** :
-    - force brute distribuée sur un seul compte (beaucoup d'IP, un email) : limite par email seul ou verrouillage
-      temporaire du compte, avec un message qui ne révèle pas l'existence du compte ;
-    - les compteurs sont en mémoire, par machine, et repartent à zéro à chaque redémarrage : passer au stockage
-      Redis du throttler avant d'avoir plus d'une machine.
-- **Statut** : 🟡 PR ; effectif au déploiement D3. À vérifier après le D3 : deux téléphones sur des réseaux différents
-  ne se bloquent plus l'un l'autre.
+- **Suivis (lot 3, FIX-39)** :
+  - force brute distribuée sur un seul compte (beaucoup d'IP, un email) : limite par email seul ou verrouillage
+    temporaire du compte, avec un message qui ne révèle pas l'existence du compte ;
+  - les compteurs sont en mémoire, par machine, et repartent à zéro à chaque redémarrage : passer au stockage
+    Redis du throttler avant d'avoir plus d'une machine.
+- **Statut** : ✅ #52, pas en prod (le D3 n'a pas eu lieu). À vérifier au premier déploiement : deux téléphones sur des
+  réseaux différents ne se bloquent plus l'un l'autre.
+
+---
+
+## Lot 3 — suivis relevés en relecture (31/10)
+
+Aucun ne bloque une mise en production. Reportés à la clôture du 13/11 (voir `18_CLOTURE_PROJET.md`).
+
+Suite non numérotée : le test `LoanWizard` « MONEY flow » dépend du fuseau horaire (`LoanWizard.test.tsx:96`, mock du
+calendrier en UTC) ; à passer en date locale et à ajouter à `test:tz`.
+
+### FIX-32 — Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ismael · **Effort** : M
+- **Source** : relecture de #49 (FIX-28).
+- **Constat** :
+  - `loans.service.ts` `resolveItem` ne teste pas `deletedAt` : un objet supprimé reste sélectionnable pour un
+    nouveau prêt ;
+  - `reminders.service.ts` `findById` ne teste pas `loan.deletedAt` : le rappel d'un prêt supprimé reste
+    accessible ;
+  - la règle « tiers = 404, partie sans droit = 403 » existe en trois variantes (`assertOwnership`,
+    `assertBorrowerRole`, `ReminderLoanAccess`), qui peuvent diverger.
+- **Cause** (`main` au 13/11) : `resolveItem` (`loans.service.ts:527`), `findById` (`reminders.service.ts:136`) ;
+  les trois variantes : `assertOwnership` et `assertBorrowerRole` (`loans.service.ts:631` et `:659`),
+  `ReminderLoanAccess` (`reminders.service.ts:14`).
+- **Correctif** : un accès partagé pour les prêts, et les deux filtres `deletedAt`, avec les tests de l'e2e
+  `third-party-not-found`.
+
+### FIX-33 — Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : S · **Contrat** : déjà fusionné (#48)
+- **Constat** :
+  - les erreurs d'envoi portent encore le champ `file`, alors que le contrat dit `photo` / `avatar` ;
+  - un fichier d'exactement 5 Mo (2 Mo pour l'avatar) est accepté par l'app et par Multer (`<=`), mais refusé par
+    l'API (`MaxFileSizeValidator` : `size < max`) ;
+  - l'app n'a pas `payload-too-large` dans `ERROR_TYPE_MAP` (`frontend/src/utils/error.ts`), et affiche le message
+    générique pour `TOO_LARGE` sur une photo.
+- **Cause** (`main` au 13/11) : `field: 'file'` codé en dur dans `all-exceptions.filter.ts:27-39` ;
+  `MaxFileSizeValidator` dans `upload-limits.ts:44` ; `ERROR_TYPE_MAP` dans `frontend/src/utils/error.ts:35`.
+- **Correctif** : `imageFilePipe(maxBytes, field)` avec un `exceptionFactory` qui donne le bon champ (le filtre ne
+  garde que Multer et l'UUID) ; une seule règle de limite partout ; les clés FR/EN dans l'app.
+
+### FIX-34 — Notifications écrites en français en dur côté serveur
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ismael · **Effort** : M · **Contrat** : oui
+- **Constat** : le titre et le texte des notifications de prêt et d'invitation sont écrits en français dans les
+  listeners. Un utilisateur dont l'app est en anglais les reçoit en français.
+- **Pistes** : la langue du compte (`settings.language`) lue à l'envoi, ou des clés i18n et des paramètres envoyés à
+  l'app, qui compose le texte. À trancher, contrat d'abord.
+
+### FIX-35 — Réponses de prêt sans `Cache-Control: private`
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : XS
+- **Constat** : depuis FIX-24, une réponse de prêt dépend de qui la demande. Aucun en-tête n'empêche un cache partagé
+  de la servir à un autre utilisateur.
+- **Correctif** : `Cache-Control: private, no-store` sur les routes de prêts et d'historique, avec un test.
+
+### FIX-36 — Finitions photos
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ismael · **Effort** : S
+- **Source** : relectures de #36 et #41.
+- **Liste** :
+  - `<StatusBar style="light" />` dans la visionneuse, pour des icônes lisibles sur le fond noir ;
+  - factoriser le bloc galerie, présent dans `LoanDetailScreen` et dans `ConfirmationDialog` ;
+  - un indicateur de chargement des photos sur réseau lent ;
+  - le zoom en pinçant ;
+  - sur le web, sauter l'étape PNG (deux avertissements « not supported on web ») et tester
+    `getMimeType('blob:…') === 'image/jpeg'`.
+
+### FIX-38 — Aucune notification quand le prêteur change la date de retour
+
+- **Gravité** : 🟠 Majeur · **Porteur** : Ismael · **Effort** : M · **Contrat** : oui
+- **Source** : test du build 5 sur iPhone (Ozias, 31/10).
+- **Constat** : quand le prêteur avance ou repousse la date de retour, l'emprunteur n'est pas prévenu. Il ne le voit
+  qu'en ouvrant le prêt, ou au rappel suivant (FIX-11 replanifie bien les rappels).
+- **Cause** : `NotificationType` (`schema.prisma`) n'a pas de type pour ce cas, et `loan-notification.listener.ts`
+  n'écoute que `LOAN_EVENTS.CREATED` et `LOAN_EVENTS.STATUS_CHANGED`. Changer la date ne change pas le statut. Le
+  contrat ne prévoit pas cette notification.
+- **Correctif proposé** :
+  1. **D'abord un inventaire** des événements métier qui méritent une notification, pour ne plus les ajouter un par
+     un. Par exemple, le passage en `NOT_RETURNED` par le job overdue n'a pas de type non plus.
+  2. Contrat : un type `LOAN_RETURN_DATE_CHANGED`, envoyé à l'emprunteur, avec l'ancienne et la nouvelle date dans
+     le message, et `{ loanId, type }` dans le push. Le tap ouvre le prêt, ce qui marche déjà dans les builds
+     installés grâce à `loanId`.
+  3. Serveur : un événement émis par `PATCH /loans/{loanId}` seulement quand la date change vraiment, plus une
+     migration additive de l'enum (comme FIX-27).
+- **À trancher** : notifier aussi un changement des notes ? Proposition : non, pour éviter le bruit.
+
+### FIX-39 — Limites de connexion : par email seul, et compteurs en mémoire
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : S
+- **Source** : relecture de #52 (FIX-37) par Ismael.
+- **Constat** :
+  - aucune limite par email seul : une attaque distribuée (beaucoup d'IP) sur un même compte n'est limitée que par
+    les compteurs IP + email ;
+  - les compteurs du throttler sont en mémoire : un par machine, remis à zéro à chaque redémarrage.
+- **Correctif** : un compteur par email seul sur `/auth/login` (ou un verrouillage temporaire du compte, à trancher
+  pour éviter qu'un attaquant bloque un compte), et un stockage Redis du throttler, indispensable avant de passer à
+  plusieurs machines (règle « une seule machine », CORR-09).
+
+### FIX-40 — Inscription sans vérification de l'email
+
+- **Gravité** : 🟠 Majeur · **Porteur** : Ozias · **Effort** : M · **Contrat** : oui
+- **Source** : relecture de sécurité de FIX-22 (C4), décision d'Ozias et d'Ismael du 31/10.
+- **Constat** : `POST /auth/register` crée le compte sans vérifier que l'adresse appartient à la personne. Après la
+  suppression d'un compte, n'importe qui peut s'inscrire avec l'ancienne adresse. C'est pour ça que FIX-22 ne relie
+  plus automatiquement les contacts détachés par une suppression.
+- **Cause** (`main` au 13/11) : `register` (`auth.service.ts:76`) crée le compte directement.
+- **Correctif** : un code ou un lien de vérification envoyé par email, et un compte limité tant que l'adresse n'est
+  pas vérifiée. Il faut un service d'envoi d'emails (nouveau sous-traitant, à ajouter à la politique de
+  confidentialité de #53, `docs/legal/`). C'est aussi le prérequis d'une connexion Google ou Apple (décision
+  reportée, doc 18). Une fois en place, on pourra réautoriser la liaison automatique des contacts.
+
+### FIX-41 — Pierres tombales orphelines après la suppression de l'emprunteur
+
+- **Gravité** : 🟡 Mineur · **Porteur** : Ozias · **Effort** : S
+- **Source** : relecture de sécurité de FIX-22 (S5).
+- **Constat** : une pierre tombale garde les prêts clos tant qu'un emprunteur relié peut les voir. Si cet emprunteur
+  supprime à son tour son compte, plus personne ne les voit, mais la pierre tombale et ses prêts restent.
+- **Correctif** : à la suppression d'un compte, ou par une tâche planifiée, supprimer les pierres tombales dont plus
+  aucun prêt n'est visible, ce qui applique la minimisation de l'ADR 0010.
