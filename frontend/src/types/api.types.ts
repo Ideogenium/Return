@@ -179,14 +179,18 @@ export interface UserSummary {
   firstName: string;
   lastName: string;
   profilePicture?: string | null;
-  /** Present and true only on Loan.lender when the lender deleted his account (FIX-22). */
+}
+
+/** Loan.lender: a UserSummary plus the deleted-account flag (FIX-22). */
+export interface LoanLender extends UserSummary {
+  /** Present and true only when the lender deleted his account. */
   accountDeleted?: boolean;
 }
 
 export interface Loan {
   id: string;
   item: Item;
-  lender: UserSummary;
+  lender: LoanLender;
   borrower: Borrower;
   status: LoanStatus;
   returnDate?: string | null;

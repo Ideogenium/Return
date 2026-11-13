@@ -3,7 +3,7 @@ import { PaperProvider } from 'react-native-paper';
 import i18n from '../../../config/i18n.config';
 import { LoanCard } from '../LoanCard';
 import { useAuthStore } from '../../../stores/useAuthStore';
-import type { Loan, User, UserSummary, Borrower } from '../../../types/api.types';
+import type { Loan, User, LoanLender, Borrower } from '../../../types/api.types';
 
 // --- Factories ---
 
@@ -18,7 +18,7 @@ function makeUser(id: string, firstName: string, lastName: string): User {
   };
 }
 
-function makeLender(id: string, firstName: string, lastName: string): UserSummary {
+function makeLender(id: string, firstName: string, lastName: string): LoanLender {
   return { id, firstName, lastName };
 }
 
@@ -31,7 +31,7 @@ function makeBorrower(id: string, firstName: string, lastName: string): Borrower
   };
 }
 
-function makeLoan(lender: UserSummary, borrower: Borrower): Loan {
+function makeLoan(lender: LoanLender, borrower: Borrower): Loan {
   return {
     id: 'loan-42',
     item: {
@@ -119,7 +119,7 @@ describe('LoanCard — return date', () => {
 
 describe('LoanCard — lender who deleted his account (FIX-22)', () => {
   it('shows the translated label instead of the stored names', () => {
-    const lender: UserSummary = {
+    const lender: LoanLender = {
       ...makeLender('user-gone', 'Stored', 'Names'),
       accountDeleted: true,
     };

@@ -1,8 +1,8 @@
 import { getContactForUser, getContactName } from '../loan';
-import type { Loan, UserSummary, Borrower } from '../../types/api.types';
+import type { Loan, LoanLender, Borrower } from '../../types/api.types';
 
 // Minimal valid factories
-const makeLender = (id = 'lender-1'): UserSummary => ({
+const makeLender = (id = 'lender-1'): LoanLender => ({
   id,
   firstName: 'Alice',
   lastName: 'Martin',
@@ -15,7 +15,7 @@ const makeBorrower = (id = 'borrower-1'): Borrower => ({
   email: 'bob@example.com',
 });
 
-const makeLoan = (lender: UserSummary, borrower: Borrower): Loan => ({
+const makeLoan = (lender: LoanLender, borrower: Borrower): Loan => ({
   id: 'loan-1',
   item: {
     id: 'item-1',
@@ -95,7 +95,7 @@ describe('getContactName', () => {
   });
 
   it('shows a translated label for a lender who deleted his account (FIX-22)', () => {
-    const deleted: UserSummary = {
+    const deleted: LoanLender = {
       ...makeLender(),
       firstName: 'Compte',
       lastName: 'supprimé',
