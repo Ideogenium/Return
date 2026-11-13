@@ -17,6 +17,8 @@ export interface LoanLenderResponse {
   firstName: string;
   lastName: string;
   profilePicture: string | null;
+  /** Present and true only when the lender deleted his account (FIX-22), omitted otherwise. */
+  accountDeleted?: true;
 }
 
 /** Lender view: the contact as the lender saved it, with the private statistics. */
@@ -27,6 +29,8 @@ export interface LoanBorrowerResponse {
   email: string;
   phoneNumber?: string | null;
   userId: string | null;
+  /** Present and true only when the account this contact represented was deleted (FIX-22). */
+  accountDeleted?: true;
   /** Omitted (not null) unless the caller is the lender of the loan. */
   statistics?: BorrowerStatistics;
 }

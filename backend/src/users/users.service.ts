@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -14,7 +15,11 @@ import {
 } from '../common/exceptions/problem-details.exception.js';
 import { toSafeUser } from '../common/mappers/user.mapper.js';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
-import { isPrismaUniqueConstraintError } from '../common/utils/prisma-errors.util.js';
+import {
+  isPrismaRecordNotFoundError,
+  isPrismaUniqueConstraintError,
+} from '../common/utils/prisma-errors.util.js';
+import { AccountDeletionService } from './account-deletion.service.js';
 import {
   PHOTO_STORAGE,
   PurgeIncompleteError,
@@ -38,8 +43,14 @@ import type { User } from '@prisma/client';
 // Sécurité :
 //   - Le userId vient toujours du JWT (req.user.userId), jamais du body
 //   - Suppression et changement de mot de passe requièrent le mot de passe actuel
-//   - Suppression de compte = Prisma onDelete: Cascade (supprime aussi les refresh tokens)
+//   - Suppression de compte : AccountDeletionService (FIX-22, ADR 0010), puis purge des photos
+//   - Un compte supprimé (pierre tombale) répond comme un compte inconnu (404)
 // =============================================================================
+
+/** Cible d'une écriture : seulement un compte encore actif, jamais une pierre tombale (FIX-22). */
+function liveAccount(userId: string) {
+  return { id: userId, deletedAt: null };
+}
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -52,6 +63,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     @Inject(PHOTO_STORAGE) private readonly photoStorage: PhotoStorage,
+    private readonly accountDeletion: AccountDeletionService,
   ) {}
 
   // ===========================================================================
@@ -79,11 +91,14 @@ export class UsersService {
   async updateProfile(userId: string, dto: UpdateUserDto) {
     try {
       const updated = await this.prisma.user.update({
-        where: { id: userId },
+        where: liveAccount(userId),
         data: dto,
       });
       return toSafeUser(updated);
     } catch (error: unknown) {
+      if (isPrismaRecordNotFoundError(error)) {
+        throw new NotFoundException('User', userId, '/v1/users/me');
+      }
       if (isPrismaUniqueConstraintError(error)) {
         throw new ConflictException(
           'email-already-exists',
@@ -97,23 +112,33 @@ export class UsersService {
   }
 
   /**
-   * DELETE /users/me — Supprime définitivement le compte utilisateur.
+   * DELETE /users/me — Supprime définitivement le compte (FIX-22, ADR 0010).
    *
-   * Sécurité renforcée :
-   * 1. Vérifie le mot de passe actuel (bcrypt.compare)
-   * 2. Vérifie le texte de confirmation ("DELETE MY ACCOUNT")
-   *    → La validation @Equals est dans le DTO, mais on double-check ici
+   * Contrôles, dans l'ordre du contrat : mot de passe (401), puis prêts en cours du prêteur (409).
+   * Le texte de confirmation est validé par le DTO (@Equals).
    *
-   * La suppression cascade sur les refresh tokens (Prisma onDelete: Cascade), puis les
-   * photos stockées (avatar et objets) sont purgées.
+   * 1. Effacement en base, dans une transaction (AccountDeletionService) : suppression complète,
+   *    ou pierre tombale pseudonymisée si des prêts clos restent visibles pour un emprunteur. La
+   *    révocation des access tokens encore valables (Redis) en est la dernière étape.
+   * 2. Purge des photos stockées.
    *
    * @throws NotFoundException (404) si l'utilisateur n'existe plus
    * @throws UnauthorizedException (401) si le mot de passe est incorrect
+   * @throws ConflictException (409) si un prêt en cours existe
    */
   async deleteAccount(userId: string, dto: DeleteAccountDto): Promise<void> {
     const user = await this.findUserOrThrow(userId);
 
-    // Vérification des prêts actifs (OpenAPI: 409 active-loans-exist)
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException(
+        'invalid-current-password',
+        'Invalid Current Password',
+        'The provided password is incorrect.',
+        '/v1/users/me',
+      );
+    }
+
     const activeLoanCount = await this.prisma.loan.count({
       where: {
         lenderId: userId,
@@ -132,21 +157,14 @@ export class UsersService {
       );
     }
 
-    // Vérification du mot de passe
-    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException(
-        'invalid-current-password',
-        'Invalid Current Password',
-        'The provided password is incorrect.',
-        '/v1/users/me',
-      );
-    }
+    // Hash d'un secret aléatoire jeté : aucun mot de passe ne correspondra jamais.
+    const unusablePasswordHash = await bcrypt.hash(
+      randomBytes(32).toString('hex'),
+      this.BCRYPT_ROUNDS,
+    );
+    const outcome = await this.accountDeletion.erase(userId, unusablePasswordHash);
 
-    // Suppression (cascade → refresh tokens, objets et lignes Photo supprimés automatiquement)
-    await this.prisma.user.delete({ where: { id: userId } });
-
-    this.logger.log(`Account deleted: ${userId}`);
+    this.logger.log(`Account deleted (${outcome}): ${userId}`);
 
     await this.purgeStoredPhotos(userId);
   }
@@ -260,11 +278,18 @@ export class UsersService {
    * Les champs absents du DTO ne sont pas modifiés (PATCH sémantique).
    */
   async updateSettings(userId: string, dto: UpdateSettingsDto): Promise<UserSettings> {
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: dto,
-    });
-    return this.extractSettings(updated);
+    try {
+      const updated = await this.prisma.user.update({
+        where: liveAccount(userId),
+        data: dto,
+      });
+      return this.extractSettings(updated);
+    } catch (error: unknown) {
+      if (isPrismaRecordNotFoundError(error)) {
+        throw new NotFoundException('User', userId, '/v1/users/me/settings');
+      }
+      throw error;
+    }
   }
 
   // ===========================================================================
@@ -356,7 +381,8 @@ export class UsersService {
       where: { id: userId },
     });
 
-    if (!user) {
+    // Une pierre tombale (FIX-22) répond comme un compte inconnu, même avec un token encore valable.
+    if (!user || user.deletedAt) {
       throw new NotFoundException('User', userId, '/v1/users/me');
     }
 

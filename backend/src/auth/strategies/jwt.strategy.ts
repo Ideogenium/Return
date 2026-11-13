@@ -53,13 +53,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   /**
    * Validation du JWT après vérification de la signature par Passport.
    *
-   * Vérifie en plus que le token n'a pas été blacklisté via son `jti`.
-   * Un token blacklisté = utilisateur déconnecté = accès refusé.
+   * Vérifie en plus que l'accès n'a pas été révoqué : `jti` blacklisté (logout, changement de
+   * mot de passe) ou compte supprimé (FIX-22 : la pierre tombale garde la ligne `users`, donc
+   * un token émis avant la suppression serait sinon accepté jusqu'à son expiration).
    */
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
-    // Vérification de la blacklist Redis (logout révoque le jti)
-    const isBlacklisted = await this.redis.isTokenBlacklisted(payload.jti);
-    if (isBlacklisted) {
+    const isRevoked = await this.redis.isAccessRevoked(payload.jti, payload.sub);
+    if (isRevoked) {
       throw new UnauthorizedException(
         'invalid-token',
         'Invalid Token',

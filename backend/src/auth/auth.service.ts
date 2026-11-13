@@ -16,8 +16,15 @@ import {
 } from '../common/exceptions/problem-details.exception.js';
 import { toSafeUser } from '../common/mappers/user.mapper.js';
 import { isPrismaUniqueConstraintError } from '../common/utils/prisma-errors.util.js';
+import { accessTokenTtlSeconds, parseDurationMs } from '../common/utils/duration.util.js';
 import type { AuthResponse, TokenPair } from './interfaces/auth-response.interface.js';
 import type { User } from '@prisma/client';
+
+/**
+ * Hash bcrypt (coût 12, comme les vrais) d'un secret sans usage : comparé quand le compte
+ * n'existe pas ou est supprimé, pour que la connexion prenne le même temps dans tous les cas.
+ */
+const DUMMY_PASSWORD_HASH = '$2b$12$Z6NCitg5inO6xBwtQXNWI.Uvzk6.Ev.OyUQs2or3rMKpDTOKaE1B2';
 
 // =============================================================================
 // AuthService — Gestion complète de l'authentification
@@ -130,7 +137,10 @@ export class AuthService {
       where: { email: dto.email },
     });
 
-    if (!user) {
+    // Un compte supprimé (pierre tombale, FIX-22) répond comme un compte inexistant. Le même
+    // travail bcrypt est fait contre un hash factice : le temps de réponse ne révèle rien (S1).
+    if (!user || user.deletedAt) {
+      await bcrypt.compare(dto.password, DUMMY_PASSWORD_HASH);
       throw new UnauthorizedException(
         'invalid-credentials',
         'Invalid Credentials',
@@ -226,8 +236,8 @@ export class AuthService {
       where: { id: storedToken.userId },
     });
 
-    // Sécurité : si l'utilisateur a été supprimé entre-temps
-    if (!user) {
+    // Sécurité : si l'utilisateur a été supprimé entre-temps (ou gardé en pierre tombale, FIX-22)
+    if (!user || user.deletedAt) {
       throw new UnauthorizedException(
         'invalid-refresh-token',
         'Invalid Token',
@@ -354,37 +364,11 @@ export class AuthService {
    */
   private getRefreshExpirationMs(): number {
     const exp = this.config.get<string>('JWT_REFRESH_EXPIRATION', '30d');
-    return this.parseDuration(exp, 30 * 24 * 60 * 60 * 1000);
+    return parseDurationMs(exp, 30 * 24 * 60 * 60 * 1000);
   }
 
-  /**
-   * Parse la durée d'expiration de l'access token depuis la config.
-   * @returns Durée en secondes (pour le champ `expiresIn` de AuthResponse)
-   */
+  /** Durée de vie de l'access token en secondes (champ `expiresIn` de AuthResponse). */
   private getAccessExpirationSeconds(): number {
-    const exp = this.config.get<string>('JWT_ACCESS_EXPIRATION', '15m');
-    return Math.floor(this.parseDuration(exp, 900_000) / 1000);
-  }
-
-  /**
-   * Parse une chaîne de durée ("15m", "30d", "1h") en millisecondes.
-   *
-   * @param duration - Chaîne au format `<nombre><unité>` (s/m/h/d)
-   * @param fallback - Valeur par défaut en ms si le format est invalide
-   */
-  private parseDuration(duration: string, fallback: number): number {
-    const match = duration.match(/^(\d+)([smhd])$/);
-    if (!match) return fallback;
-
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-    const multipliers: Record<string, number> = {
-      s: 1_000,
-      m: 60_000,
-      h: 3_600_000,
-      d: 86_400_000,
-    };
-
-    return value * (multipliers[unit] ?? fallback);
+    return accessTokenTtlSeconds(this.config);
   }
 }

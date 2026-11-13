@@ -171,7 +171,7 @@ Identique au doc 13 :
     en cours ne bloquent pas (rappels arrêtés : `borrower.userId ?? null`, téléphones supprimés).
   - Prêts conservés : ses prêts clos (tout statut hors des 4 en cours, `CONTESTED` compris) dont le contact
     emprunteur est relié à un compte. S'il n'en reste aucun : `user.delete` complet, sans pierre tombale.
-  - Sinon, pierre tombale (`deletedAt`, noms `Compte` / `supprimé` en base, email `deleted+<id>@deleted.invalid`,
+  - Sinon, pierre tombale (`deletedAt`, noms `Compte` / `supprimé` en base, email `deleted+<id>.<aléa>@deleted.invalid`,
     mot de passe inutilisable, téléphone, avatar et `lastLoginAt` à `null`).
   - Supprimés : sessions, téléphones, ses notifications et invitations, ses prêts `deletedAt`, ses prêts clos non
     conservés, ses objets et contacts hors prêt conservé, ses photos (R2 et lignes `Photo`), et les notifications
@@ -182,16 +182,29 @@ Identique au doc 13 :
   - Contact conservé : noms et email (unicité `@@unique([lenderUserId, email])`), téléphone effacé.
   - Access tokens encore valables (15 min) : clé Redis `user-deleted:<id>` lue par `JwtStrategy`, réponse
     `401 invalid-token`.
-  - Réinscription avec la même adresse : `BorrowerLinkingListener` relie les contacts détachés au nouveau compte,
-    qui retrouve l'historique d'emprunteur. Accepté.
+  - Réinscription avec la même adresse (décision d'équipe, revue C4) : aucun rattachement, l'adresse n'étant pas
+    vérifiée. Les contacts qui le représentaient chez d'autres prêteurs sont détachés pour de bon (email non
+    routable, téléphone effacé, `accountDeleted: true` pour le prêteur) ; une nouvelle invitation crée un nouveau
+    contact. Rattachement après vérification de l'email : FIX-40 (lot 3).
 - **Contrat** (PR #43, contrat seul) : `DELETE /users/me` décrit l'ordre des contrôles, ce qui est effacé et ce qui
-  est conservé ; `Loan.lender` et `UserSummary.accountDeleted` (seulement sur `Loan.lender`) ; la recherche de
+  est conservé ; `Loan.lender` et son `accountDeleted` (second élément de son `allOf`) ; la recherche de
   contacts exclut les comptes supprimés.
 - **Code, après validation du contrat** : migration `users.deleted_at` ; suppression en une transaction ; ordre
   mot de passe puis 409 (aujourd'hui inversé dans `users.service.ts`) ; clé Redis dans `JwtStrategy` ; `deletedAt`
   filtré à la connexion, au refresh, à la recherche et aux invitations ; `accountDeleted` dans le mapper du prêteur ;
   libellé traduit côté app. Un test par point d'entrée qui lit des utilisateurs.
 - **Builds installés** : ils ignorent `accountDeleted` et affichent « Compte supprimé » tel quel.
+- **Statut** : 🟡 code livré sur `fix/FIX-22-account-deletion`, tout le contrat (#43, puis les ajouts de la revue de
+  sécurité : `404`, `503`, domaine `deleted.invalid` réservé, contacts détachés `accountDeleted`). Revue de sécurité
+  traitée : adresse de pierre tombale imprévisible et domaine refusé (B1) ; révocation Redis dans la transaction,
+  `503` et rollback en cas d'échec, `404` pour un compte supprimé, `401` à la création (C1) ; verrous `FOR UPDATE` /
+  `FOR SHARE` et `409` au lieu de `500` (C2) ; transaction bornée (C3) ; test sur vrai Postgres 17 dans la CI
+  (`test/account-deletion.db.e2e-spec.ts`, job « E2E on Postgres ») (C5) ; temps de connexion égal, limite de 5
+  essais par 15 min sur la suppression et le changement de mot de passe, format de `JWT_ACCESS_EXPIRATION` vérifié
+  (S1 à S3) ; prêt à soi-même jamais conservé (S6). Notifications d'autres utilisateurs supprimées par
+  `relatedLoanId` (ses prêts et ses emprunts) et par `actorUserId` (invitations, FIX-27).
+- **Suivi (lot 3)** : supprimer les pierres tombales devenues orphelines, quand plus aucun prêt conservé n'est
+  visible (S5) ; FIX-40 ci-dessus.
 
 ### FIX-23 — La déconnexion ne désinscrit pas le téléphone des notifications
 

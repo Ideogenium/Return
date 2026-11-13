@@ -13,6 +13,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
@@ -45,6 +46,12 @@ import type { AuthenticatedUser } from '../auth/strategies/jwt.strategy.js';
 //   GET    /v1/users/me/settings  → 200 OK           (UserSettings)
 //   PATCH  /v1/users/me/settings  → 200 OK           (UserSettings)
 // =============================================================================
+
+/**
+ * Les routes qui vérifient le mot de passe actuel le font pour un attaquant qui détient un access
+ * token : 5 essais par 15 minutes limitent la recherche du mot de passe (FIX-22, revue S2).
+ */
+const PASSWORD_ATTEMPTS_LIMIT = { ttl: 900_000, limit: 5 };
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -108,6 +115,7 @@ export class UsersController {
    */
   @Delete('me')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: PASSWORD_ATTEMPTS_LIMIT })
   async deleteAccount(
     @Request() req: { user: AuthenticatedUser },
     @Body() dto: DeleteAccountDto,
@@ -126,6 +134,7 @@ export class UsersController {
    */
   @Patch('me/password')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: PASSWORD_ATTEMPTS_LIMIT })
   async changePassword(
     @Request() req: { user: AuthenticatedUser },
     @Body() dto: ChangePasswordDto,
