@@ -1,6 +1,6 @@
 # 0010 — Pseudonymiser un compte supprimé au lieu d'effacer ses prêts
 
-Statut : proposé
+Statut : accepté
 Date : 2026-10-31
 Révision : 2027-04-30
 Métrique : aucun `DELETE /users/me` en 500 dans les logs de prod, et aucun emprunteur ne perd un prêt de son historique
@@ -117,6 +117,8 @@ Négatives et dette acceptée :
   elle peut répondre `409` ou échouer à l'expiration du délai plutôt que d'attendre.
 - Le `503` en cas de panne Redis rend la suppression impossible pendant la panne ; c'est le prix d'une révocation
   garantie des sessions.
+- La clé Redis est écrite avant le commit de la transaction. Si le commit échoue ensuite, rien n'est effacé, mais le
+  compte reçoit `401 invalid-token` jusqu'à l'expiration de la clé (au plus 15 min). C'est un échec fermé, accepté.
 - Les builds installés (iOS 3 et 4, Android `versionCode` 3) ignorent `accountDeleted` et affichent `Compte supprimé`
   tel quel, en français.
 - Migrations Prisma : colonnes `users.deleted_at` et `borrowers.account_deleted_at`, nullables, sans réécriture de

@@ -187,7 +187,7 @@ Identique au doc 13 :
     routable, téléphone effacé, `accountDeleted: true` pour le prêteur) ; une nouvelle invitation crée un nouveau
     contact. Rattachement après vérification de l'email : FIX-40 (lot 3).
 - **Contrat** (PR #43, contrat seul) : `DELETE /users/me` décrit l'ordre des contrôles, ce qui est effacé et ce qui
-  est conservé ; `Loan.lender` et `UserSummary.accountDeleted` (seulement sur `Loan.lender`) ; la recherche de
+  est conservé ; `Loan.lender` et son `accountDeleted` (second élément de son `allOf`) ; la recherche de
   contacts exclut les comptes supprimés.
 - **Code, après validation du contrat** : migration `users.deleted_at` ; suppression en une transaction ; ordre
   mot de passe puis 409 (aujourd'hui inversé dans `users.service.ts`) ; clé Redis dans `JwtStrategy` ; `deletedAt`

@@ -2261,7 +2261,7 @@ paths:
         - les textes libres qu'il a écrits : description de ses objets et notes de ses prêts.
 
         **Conservé, pseudonymisé** : ses prêts clos (tout statut hors des 4 en cours, `CONTESTED` compris)
-        dont le contact emprunteur est relié à un compte restent dans l'historique de cet emprunteur. Le
+        dont le contact emprunteur est relié à un **autre** compte restent dans l'historique de cet emprunteur. Le
         prêteur y apparaît avec `accountDeleted: true`, les noms fixes `Compte` / `supprimé` et
         `profilePicture: null`. L'objet garde son nom, sa catégorie et sa valeur, sans photo ni
         description ; le prêt garde ses dates et son statut, sans notes. Le contact de l'emprunteur garde
@@ -2367,6 +2367,8 @@ paths:
                 instance: /v1/users/me
                 timestamp: 2026-02-08T21:30:00Z
                 requestId: req-8f9a0b1c
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
 
   /users/me/trust-score:
     get:
@@ -2595,6 +2597,8 @@ paths:
                 instance: /v1/users/me/password
                 timestamp: 2026-02-08T21:00:00Z
                 requestId: req-5c6d7e8f
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
 
   # =============================================================================
   # HISTORY ENDPOINTS
@@ -2903,6 +2907,17 @@ components:
         lender:
           allOf:
             - $ref: '#/components/schemas/UserSummary'
+            - type: object
+              properties:
+                accountDeleted:
+                  type: boolean
+                  example: true
+                  description: |
+                    Présent et `true` uniquement quand le prêteur a supprimé son compte (FIX-22, voir
+                    `DELETE /users/me`) ; **omis** sinon. `firstName` et `lastName` portent alors les valeurs fixes
+                    `Compte` / `supprimé`, enregistrées en base, et `profilePicture` vaut `null`. Les builds qui
+                    ignorent cette propriété affichent ces valeurs telles quelles ; les suivants affichent un
+                    libellé traduit.
           description: |
             Prêteur du prêt. S'il a supprimé son compte (FIX-22), `accountDeleted: true`, noms fixes
             `Compte` / `supprimé` et `profilePicture: null`.
@@ -3560,15 +3575,6 @@ components:
           type: [string, 'null']
           format: uri
           example: https://photos.return.app/users/b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e/avatar-4e5f6a7b-8c9d-4e0f-9a1b-2c3d4e5f6a7b.jpg
-        accountDeleted:
-          type: boolean
-          example: true
-          description: |
-            Utilisé seulement dans `Loan.lender`, jamais ailleurs. Présent et `true` uniquement quand le
-            prêteur a supprimé son compte (FIX-22, voir `DELETE /users/me`) ; **omis** sinon. `firstName` et
-            `lastName` portent alors les valeurs fixes `Compte` / `supprimé`, enregistrées en base, et
-            `profilePicture` vaut `null`. Les builds qui ignorent cette propriété affichent ces valeurs
-            telles quelles ; les suivants affichent un libellé traduit.
 
     # =========================================================================
     # DATA TRANSFER OBJECTS (DTOs)
