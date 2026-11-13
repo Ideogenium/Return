@@ -6,7 +6,7 @@
 > **Décision** : clôture du projet prise le 13/11/2026 par Ismael (GitHub `Nathan-c-cloud`) et Ozias (GitHub
 > `esdrasgbedozin`). **Ozias et Esdras sont la même personne** : les anciens docs (11, 12) disent « Esdras », les
 > récents « Ozias ».
-> **Source** : dépôt à `98319bd` (`main`), `backend/fly.toml`, `frontend/app.json`, `frontend/eas.json`,
+> **Source** : dépôt à `24ab10d` (`main`, avant la fusion de ce document), `backend/fly.toml`, `frontend/app.json`, `frontend/eas.json`,
 > `.github/workflows/`, `docs/` (00 à 17), `docs/adr/`. Les faits de production (Fly, stores) viennent des deux
 > développeurs : ils ne sont pas vérifiables dans le dépôt.
 > **Statut** : version finale du 13/11/2026, relue par Ismael et Ozias.
@@ -36,7 +36,7 @@ confirmation par l'emprunteur, historique, statistiques). Voir `00_BIBLE_PROJET.
    fusionnés avant, mais parlent à l'API `3564e29`.
 2. **Le D3 n'a jamais été déployé** : `main` contient du code qui n'a jamais tourné en prod (section 3).
 3. L'app n'est **publiée sur aucun store** : TestFlight (Ozias seul testeur) et piste de test interne Play.
-4. Trois PR en suspens à fusionner : #54, #51, #53 (section 4).
+4. Les trois PR en suspens (#54, #51, #53) ont été fusionnées le 13/11 (section 4).
 5. Le lot 3 du doc 17, la publication et la V2 ne seront **pas** faits (section 6).
 
 ---
@@ -68,23 +68,23 @@ fusionné à 14:58 UTC, déployé à 15:20 UTC) ; roadmap doc 17 : #33 ; build 5
 **Aucun correctif du doc 17 n'est dans l'API de production.** Fusionnées avant `fa416a9` (donc dans les builds 5 pour
 leur partie app) : #34 à #42, #44, #46. Fusionnées après (dans aucun build) : #43, #45, #47, #48, #49, #52, puis #54.
 
-| Lot | Fiche  | Sujet                                          | PR                                                          | API en prod ? | Builds 5 ? |
-| --- | ------ | ---------------------------------------------- | ----------------------------------------------------------- | ------------- | ---------- |
-| 1   | FIX-18 | Fenêtres avec champ de texte, clavier (iPhone) | #34                                                         | Sans objet    | Oui        |
-| 1   | FIX-19 | Champ multiligne, clavier (Android)            | #35                                                         | Sans objet    | Oui        |
-| 1   | FIX-20 | Photos HEIC de l'iPhone                        | #36                                                         | Sans objet    | Oui        |
-| 1   | FIX-21 | Photos dans le détail du prêt, plein écran     | #41                                                         | Sans objet    | Oui        |
-| 2   | FIX-22 | Suppression de compte (pseudonymisation)       | contrat #43 (fusionnée), code #54 (ouverte, fusion décidée) | Non           | Non        |
-| 2   | FIX-23 | Désinscription du téléphone à la déconnexion   | #37                                                         | Sans objet    | Oui        |
-| 2   | FIX-24 | Statistiques privées du prêteur                | contrat #40, code #42                                       | Non           | Sans objet |
-| 2   | FIX-25 | Date de retour minimale en UTC                 | #38 (+ correctif d'affichage `parseIsoDate`)                | Sans objet    | Oui        |
-| 2   | FIX-26 | Limites d'envoi de fichiers, codes d'erreur    | #44, contrat #48                                            | Non           | Sans objet |
-| 2   | FIX-27 | Notifications d'invitation de contact          | #45 (+ colonne `actorUserId`), contrat #40                  | Non           | Non        |
-| 2   | FIX-28 | 404 au lieu de 403 pour les tiers              | #49, contrat #40                                            | Non           | Non        |
-| 2   | FIX-29 | Avertissement `path-to-regexp`                 | #46                                                         | Non           | Sans objet |
-| 2   | FIX-30 | Périmètre de `prettier --check`                | #39                                                         | Sans objet    | Sans objet |
-| 2   | FIX-31 | Secret `JWT_REFRESH_SECRET` inutilisé          | #47                                                         | Sans objet    | Sans objet |
-| 2   | FIX-37 | Limite de débit par IP client derrière Fly     | #52                                                         | Non           | Sans objet |
+| Lot | Fiche  | Sujet                                          | PR                                           | API en prod ? | Builds 5 ? |
+| --- | ------ | ---------------------------------------------- | -------------------------------------------- | ------------- | ---------- |
+| 1   | FIX-18 | Fenêtres avec champ de texte, clavier (iPhone) | #34                                          | Sans objet    | Oui        |
+| 1   | FIX-19 | Champ multiligne, clavier (Android)            | #35                                          | Sans objet    | Oui        |
+| 1   | FIX-20 | Photos HEIC de l'iPhone                        | #36                                          | Sans objet    | Oui        |
+| 1   | FIX-21 | Photos dans le détail du prêt, plein écran     | #41                                          | Sans objet    | Oui        |
+| 2   | FIX-22 | Suppression de compte (pseudonymisation)       | contrat #43 (fusionnée), code #54            | Non           | Non        |
+| 2   | FIX-23 | Désinscription du téléphone à la déconnexion   | #37                                          | Sans objet    | Oui        |
+| 2   | FIX-24 | Statistiques privées du prêteur                | contrat #40, code #42                        | Non           | Sans objet |
+| 2   | FIX-25 | Date de retour minimale en UTC                 | #38 (+ correctif d'affichage `parseIsoDate`) | Sans objet    | Oui        |
+| 2   | FIX-26 | Limites d'envoi de fichiers, codes d'erreur    | #44, contrat #48                             | Non           | Sans objet |
+| 2   | FIX-27 | Notifications d'invitation de contact          | #45 (+ colonne `actorUserId`), contrat #40   | Non           | Non        |
+| 2   | FIX-28 | 404 au lieu de 403 pour les tiers              | #49, contrat #40                             | Non           | Non        |
+| 2   | FIX-29 | Avertissement `path-to-regexp`                 | #46                                          | Non           | Sans objet |
+| 2   | FIX-30 | Périmètre de `prettier --check`                | #39                                          | Sans objet    | Sans objet |
+| 2   | FIX-31 | Secret `JWT_REFRESH_SECRET` inutilisé          | #47                                          | Sans objet    | Sans objet |
+| 2   | FIX-37 | Limite de débit par IP client derrière Fly     | #52                                          | Non           | Sans objet |
 
 > « Sans objet » : le correctif ne touche pas cette partie (vérifié sur les fichiers de chaque PR). FIX-30 ne touche
 > que la configuration de Prettier, FIX-31 que la doc et un secret Fly. Les statuts du doc 17 sont à jour depuis #51.
@@ -111,7 +111,7 @@ leur partie app) : #34 à #42, #44, #46. Fusionnées après (dans aucun build) :
 
 ### Ce que `main` contient et que la prod n'a jamais eu (le « D3 »)
 
-Côté API : FIX-24, 26, 27, 28, 29, 37, et FIX-22 une fois #54 fusionnée (`git log --first-parent 3564e29..main`).
+Côté API : FIX-24, 26, 27, 28, 29, 37, et FIX-22 (`git log --first-parent 3564e29..main`).
 Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte supprimé »).
 
 - **Migrations Prisma à appliquer** (le `release_command` de `fly.toml` lance `prisma migrate deploy`) :
@@ -284,8 +284,7 @@ Squelette ; les procédures détaillées sont dans les docs 07 (lancement backen
 1. **Fly** (configuration relevée le 13/11 avec `fly machines list`, `fly volumes list`, `fly redis status`) :
    - `fly apps create return-api --org personal` ; la machine est décrite par `backend/fly.toml` (`cdg`,
      shared-cpu-1x 512 Mo, `min_machines_running = 1`) ;
-   - `fly postgres create --name return-db --region cdg --initial-cluster-size 1 --vm-size shared-cpu-1x
---volume-size 1` : image `flyio/postgres-flex:17.2`, 256 Mo, volume chiffré de 1 Go, **non managé**,
+   - `fly postgres create --name return-db --region cdg --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1` : image `flyio/postgres-flex:17.2`, 256 Mo, volume chiffré de 1 Go, **non managé**,
      instantanés quotidiens gardés 5 jours ; puis `fly postgres attach return-db -a return-api` (pose `DATABASE_URL`) ;
    - `fly redis create` : nom `return-redis`, région `cdg`, plan Pay-as-you-go, éviction **désactivée** (la liste
      noire ne doit jamais être évincée) ; copier l'URL affichée dans `fly secrets set REDIS_URL=… -a return-api`.
@@ -305,8 +304,7 @@ Squelette ; les procédures détaillées sont dans les docs 07 (lancement backen
    personnalisé : Cloudflare limite le débit de `r2.dev` et le réserve au développement.
 4. **Déploiement** : `cd backend && fly deploy` (applique les migrations via `release_command`), puis
    `GET https://return-api.fly.dev/health`.
-5. **EAS** : `eas build --platform android|ios --profile production`, `eas submit --profile production --platform
-android|ios`. Credentials : certificat et profil iOS, clé APNs, clé de service FCM (`eas credentials`), clé API App
+5. **EAS** : `eas build --platform android|ios --profile production`, `eas submit --profile production --platform android|ios`. Credentials : certificat et profil iOS, clé APNs, clé de service FCM (`eas credentials`), clé API App
    Store Connect ; clé de service Play dans `frontend/google-play-service-account.json` (gitignorée, **locale** :
    à recréer, `eas.json` la référence).
 6. **Comptes de test** : en créer pour les revues Apple et Google (section 5).
@@ -350,7 +348,7 @@ Les anciens docs ne sont pas réécrits : ce tableau les corrige.
 | 01 (l.134)                          | Analytics **PostHog**                                                        | Absent.                                                                                                                                        |
 | 01 (l.226)                          | OpenAPI auto-généré par **Swagger**                                          | Absent des dépendances. Le contrat est `docs/openapi.yaml`, écrit à la main et lint par Spectral en CI.                                        |
 | 01 (l.299-318, 619), 04 (l.757), 08 | PostgreSQL **managé** / free allowance                                       | Fly Postgres non managé (`return-db`, volume 1 Go) : sauvegardes et mises à jour à notre charge (doc 09).                                      |
-| 01                                  | Redis « cache et file de jobs »                                              | Redis ne sert qu'à la blacklist JWT et à l'invalidation des comptes supprimés (clé `user-deleted:<id>`).                                       |
+| 01                                  | Redis « cache et file de jobs »                                              | Redis ne sert qu'à la blacklist JWT, à l'invalidation des comptes supprimés (clé `user-deleted:<id>`) et au compteur quotidien de prêts.       |
 | `README.md` (dernière ligne)        | « Projet en phase de spécifications — développement à venir »                | Projet développé, en pré-production, clôturé le 13/11/2026.                                                                                    |
 | `docs/CLAUDE.md` (l.10, 13)         | Phase « pré-production (octobre 2026) », plan en cours = doc 17              | Projet clôturé ; prod au D2, D3 non déployé ; reprise : ce document.                                                                           |
 | 08 (PREPROD-006)                    | Secrets dont `JWT_REFRESH_SECRET`, `CORS_ORIGIN=*`                           | `JWT_REFRESH_SECRET` inutilisé (FIX-31) ; CORS strict en production (ADR 0009).                                                                |
