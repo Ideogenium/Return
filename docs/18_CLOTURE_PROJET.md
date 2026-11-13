@@ -9,8 +9,7 @@
 > **Source** : dépôt à `98319bd` (`main`), `backend/fly.toml`, `frontend/app.json`, `frontend/eas.json`,
 > `.github/workflows/`, `docs/` (00 à 17), `docs/adr/`. Les faits de production (Fly, stores) viennent des deux
 > développeurs : ils ne sont pas vérifiables dans le dépôt.
-> **Statut** : base rédigée le 13/11 ; les marqueurs **[À compléter par Ozias]** et **[À mettre à jour après fusion]**
-> restent à remplir.
+> **Statut** : version finale du 13/11/2026, relue par Ismael et Ozias.
 > **Rôle** : **point d'entrée unique pour une reprise future**. Un développeur, ou un assistant IA, qui ne connaît pas
 > le projet doit savoir ici où on en est et par où reprendre.
 > **Règle** : plus aucun nouveau développement. On termine ce qui est commencé (#54, #51, #53), on documente, puis on
@@ -101,14 +100,14 @@ leur partie app) : #34 à #42, #44, #46. Fusionnées après (dans aucun build) :
 
 ## 3. État de la production
 
-| Élément         | Valeur                                                                                                                       |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| API             | `https://return-api.fly.dev`, release Fly **v12** du 31/10/2026 (15:20 UTC), commit **`3564e29`** (D2)                       |
-| Version en prod | **D2**. **Le D3 n'a jamais été déployé.**                                                                                    |
-| Tags prévus     | `prod-v12` sur `3564e29` (API) ; `build-5` sur `fa416a9` (apps) ; `cloture` sur le `main` final [À mettre à jour après pose] |
-| Android         | `versionCode` **4** (build 5), piste de test interne Play, 31/10/2026                                                        |
-| iOS             | `buildNumber` **5**, TestFlight, 31/10/2026, **expire vers fin janvier 2027**                                                |
-| Build installés | **Sans FIX-27 côté app** (fusionné après le build 5) : les builds ignorent les nouveaux types de notification                |
+| Élément         | Valeur                                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API             | `https://return-api.fly.dev`, release Fly **v12** du 31/10/2026 (15:20 UTC), commit **`3564e29`** (D2)                                                       |
+| Version en prod | **D2**. **Le D3 n'a jamais été déployé.**                                                                                                                    |
+| Tags prévus     | `prod-v12` sur `3564e29` (API) ; `build-5` sur `fa416a9` (apps) ; `cloture` sur le `main` final (posés juste après la fusion de ce document, voir `git tag`) |
+| Android         | `versionCode` **4** (build 5), piste de test interne Play, 31/10/2026                                                                                        |
+| iOS             | `buildNumber` **5**, TestFlight, 31/10/2026, **expire vers fin janvier 2027**                                                                                |
+| Build installés | **Sans FIX-27 côté app** (fusionné après le build 5) : les builds ignorent les nouveaux types de notification                                                |
 
 ### Ce que `main` contient et que la prod n'a jamais eu (le « D3 »)
 
@@ -136,7 +135,7 @@ Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte 
 | PR  | Contenu                                                                            | Décision du 13/11      | État                                            |
 | --- | ---------------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------- |
 | #54 | FIX-22 : code de la suppression de compte (migration `users.deleted_at`, ADR 0010) | Fusion                 | ✅ Fusionnée le 13/11 (`b919e65`) — pas en prod |
-| #51 | Statuts du doc 17 et fiches du lot 3                                               | Fusion                 | [À mettre à jour après fusion]                  |
+| #51 | Statuts du doc 17 et fiches du lot 3                                               | Fusion                 | ✅ Fusionnée le 13/11 (`24ab10d`)               |
 | #53 | Politique de confidentialité (`/privacy`) et liens dans l'app                      | Fusion, avec marqueurs | ✅ Fusionnée le 13/11 (`f4466e5`) — pas en prod |
 
 > **#53 : les marqueurs `[Nom du responsable]` et `[Adresse postale]` de la politique de confidentialité sont
@@ -184,8 +183,7 @@ Aucun doc ne suivait cette liste. Rien de ceci n'est fait.
 
 ## 6. Reste-à-faire regroupé
 
-**Lot 3 du doc 17** : les fiches détaillées sont dans la PR #51 (ouverte, pas encore dans `main` au 13/11) ; après
-fusion, voir `17_ROADMAP_CORRECTIFS_POST_D2.md`.
+**Lot 3 du doc 17** : les fiches détaillées sont dans `17_ROADMAP_CORRECTIFS_POST_D2.md` (PR #51, fusionnée le 13/11).
 
 | Fiche  | Sujet                                                                                                     | Gravité   | Porteur | Effort |
 | ------ | --------------------------------------------------------------------------------------------------------- | --------- | ------- | ------ |
