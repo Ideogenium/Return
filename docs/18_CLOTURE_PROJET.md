@@ -135,9 +135,9 @@ Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte 
 
 | PR  | Contenu                                                                                      | Décision du 13/11 | État            |
 | --- | -------------------------------------------------------------------------------------------- | ----------------- | --------------- |
-| #54 | FIX-22 : code de la suppression de compte (migration `users.deleted_at`, ADR 0010)           | Fusion            | [À mettre à jour après fusion] |
+| #54 | FIX-22 : code de la suppression de compte (migration `users.deleted_at`, ADR 0010)           | Fusion            | ✅ Fusionnée le 13/11 (`b919e65`) — pas en prod |
 | #51 | Statuts du doc 17 et fiches du lot 3                                                         | Fusion            | [À mettre à jour après fusion] |
-| #53 | Politique de confidentialité (`/privacy`) et liens dans l'app                                | Fusion, avec marqueurs | [À mettre à jour après fusion] |
+| #53 | Politique de confidentialité (`/privacy`) et liens dans l'app                                | Fusion, avec marqueurs | ✅ Fusionnée le 13/11 (`f4466e5`) — pas en prod |
 
 > **#53 : les marqueurs `[Nom du responsable]` et `[Adresse postale]` de la politique de confidentialité sont
 > obligatoires à remplir avant toute publication.** Ils sont fusionnés tels quels : la page n'est publiable qu'après
@@ -153,14 +153,14 @@ Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte 
 | Tâche Play Console                | Réponse préparée                                                            |
 | --------------------------------- | --------------------------------------------------------------------------- |
 | URL de la politique de confidentialité | URL `/privacy` de #53 (après remplissage des marqueurs et déploiement) |
-| Accès à l'app (compte de test pour la revue) | Un compte de démo à créer [À compléter par Ozias / Ismael]       |
+| Accès à l'app (compte de test pour la revue) | **Oui** (connexion obligatoire) : compte de démo avec un contact et 2-3 prêts à créer avant la soumission — non créé à la clôture       |
 | Publicités                        | **Non** (aucune publicité)                                                  |
-| Classification du contenu         | Questionnaire à remplir [à compléter]                                       |
+| Classification du contenu         | Non rempli. Réponses prévues : « Autres types d'apps » ; non à violence, sexe, langage, drogues, jeux d'argent ; **oui** aux interactions entre utilisateurs ; non au partage de position et aux achats numériques                                       |
 | Public cible                      | **18+**                                                                     |
 | Sécurité des données (Data safety) | Aucun partage avec des tiers ; données chiffrées en transit ; suppression possible (dans l'app) |
 | Fonctionnalités financières       | **Aucune** (Financial features = aucune)                                    |
-| Catégorie de l'app                | À choisir [à compléter]                                                     |
-| Autres déclarations (11 au total) | [À compléter : lister celles que la console affiche encore]                 |
+| Catégorie de l'app                | **Productivité** (prévu, non saisi)                                                     |
+| Autres déclarations (11 au total) | Applications gouvernementales : **non** ; Santé : **non** ; non saisies à la clôture (1/11 tâche faite)                 |
 
 ---
 
@@ -270,12 +270,12 @@ Commandes de base : `docs/CLAUDE.md` (section Commandes) et `07_GUIDE_LANCEMENT_
 
 | Service            | Titulaire / accès                                         | Ressources                                                                                  | Coût                                              |
 | ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Fly.io             | Organisation personnelle d'Ozias ; Ismael ADMIN           | `return-api` (1 machine toujours allumée), `return-db` (volume 1 Go + instantanés), `return-redis` (Upstash, à l'usage) | ~5-6 $/mois [à confirmer par Ozias dans Billing] |
+| Fly.io             | Organisation personnelle d'Ozias ; Ismael ADMIN           | `return-api` (1 machine toujours allumée), `return-db` (volume 1 Go + instantanés), `return-redis` (Upstash, à l'usage) | 29,13 € sur 5 mois, soit **~5,80 €/mois** (Billing Fly, relevé par Ozias le 13/11) |
 | Apple Developer    | Ozias (Team `WA935JW2DV`)                                 | App Store Connect, app `6828146094`, TestFlight                                              | 99 $/an, renouvellement **fin octobre 2027**      |
 | Google Play Console | Ismael                                                   | App `com.ideogen.returnapp`, piste de test interne                                           | 25 $, une fois                                    |
 | Expo / EAS         | Ismael, owner `natismael`, projet `595176ea-3595-4aec-8ba5-b56da4f48a67` | Builds, certificats iOS, credentials push                                       | Plan gratuit (Free), confirmé par Ismael                     |
 | Firebase           | Ismael                                                    | Projet Firebase (clé de service FCM pour Android)                                            | Plan gratuit (Spark), confirmé par Ismael                   |
-| Cloudflare R2      | [À compléter par Ozias]                                   | Bucket des photos                                                                            | [à confirmer], gratuit sous 10 Go                 |
+| Cloudflare R2      | Ozias                                                     | Bucket des photos                                                                            | Gratuit sous 10 Go de stockage                    |
 | GitHub             | `Ideogenium/Return`                                       | Dépôt public, CI                                                                             | Gratuit                                           |
 
 ### Recréer l'infrastructure à partir de zéro
@@ -328,7 +328,7 @@ d'export.
 | 4  | Fly : supprimer la base `return-db` (et ses instantanés)                                          | Ozias  | ☐    |
 | 5  | R2 : vider puis supprimer le bucket ; révoquer le jeton d'API R2                                  | Ozias  | ☐    |
 | 6  | Révoquer la clé d'API App Store Connect                                                           | Ozias  | ☐    |
-| 7  | Révoquer le jeton Expo de production (`EXPO_ACCESS_TOKEN`)                                        | Ozias  | ☐    |
+| 7  | Supprimer le robot Expo `return-api-preprod` (rôle Viewer, organisation commune) qui fournit `EXPO_ACCESS_TOKEN`, après la suppression de l'API Fly                                        | Ozias  | ☐    |
 | 8  | Révoquer la clé de service Play (`google-play-service-account.json`, locale) et supprimer le fichier | Ismael | ☐    |
 | 9  | Révoquer la clé de service FCM (Firebase)                                                         | Ismael | ☐    |
 | 10 | Apple : couper le renouvellement automatique (échéance fin octobre 2027)                          | Ozias  | ☐    |
