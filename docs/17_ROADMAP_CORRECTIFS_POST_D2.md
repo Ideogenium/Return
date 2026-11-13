@@ -7,6 +7,8 @@
 > backlog relevé pendant les revues des PR #30 et #31. Chaque fiche a été **revérifiée dans le code de `main`**
 > (`3564e29`) avant d'être écrite.
 > **Prod** : API v12 sur Fly.io (`return-api.fly.dev`), déployée le 31/10 depuis `main`.
+> **Clôture (13/11)** : projet arrêté. Le D3 n'a pas été déployé : les correctifs du lot 2 sont dans `main` mais pas
+> en prod, et le lot 3 est reporté. L'état final et la reprise sont décrits dans `18_CLOTURE_PROJET.md`.
 > **Organisation** : par fonctionnalité (ADR 0007). Chaque fiche a **un seul porteur**, qui fait contrat → back →
 > front → tests ; l'autre relit la PR.
 > **Suite de** : `13_ROADMAP_CORRECTIFS_TESTS.md` (FIX-01 → FIX-17). La numérotation continue à FIX-18.
@@ -47,26 +49,26 @@ Identique au doc 13 :
 | FIX-19 | Champ multiligne caché par le clavier ; défiler ferme le clavier (Android)            | 🟠 Majeur   | 1   | Ozias   | S      | —          | ✅ #35, recette build 5               |
 | FIX-20 | Photos HEIC de l'iPhone refusées                                                      | 🟠 Majeur   | 1   | Ozias   | S      | —          | ✅ #36, recette build 5               |
 | FIX-21 | Photos de l'objet absentes du détail du prêt, aucun plein écran                       | 🟠 Majeur   | 1   | Ismael  | S      | —          | ✅ #41, recette build 5               |
-| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | oui        | 🟡 contrat #43 ; code à faire         |
+| FIX-22 | Suppression de compte en 500 pour tout prêteur (bloque l'App Store)                   | 🔴 Critique | 2   | Ozias   | M      | oui        | ✅ #54 ; pas en prod (clôture)        |
 | FIX-23 | La déconnexion ne désinscrit pas le téléphone des notifications                       | 🟠 Majeur   | 2   | Ismael  | S      | —          | ✅ #37                                |
-| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ✅ #42 ; prod au D3                   |
+| FIX-24 | L'emprunteur reçoit les statistiques privées du prêteur sur lui                       | 🟠 Majeur   | 2   | Ismael  | S      | PR contrat | ✅ #42 ; pas en prod (clôture)        |
 | FIX-25 | Date de retour minimale : J+2 local côté app, J+2 UTC côté API                        | 🟠 Majeur   | 2   | Ismael  | XS     | —          | ✅ #38                                |
 | FIX-26 | Envoi de fichiers : aucune limite Multer, erreurs étiquetées `INVALID_UUID`           | 🟠 Majeur   | 2   | Ozias   | S      | —          | ✅ #44, contrat #48 ; suites → FIX-33 |
-| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | 🟡 #45 en relecture                   |
-| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | 🟡 #49 approuvée                      |
+| FIX-27 | Aucune notification à la réception d'une invitation de contact                        | 🟡 Mineur   | 2   | Ismael  | M      | PR contrat | ✅ #45 ; pas en prod (clôture)        |
+| FIX-28 | 403 au lieu de 404 révèle l'existence d'une ressource                                 | 🟡 Mineur   | 2   | Ismael  | S      | PR contrat | ✅ #49 ; pas en prod (clôture)        |
 | FIX-29 | Avertissement `path-to-regexp` sur la route `/v1/*`                                   | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #46                                |
 | FIX-30 | `prettier --check .` signale 2 fichiers hors du périmètre `format:check`              | 🟡 Mineur   | 2   | Ismael  | XS     | —          | ✅ #39                                |
-| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #47 ; secret retiré au D3          |
-| FIX-37 | Limite de débit partagée par tous les utilisateurs derrière le proxy Fly              | 🔴 Critique | 2   | Ozias   | S      | —          | ✅ #52 ; prod au D3                   |
-| FIX-32 | Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits      | 🟡 Mineur   | 3   | Ismael  | M      | —          | ☐                                     |
-| FIX-33 | Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app | 🟡 Mineur   | 3   | Ozias   | S      | fait (#48) | ☐                                     |
-| FIX-34 | Notifications écrites en français en dur côté serveur                                 | 🟡 Mineur   | 3   | Ismael  | M      | oui        | ☐                                     |
-| FIX-35 | Réponses de prêt sans `Cache-Control: private` alors qu'elles dépendent du lecteur    | 🟡 Mineur   | 3   | Ozias   | XS     | —          | ☐                                     |
-| FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)  | 🟡 Mineur   | 3   | Ismael  | S      | —          | ☐                                     |
-| FIX-38 | Aucune notification quand le prêteur change la date de retour                         | 🟠 Majeur   | 3   | Ismael  | M      | oui        | ☐                                     |
-| FIX-39 | Limites de connexion : par email seul, et compteurs en mémoire                        | 🟡 Mineur   | 3   | Ozias   | S      | —          | ☐                                     |
-| FIX-40 | Inscription sans vérification de l'email                                              | 🟠 Majeur   | 3   | Ozias   | M      | oui        | ☐                                     |
-| FIX-41 | Pierres tombales orphelines après la suppression de l'emprunteur                      | 🟡 Mineur   | 3   | Ozias   | S      | —          | ☐                                     |
+| FIX-31 | Secret Fly `JWT_REFRESH_SECRET` inutilisé                                             | 🟡 Mineur   | 2   | Ozias   | XS     | —          | ✅ #47 ; secret retiré                |
+| FIX-37 | Limite de débit partagée par tous les utilisateurs derrière le proxy Fly              | 🔴 Critique | 2   | Ozias   | S      | —          | ✅ #52 ; pas en prod (clôture)        |
+| FIX-32 | Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits      | 🟡 Mineur   | 3   | Ismael  | M      | —          | ⏸ reporté (clôture)                  |
+| FIX-33 | Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app | 🟡 Mineur   | 3   | Ozias   | S      | fait (#48) | ⏸ reporté (clôture)                  |
+| FIX-34 | Notifications écrites en français en dur côté serveur                                 | 🟡 Mineur   | 3   | Ismael  | M      | oui        | ⏸ reporté (clôture)                  |
+| FIX-35 | Réponses de prêt sans `Cache-Control: private` alors qu'elles dépendent du lecteur    | 🟡 Mineur   | 3   | Ozias   | XS     | —          | ⏸ reporté (clôture)                  |
+| FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)  | 🟡 Mineur   | 3   | Ismael  | S      | —          | ⏸ reporté (clôture)                  |
+| FIX-38 | Aucune notification quand le prêteur change la date de retour                         | 🟠 Majeur   | 3   | Ismael  | M      | oui        | ⏸ reporté (clôture)                  |
+| FIX-39 | Limites de connexion : par email seul, et compteurs en mémoire                        | 🟡 Mineur   | 3   | Ozias   | S      | —          | ⏸ reporté (clôture)                  |
+| FIX-40 | Inscription sans vérification de l'email                                              | 🟠 Majeur   | 3   | Ozias   | M      | oui        | ⏸ reporté (clôture)                  |
+| FIX-41 | Pierres tombales orphelines après la suppression de l'emprunteur                      | 🟡 Mineur   | 3   | Ozias   | S      | —          | ⏸ reporté (clôture)                  |
 
 ### Répartition
 
@@ -318,7 +320,7 @@ Identique au doc 13 :
 - **Cause** : les refresh tokens sont opaques et stockés hachés ; aucun code ne lit ce secret.
 - **Correctif** : `fly secrets unset JWT_REFRESH_SECRET --stage -a return-api`, appliqué au prochain déploiement ;
   retirer la variable de `.env.example` et des docs.
-- **Statut** : 🟡 secret mis en attente de suppression sur Fly le 31/10 (`--stage`), effectif au prochain déploiement ; variable retirée de `.env.example`, `backend/.env.example`, `docker-compose.yml` et du doc 07. Aucun code ne la lit (`git grep`). Les docs 08, 09 et 11 sont des traces datées, laissées telles quelles.
+- **Statut** : ✅ secret mis en attente de suppression sur Fly le 31/10 (`--stage`) ; il n'apparaît plus dans `fly secrets list` le 13/11 ; variable retirée de `.env.example`, `backend/.env.example`, `docker-compose.yml` et du doc 07. Aucun code ne la lit (`git grep`). Les docs 08, 09 et 11 sont des traces datées, laissées telles quelles.
 
 ### FIX-37 — Limite de débit partagée par tous les utilisateurs derrière le proxy Fly
 
@@ -345,14 +347,14 @@ Identique au doc 13 :
     temporaire du compte, avec un message qui ne révèle pas l'existence du compte ;
   - les compteurs sont en mémoire, par machine, et repartent à zéro à chaque redémarrage : passer au stockage
     Redis du throttler avant d'avoir plus d'une machine.
-- **Statut** : 🟡 PR ; effectif au déploiement D3. À vérifier après le D3 : deux téléphones sur des réseaux différents
-  ne se bloquent plus l'un l'autre.
+- **Statut** : ✅ #52, pas en prod (le D3 n'a pas eu lieu). À vérifier au premier déploiement : deux téléphones sur des
+  réseaux différents ne se bloquent plus l'un l'autre.
 
 ---
 
 ## Lot 3 — suivis relevés en relecture (31/10)
 
-Aucun ne bloque une mise en production. À planifier après le D3.
+Aucun ne bloque une mise en production. Reportés à la clôture du 13/11 (voir `18_CLOTURE_PROJET.md`).
 
 ### FIX-32 — Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits
 
