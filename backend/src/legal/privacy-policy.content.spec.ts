@@ -31,6 +31,23 @@ describe.each(Object.entries(SOURCES))('privacy policy content (%s)', (lang, fil
     }
   });
 
+  // A trailing sentence period once ended up inside the address, making the link unusable.
+  it('only links well-formed contact addresses', () => {
+    const targets = [...html.matchAll(/href="mailto:([^"]+)"/g)].map((m) => m[1]);
+
+    expect(targets.length).toBeGreaterThan(0);
+    for (const target of targets) {
+      expect(['egbedozin@gmail.com', 'nathan.aihou@gmail.com']).toContain(target);
+    }
+  });
+
+  it('shows the same update date as the Markdown', () => {
+    const date = markdown.match(/^(?:Dernière mise à jour|Last updated) ?: (.+)$/m)?.[1]?.trim();
+
+    expect(date).toBeDefined();
+    expect(html).toContain(date as string);
+  });
+
   it('keeps the pending-completion markers untouched', () => {
     expect(html).toContain(
       '<!-- À COMPLÉTER AVANT PUBLICATION : nom et adresse du responsable du traitement -->',

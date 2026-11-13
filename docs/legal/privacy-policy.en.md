@@ -1,6 +1,6 @@
 # Return Privacy Policy
 
-Last updated: October 31, 2026
+Last updated: November 13, 2026
 
 Return is a mobile app that helps individuals keep track of the items and money they lend or borrow. This page
 explains in plain terms what data the app uses, why, who can see it, and how to exercise your rights.

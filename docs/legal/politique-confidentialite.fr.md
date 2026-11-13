@@ -1,6 +1,6 @@
 # Politique de confidentialité de Return
 
-Dernière mise à jour : 31 octobre 2026
+Dernière mise à jour : 13 novembre 2026
 
 Return est une application mobile qui aide des particuliers à suivre les objets et les sommes d'argent qu'ils prêtent
 ou empruntent. Cette page explique, simplement, quelles données l'application utilise, pourquoi, qui peut les voir et

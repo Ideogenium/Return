@@ -5,7 +5,7 @@
  */
 export const PRIVACY_POLICY_BODY = {
   fr: `<h1>Politique de confidentialité de Return</h1>
-<p>Dernière mise à jour : 31 octobre 2026</p>
+<p>Dernière mise à jour : 13 novembre 2026</p>
 <p>Return est une application mobile qui aide des particuliers à suivre les objets et les sommes d'argent qu'ils prêtent ou empruntent. Cette page explique, simplement, quelles données l'application utilise, pourquoi, qui peut les voir et comment exercer vos droits.</p>
 <h2>1. Qui est responsable de vos données ?</h2>
 <!-- À COMPLÉTER AVANT PUBLICATION : nom et adresse du responsable du traitement -->
@@ -95,7 +95,7 @@ export const PRIVACY_POLICY_BODY = {
 <p>Vous disposez des droits d'accès, de rectification, d'effacement, de limitation, d'opposition et de portabilité de vos données.</p>
 <ul>
 <li><strong>Rectifier vos informations et supprimer votre compte</strong> : directement dans l'application, onglet Profil (« Supprimer mon compte », avec confirmation par mot de passe).</li>
-<li><strong>Tous les autres droits</strong> (accès, copie de vos données, limitation, opposition, contestation du score de confiance) : écrivez-nous à <a href="mailto:egbedozin@gmail.com">egbedozin@gmail.com</a> ou <a href="mailto:nathan.aihou@gmail.com.">nathan.aihou@gmail.com.</a> Nous vous répondons dans un délai d'un mois. Nous pouvons vous demander de justifier de votre identité.</li>
+<li><strong>Tous les autres droits</strong> (accès, copie de vos données, limitation, opposition, contestation du score de confiance) : écrivez-nous à <a href="mailto:egbedozin@gmail.com">egbedozin@gmail.com</a> ou <a href="mailto:nathan.aihou@gmail.com">nathan.aihou@gmail.com</a>. Nous vous répondons dans un délai d'un mois. Nous pouvons vous demander de justifier de votre identité.</li>
 <li><strong>Réclamation</strong> : si vous estimez que vos droits ne sont pas respectés, vous pouvez saisir la CNIL (<a href="https://www.cnil.fr">https://www.cnil.fr</a>).</li>
 </ul>
 <p>Si vous êtes un contact saisi par un autre utilisateur, les mêmes droits s'appliquent : écrivez-nous.</p>
@@ -114,7 +114,7 @@ export const PRIVACY_POLICY_BODY = {
 <p>Nous pouvons mettre à jour cette politique, par exemple lors de l'ajout d'une fonctionnalité. La date de dernière mise à jour figure en haut de cette page. En cas de changement important, nous vous en informerons dans l'application ou par email.</p>
 `,
   en: `<h1>Return Privacy Policy</h1>
-<p>Last updated: October 31, 2026</p>
+<p>Last updated: November 13, 2026</p>
 <p>Return is a mobile app that helps individuals keep track of the items and money they lend or borrow. This page explains in plain terms what data the app uses, why, who can see it, and how to exercise your rights.</p>
 <h2>1. Who is responsible for your data?</h2>
 <!-- À COMPLÉTER AVANT PUBLICATION : nom et adresse du responsable du traitement -->
@@ -204,7 +204,7 @@ export const PRIVACY_POLICY_BODY = {
 <p>You have the right to access, rectify, erase, restrict, object to the processing of, and port your data.</p>
 <ul>
 <li><strong>Edit your information and delete your account</strong>: directly in the app, Profile tab ("Delete my account", with password confirmation).</li>
-<li><strong>All other rights</strong> (access, copy of your data, restriction, objection, contesting the trust score): write to <a href="mailto:egbedozin@gmail.com">egbedozin@gmail.com</a> or <a href="mailto:nathan.aihou@gmail.com.">nathan.aihou@gmail.com.</a> We will reply within one month. We may ask you to prove your identity.</li>
+<li><strong>All other rights</strong> (access, copy of your data, restriction, objection, contesting the trust score): write to <a href="mailto:egbedozin@gmail.com">egbedozin@gmail.com</a> or <a href="mailto:nathan.aihou@gmail.com">nathan.aihou@gmail.com</a>. We will reply within one month. We may ask you to prove your identity.</li>
 <li><strong>Complaint</strong>: if you believe your rights are not respected, you can lodge a complaint with the CNIL, the French data protection authority (<a href="https://www.cnil.fr">https://www.cnil.fr</a>), or with your local authority.</li>
 </ul>
 <p>If you are a contact entered by another user, the same rights apply: write to us.</p>
