@@ -33,3 +33,17 @@ export function isPrismaRecordNotFoundError(error: unknown): error is Error & { 
     (error as { code: string }).code === 'P2025'
   );
 }
+
+/**
+ * Vérifie si une erreur Prisma est une violation de clé étrangère (P2003).
+ *
+ * Levée quand une ligne encore référencée est supprimée (ON DELETE RESTRICT).
+ */
+export function isPrismaForeignKeyError(error: unknown): error is Error & { code: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: string }).code === 'P2003'
+  );
+}

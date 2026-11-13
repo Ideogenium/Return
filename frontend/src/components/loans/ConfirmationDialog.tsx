@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { Text, Button, Portal, TextInput, HelperText } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { formatDate } from '../../utils/date';
+import { getContactName } from '../../utils/loan';
 import { FormDialog } from '../common/FormDialog';
 import { PhotoGallery } from '../items/PhotoGallery';
 import type { Loan } from '../../types/api.types';
@@ -108,7 +109,7 @@ export function ConfirmationDialog({
             {loan.item.name}
           </Text>
           <Text variant="bodySmall" style={styles.sub}>
-            {t('navigation.contacts')}: {loan.lender.firstName} {loan.lender.lastName}
+            {t('navigation.contacts')}: {getContactName(loan.lender, t)}
           </Text>
           {loan.returnDate && (
             <Text variant="bodySmall" style={styles.sub}>

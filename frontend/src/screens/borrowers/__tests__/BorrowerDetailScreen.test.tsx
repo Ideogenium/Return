@@ -9,6 +9,7 @@ import { BorrowerListScreen } from '../BorrowerListScreen';
 import { useBorrowerStore } from '../../../stores/useBorrowerStore';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { BorrowerStackParamList } from '../../../navigation/types';
+import i18n from '../../../config/i18n.config';
 
 const Stack = createNativeStackNavigator<BorrowerStackParamList>();
 
@@ -56,6 +57,38 @@ describe('BorrowerDetailScreen', () => {
 
     expect(screen.getByText('Marie Dupont')).toBeTruthy();
     expect(screen.getByText('marie.dupont@example.com')).toBeTruthy();
+  });
+
+  it('shows a translated label instead of the placeholder email of a deleted account (FIX-22)', async () => {
+    server.use(
+      http.get('http://localhost:3000/v1/borrowers/:id', ({ params }) =>
+        HttpResponse.json({
+          id: params.id,
+          firstName: 'Marie',
+          lastName: 'Dupont',
+          email: `deleted+${String(params.id)}.a1b2c3d4e5f60718@deleted.invalid`,
+          phoneNumber: null,
+          userId: null,
+          accountDeleted: true,
+          statistics: {
+            totalLoans: 1,
+            returnedOnTime: 1,
+            returnedLate: 0,
+            notReturned: 0,
+            averageReturnDelay: null,
+            trustScore: 100,
+          },
+        }),
+      ),
+    );
+
+    renderDetailScreen();
+
+    await waitFor(() => {
+      expect(screen.getByText(i18n.t('loans.deletedAccount'))).toBeTruthy();
+    });
+    expect(screen.getByText('Marie Dupont')).toBeTruthy();
+    expect(screen.queryByText(/deleted\.invalid/)).toBeNull();
   });
 
   it('should show delete confirmation dialog', async () => {

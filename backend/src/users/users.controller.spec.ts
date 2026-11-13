@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
@@ -224,6 +225,18 @@ describe('UsersController', () => {
         'avatar.jpg',
       );
       expect(result).toEqual(mockAvatarResponse);
+    });
+  });
+
+  describe('brute-force limits (FIX-22 review S2)', () => {
+    it.each([
+      ['DELETE /users/me', 'deleteAccount'],
+      ['PATCH /users/me/password', 'changePassword'],
+    ] as const)('%s allows 5 attempts per 15 minutes', (_route, method) => {
+      const handler = UsersController.prototype[method];
+
+      expect(Reflect.getMetadata('THROTTLER:LIMITdefault', handler)).toBe(5);
+      expect(Reflect.getMetadata('THROTTLER:TTLdefault', handler)).toBe(900_000);
     });
   });
 });

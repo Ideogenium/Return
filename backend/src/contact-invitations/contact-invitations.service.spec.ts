@@ -34,6 +34,7 @@ const SENDER_USER: User = {
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const RECIPIENT_USER: User = {
@@ -52,6 +53,7 @@ const RECIPIENT_USER: User = {
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
   lastLoginAt: null,
+  deletedAt: null,
 };
 
 const MOCK_INVITATION: ContactInvitation = {
@@ -134,6 +136,21 @@ describe('ContactInvitationsService', () => {
         }),
       );
       expect(result.data).toHaveLength(0);
+    });
+
+    it('never returns a deleted account (FIX-22)', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      prisma.user.count.mockResolvedValue(0);
+      prisma.contactInvitation.findMany.mockResolvedValue([]);
+      prisma.borrower.findMany.mockResolvedValue([]);
+
+      await service.searchUsers(SENDER_USER_ID, { query: 'compte', page: 1, limit: 20 });
+
+      const deletedOnly = expect.objectContaining({ deletedAt: null });
+      expect(prisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: deletedOnly }),
+      );
+      expect(prisma.user.count).toHaveBeenCalledWith({ where: deletedOnly });
     });
 
     it('should indicate when a user is already a contact (Borrower exists)', async () => {
@@ -312,6 +329,18 @@ describe('ContactInvitationsService', () => {
         expect(body.status).toBe(HttpStatus.NOT_FOUND);
         expect(body.type).toContain('user-not-found');
       }
+    });
+
+    it('never finds a deleted account as recipient (FIX-22)', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.sendInvitation(SENDER_USER_ID, { recipientEmail: 'someone@example.com' }),
+      ).rejects.toBeDefined();
+
+      expect(prisma.user.findFirst).toHaveBeenCalledWith({
+        where: expect.objectContaining({ deletedAt: null }),
+      });
     });
 
     it('should throw 409 when a PENDING invitation already exists', async () => {

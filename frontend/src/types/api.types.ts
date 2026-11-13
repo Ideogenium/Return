@@ -99,6 +99,9 @@ export interface Borrower {
   email: string;
   phoneNumber?: string | null;
   userId?: string | null;
+  /** Present and true when the account this contact represented was deleted (FIX-22): the email
+   * is then a placeholder that must not be shown. */
+  accountDeleted?: boolean;
   statistics?: BorrowerStatistics;
 }
 
@@ -178,10 +181,16 @@ export interface UserSummary {
   profilePicture?: string | null;
 }
 
+/** Loan.lender: a UserSummary plus the deleted-account flag (FIX-22). */
+export interface LoanLender extends UserSummary {
+  /** Present and true only when the lender deleted his account. */
+  accountDeleted?: boolean;
+}
+
 export interface Loan {
   id: string;
   item: Item;
-  lender: UserSummary;
+  lender: LoanLender;
   borrower: Borrower;
   status: LoanStatus;
   returnDate?: string | null;

@@ -1,3 +1,4 @@
+import { IsNotReservedEmail } from '../../common/validators/is-not-reserved-email.validator.js';
 import { IsEmail, IsOptional, IsString, Matches, MinLength, MaxLength } from 'class-validator';
 
 /**
@@ -12,6 +13,7 @@ import { IsEmail, IsOptional, IsString, Matches, MinLength, MaxLength } from 'cl
 export class UpdateUserDto {
   @IsOptional()
   @IsEmail()
+  @IsNotReservedEmail()
   email?: string;
 
   @IsOptional()

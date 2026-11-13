@@ -44,6 +44,10 @@ model User {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   lastLoginAt DateTime? @map("last_login_at")
 
+  // FIX-22 (ADR 0010): set when the account is deleted but kept as a pseudonymised
+  // tombstone, because closed loans still visible to a borrower reference it.
+  deletedAt DateTime? @map("deleted_at")
+
   // Relations
   refreshTokens   RefreshToken[]
   borrowerProfile Borrower[]     @relation("BorrowerUser") // Contacts linked to this user as borrower
@@ -95,6 +99,10 @@ model Borrower {
 
   /// Prêteur propriétaire de ce contact
   lenderUserId String @map("lender_user_id") @db.Uuid
+
+  /// FIX-22 (ADR 0010) : renseigné quand le compte que ce contact représentait est supprimé. Le
+  /// contact est alors détaché pour de bon (email non routable, téléphone effacé, jamais relié).
+  accountDeletedAt DateTime? @map("account_deleted_at")
 
   // Statistiques dénormalisées (mises à jour via événements lors des changements de statut de prêt)
   // trustScore: null = pas encore noté (aucun prêt résolu). Calculé sur les prêts

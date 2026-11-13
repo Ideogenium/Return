@@ -14,6 +14,7 @@ import type { UpdateBorrowerDto } from './dto/update-borrower.dto.js';
 import type { Borrower } from '@prisma/client';
 import { ACTIVE_LOAN_STATUSES } from '../common/constants/loan-statuses.js';
 import { TrustScoreService } from '../trust-score/trust-score.service.js';
+import { assertLiveAccount } from '../common/utils/live-account.util.js';
 
 // =============================================================================
 // BorrowersService — Logique métier du module Borrowers
@@ -31,12 +32,17 @@ export class BorrowersService {
   // ---------------------------------------------------------------------------
 
   async create(lenderUserId: string, dto: CreateBorrowerDto): Promise<BorrowerResponse> {
+    // A deleted account (tombstone, FIX-22) cannot create anything with a leftover token.
+    await assertLiveAccount(this.prisma, lenderUserId, '/v1/borrowers');
+
     // If a registered user already exists with this email, link immediately.
     // This handles the case where the contact is added AFTER the user has registered.
-    const existingUser = await this.prisma.user.findUnique({
+    const registeredUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
+    // A deleted account (tombstone, FIX-22) is never linked to a new contact.
+    const existingUser = registeredUser && !registeredUser.deletedAt ? registeredUser : null;
 
     try {
       const borrower = await this.prisma.borrower.create({
@@ -229,6 +235,8 @@ export class BorrowersService {
       email: borrower.email,
       phoneNumber: borrower.phoneNumber,
       userId: borrower.userId,
+      // FIX-22 (C4): the account this contact represented was deleted; its email is a placeholder.
+      ...(borrower.accountDeletedAt ? { accountDeleted: true as const } : {}),
       statistics: {
         totalLoans: borrower.totalLoans,
         returnedOnTime: borrower.returnedOnTime,

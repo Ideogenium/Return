@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { NavigationContainer } from '@react-navigation/native';
 import { PaperProvider } from 'react-native-paper';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text } from 'react-native';
+import { Linking, Text } from 'react-native';
 import { server } from '../../../../__mocks__/server';
 import { ProfileScreen } from '../ProfileScreen';
 import { useAuthStore } from '../../../stores/useAuthStore';
@@ -166,5 +166,15 @@ describe('ProfileScreen', () => {
       resetFileSystemMock();
       act(() => useAuthStore.setState({ updateAvatar: authDefaults.updateAvatar }));
     });
+  });
+
+  it('opens the privacy policy in the active language', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    renderProfile();
+
+    fireEvent.press(await screen.findByTestId('privacy-policy-link'));
+
+    expect(openURL).toHaveBeenCalledWith('http://localhost:3000/privacy?lang=en');
+    openURL.mockRestore();
   });
 });

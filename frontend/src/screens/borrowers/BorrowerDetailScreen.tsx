@@ -11,6 +11,7 @@ import { parseProblemDetails, getErrorMessage } from '../../utils/error';
 import { ui } from '../../config/theme.config';
 import type { BorrowerStackParamList } from '../../navigation/types';
 import type { AxiosError } from 'axios';
+import { getContactEmailLine } from '../../utils/loan';
 
 type Props = NativeStackScreenProps<BorrowerStackParamList, 'BorrowerDetail'>;
 
@@ -79,7 +80,7 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
           {selectedBorrower.firstName} {selectedBorrower.lastName}
         </Text>
         <Text variant="bodyMedium" style={styles.email}>
-          {selectedBorrower.email}
+          {getContactEmailLine(selectedBorrower, t)}
         </Text>
         {selectedBorrower.phoneNumber && (
           <Text variant="bodyMedium" style={styles.phone}>
