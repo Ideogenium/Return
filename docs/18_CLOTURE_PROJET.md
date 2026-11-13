@@ -46,14 +46,14 @@ confirmation par l'emprunteur, historique, statistiques). Voir `00_BIBLE_PROJET.
 
 ### Sprints 1 à 6 (source : `docs/CLAUDE.md`, tableau Avancement)
 
-| Sprint     | Module                                      | Statut |
-| ---------- | ------------------------------------------- | ------ |
-| Sprint 1   | Auth + Users + Profil                       | Fait   |
-| Sprint 2   | Borrowers (contacts)                        | Fait   |
-| Sprint 3   | Items + Photos                              | Fait   |
-| Sprint 4   | Loans                                       | Fait   |
-| Sprint 4.6 | Invitations de contact                      | Fait   |
-| Sprint 5   | Docker dev + validation J+2 + Notifications | Fait   |
+| Sprint     | Module                                      | Statut                                       |
+| ---------- | ------------------------------------------- | -------------------------------------------- |
+| Sprint 1   | Auth + Users + Profil                       | Fait                                         |
+| Sprint 2   | Borrowers (contacts)                        | Fait                                         |
+| Sprint 3   | Items + Photos                              | Fait                                         |
+| Sprint 4   | Loans                                       | Fait                                         |
+| Sprint 4.6 | Invitations de contact                      | Fait                                         |
+| Sprint 5   | Docker dev + validation J+2 + Notifications | Fait                                         |
 | Sprint 6   | Dashboard + Historique                      | Fait (historique ; dashboard dédié non fait) |
 
 ### Sprint fonctionnalités (doc 16) : FEAT-00 à FEAT-11, en prod au D2
@@ -69,23 +69,23 @@ fusionné à 14:58 UTC, déployé à 15:20 UTC) ; roadmap doc 17 : #33 ; build 5
 **Aucun correctif du doc 17 n'est dans l'API de production.** Fusionnées avant `fa416a9` (donc dans les builds 5 pour
 leur partie app) : #34 à #42, #44, #46. Fusionnées après (dans aucun build) : #43, #45, #47, #48, #49, #52, puis #54.
 
-| Lot | Fiche  | Sujet                                          | PR                                                     | API en prod ? | Builds 5 ? |
-| --- | ------ | ---------------------------------------------- | ------------------------------------------------------ | ------------- | ---------- |
-| 1   | FIX-18 | Fenêtres avec champ de texte, clavier (iPhone) | #34                                                    | Sans objet    | Oui        |
-| 1   | FIX-19 | Champ multiligne, clavier (Android)           | #35                                                    | Sans objet    | Oui        |
-| 1   | FIX-20 | Photos HEIC de l'iPhone                        | #36                                                    | Sans objet    | Oui        |
-| 1   | FIX-21 | Photos dans le détail du prêt, plein écran     | #41                                                    | Sans objet    | Oui        |
+| Lot | Fiche  | Sujet                                          | PR                                                          | API en prod ? | Builds 5 ? |
+| --- | ------ | ---------------------------------------------- | ----------------------------------------------------------- | ------------- | ---------- |
+| 1   | FIX-18 | Fenêtres avec champ de texte, clavier (iPhone) | #34                                                         | Sans objet    | Oui        |
+| 1   | FIX-19 | Champ multiligne, clavier (Android)            | #35                                                         | Sans objet    | Oui        |
+| 1   | FIX-20 | Photos HEIC de l'iPhone                        | #36                                                         | Sans objet    | Oui        |
+| 1   | FIX-21 | Photos dans le détail du prêt, plein écran     | #41                                                         | Sans objet    | Oui        |
 | 2   | FIX-22 | Suppression de compte (pseudonymisation)       | contrat #43 (fusionnée), code #54 (ouverte, fusion décidée) | Non           | Non        |
-| 2   | FIX-23 | Désinscription du téléphone à la déconnexion   | #37                                                    | Sans objet    | Oui        |
-| 2   | FIX-24 | Statistiques privées du prêteur                | contrat #40, code #42                                  | Non           | Sans objet |
-| 2   | FIX-25 | Date de retour minimale en UTC                 | #38 (+ correctif d'affichage `parseIsoDate`)           | Sans objet    | Oui        |
-| 2   | FIX-26 | Limites d'envoi de fichiers, codes d'erreur    | #44, contrat #48                                       | Non           | Sans objet |
-| 2   | FIX-27 | Notifications d'invitation de contact          | #45 (+ colonne `actorUserId`), contrat #40             | Non           | Non        |
-| 2   | FIX-28 | 404 au lieu de 403 pour les tiers              | #49, contrat #40                                       | Non           | Non        |
-| 2   | FIX-29 | Avertissement `path-to-regexp`                 | #46                                                    | Non           | Sans objet |
-| 2   | FIX-30 | Périmètre de `prettier --check`                | #39                                                    | Sans objet    | Sans objet |
-| 2   | FIX-31 | Secret `JWT_REFRESH_SECRET` inutilisé          | #47                                                    | Sans objet    | Sans objet |
-| 2   | FIX-37 | Limite de débit par IP client derrière Fly     | #52                                                    | Non           | Sans objet |
+| 2   | FIX-23 | Désinscription du téléphone à la déconnexion   | #37                                                         | Sans objet    | Oui        |
+| 2   | FIX-24 | Statistiques privées du prêteur                | contrat #40, code #42                                       | Non           | Sans objet |
+| 2   | FIX-25 | Date de retour minimale en UTC                 | #38 (+ correctif d'affichage `parseIsoDate`)                | Sans objet    | Oui        |
+| 2   | FIX-26 | Limites d'envoi de fichiers, codes d'erreur    | #44, contrat #48                                            | Non           | Sans objet |
+| 2   | FIX-27 | Notifications d'invitation de contact          | #45 (+ colonne `actorUserId`), contrat #40                  | Non           | Non        |
+| 2   | FIX-28 | 404 au lieu de 403 pour les tiers              | #49, contrat #40                                            | Non           | Non        |
+| 2   | FIX-29 | Avertissement `path-to-regexp`                 | #46                                                         | Non           | Sans objet |
+| 2   | FIX-30 | Périmètre de `prettier --check`                | #39                                                         | Sans objet    | Sans objet |
+| 2   | FIX-31 | Secret `JWT_REFRESH_SECRET` inutilisé          | #47                                                         | Sans objet    | Sans objet |
+| 2   | FIX-37 | Limite de débit par IP client derrière Fly     | #52                                                         | Non           | Sans objet |
 
 > « Sans objet » : le correctif ne touche pas cette partie (vérifié sur les fichiers de chaque PR). FIX-30 ne touche
 > que la configuration de Prettier, FIX-31 que la doc et un secret Fly. Les statuts du doc 17 sont à jour depuis #51.
@@ -101,14 +101,14 @@ leur partie app) : #34 à #42, #44, #46. Fusionnées après (dans aucun build) :
 
 ## 3. État de la production
 
-| Élément                  | Valeur                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------ |
-| API                      | `https://return-api.fly.dev`, release Fly **v12** du 31/10/2026 (15:20 UTC), commit **`3564e29`** (D2) |
-| Version en prod          | **D2**. **Le D3 n'a jamais été déployé.**                                                         |
-| Tags prévus              | `prod-v12` sur `3564e29` (API) ; `build-5` sur `fa416a9` (apps) ; `cloture` sur le `main` final [À mettre à jour après pose] |
-| Android                  | `versionCode` **4** (build 5), piste de test interne Play, 31/10/2026                            |
-| iOS                      | `buildNumber` **5**, TestFlight, 31/10/2026, **expire vers fin janvier 2027**                     |
-| Build installés          | **Sans FIX-27 côté app** (fusionné après le build 5) : les builds ignorent les nouveaux types de notification |
+| Élément         | Valeur                                                                                                                       |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| API             | `https://return-api.fly.dev`, release Fly **v12** du 31/10/2026 (15:20 UTC), commit **`3564e29`** (D2)                       |
+| Version en prod | **D2**. **Le D3 n'a jamais été déployé.**                                                                                    |
+| Tags prévus     | `prod-v12` sur `3564e29` (API) ; `build-5` sur `fa416a9` (apps) ; `cloture` sur le `main` final [À mettre à jour après pose] |
+| Android         | `versionCode` **4** (build 5), piste de test interne Play, 31/10/2026                                                        |
+| iOS             | `buildNumber` **5**, TestFlight, 31/10/2026, **expire vers fin janvier 2027**                                                |
+| Build installés | **Sans FIX-27 côté app** (fusionné après le build 5) : les builds ignorent les nouveaux types de notification                |
 
 ### Ce que `main` contient et que la prod n'a jamais eu (le « D3 »)
 
@@ -120,7 +120,7 @@ Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte 
   2. `20261031130000_add_notification_actor_user_id` (`notifications.actor_user_id`, FIX-27) ;
   3. `20261031210000_add_user_deleted_at` (`users.deleted_at`, FIX-22) ;
   4. `20261031220000_add_borrower_account_deleted_at` (`borrowers.account_deleted_at`, FIX-22).
-  Les deux dernières arrivent avec #54. Les quatre sont additives (colonnes nullables, valeurs d'enum).
+     Les deux dernières arrivent avec #54. Les quatre sont additives (colonnes nullables, valeurs d'enum).
 - **Secrets Fly** : `JWT_REFRESH_SECRET` n'apparaît plus dans `fly secrets list` (vérifié par Ozias le 13/11/2026,
   FIX-31) ; `OVERDUE_JOB_ENABLED` présent.
 - **Variables dans `backend/fly.toml`** (pas des secrets) : `CLIENT_IP_HEADER = 'fly-client-ip'`,
@@ -133,11 +133,11 @@ Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte 
 
 ## 4. En suspens au moment de la clôture
 
-| PR  | Contenu                                                                                      | Décision du 13/11 | État            |
-| --- | -------------------------------------------------------------------------------------------- | ----------------- | --------------- |
-| #54 | FIX-22 : code de la suppression de compte (migration `users.deleted_at`, ADR 0010)           | Fusion            | ✅ Fusionnée le 13/11 (`b919e65`) — pas en prod |
-| #51 | Statuts du doc 17 et fiches du lot 3                                                         | Fusion            | [À mettre à jour après fusion] |
-| #53 | Politique de confidentialité (`/privacy`) et liens dans l'app                                | Fusion, avec marqueurs | ✅ Fusionnée le 13/11 (`f4466e5`) — pas en prod |
+| PR  | Contenu                                                                            | Décision du 13/11      | État                                            |
+| --- | ---------------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------- |
+| #54 | FIX-22 : code de la suppression de compte (migration `users.deleted_at`, ADR 0010) | Fusion                 | ✅ Fusionnée le 13/11 (`b919e65`) — pas en prod |
+| #51 | Statuts du doc 17 et fiches du lot 3                                               | Fusion                 | [À mettre à jour après fusion]                  |
+| #53 | Politique de confidentialité (`/privacy`) et liens dans l'app                      | Fusion, avec marqueurs | ✅ Fusionnée le 13/11 (`f4466e5`) — pas en prod |
 
 > **#53 : les marqueurs `[Nom du responsable]` et `[Adresse postale]` de la politique de confidentialité sont
 > obligatoires à remplir avant toute publication.** Ils sont fusionnés tels quels : la page n'est publiable qu'après
@@ -147,20 +147,20 @@ Côté app, un build 6 apporterait FIX-27, FIX-28 et FIX-22 (libellé « Compte 
 
 - **Tests Android du build 5** (versionCode 4) : non effectués avant la clôture.
 - **Console Play : configuration incomplète (1/11 tâches faites).** Nom temporaire `com.ideogen.returnapp
-  (unreviewed)` tant que l'app n'est pas examinée. Fiche Store remplie (nom, descriptions, icône 512, bannière
+(unreviewed)` tant que l'app n'est pas examinée. Fiche Store remplie (nom, descriptions, icône 512, bannière
   1024×500, 6 captures anonymisées). Reste à faire, avec les réponses déjà préparées :
 
-| Tâche Play Console                | Réponse préparée                                                            |
-| --------------------------------- | --------------------------------------------------------------------------- |
-| URL de la politique de confidentialité | URL `/privacy` de #53 (après remplissage des marqueurs et déploiement) |
-| Accès à l'app (compte de test pour la revue) | **Oui** (connexion obligatoire) : compte de démo avec un contact et 2-3 prêts à créer avant la soumission — non créé à la clôture       |
-| Publicités                        | **Non** (aucune publicité)                                                  |
-| Classification du contenu         | Non rempli. Réponses prévues : « Autres types d'apps » ; non à violence, sexe, langage, drogues, jeux d'argent ; **oui** aux interactions entre utilisateurs ; non au partage de position et aux achats numériques                                       |
-| Public cible                      | **18+**                                                                     |
-| Sécurité des données (Data safety) | Aucun partage avec des tiers ; données chiffrées en transit ; suppression possible (dans l'app) |
-| Fonctionnalités financières       | **Aucune** (Financial features = aucune)                                    |
-| Catégorie de l'app                | **Productivité** (prévu, non saisi)                                                     |
-| Autres déclarations (11 au total) | Applications gouvernementales : **non** ; Santé : **non** ; non saisies à la clôture (1/11 tâche faite)                 |
+| Tâche Play Console                           | Réponse préparée                                                                                                                                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| URL de la politique de confidentialité       | URL `/privacy` de #53 (après remplissage des marqueurs et déploiement)                                                                                                                                             |
+| Accès à l'app (compte de test pour la revue) | **Oui** (connexion obligatoire) : compte de démo avec un contact et 2-3 prêts à créer avant la soumission — non créé à la clôture                                                                                  |
+| Publicités                                   | **Non** (aucune publicité)                                                                                                                                                                                         |
+| Classification du contenu                    | Non rempli. Réponses prévues : « Autres types d'apps » ; non à violence, sexe, langage, drogues, jeux d'argent ; **oui** aux interactions entre utilisateurs ; non au partage de position et aux achats numériques |
+| Public cible                                 | **18+**                                                                                                                                                                                                            |
+| Sécurité des données (Data safety)           | Aucun partage avec des tiers ; données chiffrées en transit ; suppression possible (dans l'app)                                                                                                                    |
+| Fonctionnalités financières                  | **Aucune** (Financial features = aucune)                                                                                                                                                                           |
+| Catégorie de l'app                           | **Productivité** (prévu, non saisi)                                                                                                                                                                                |
+| Autres déclarations (11 au total)            | Applications gouvernementales : **non** ; Santé : **non** ; non saisies à la clôture (1/11 tâche faite)                                                                                                            |
 
 ---
 
@@ -173,11 +173,11 @@ Aucun doc ne suivait cette liste. Rien de ceci n'est fait.
 - [ ] **URL `/privacy` en ligne**, avec le responsable du traitement et l'adresse remplis (#53).
 - [ ] **Statut DSA « trader » tranché** (section 7).
 - [ ] **App Store** : fiche (captures, description, App Privacy) ; compte de démo pour la revue Apple ; au moins un
-  testeur autre qu'Ozias.
+      testeur autre qu'Ozias.
 - [ ] **Play** : Data safety et déclarations (section 4) ; compte de test pour la revue ; **règle des 20 testeurs
-  pendant 14 jours** (comptes personnels récents) avant la production ; tests du build.
+      pendant 14 jours** (comptes personnels récents) avant la production ; tests du build.
 - [ ] **`frontend/google-services.json`** : commité dans un dépôt public. C'est une configuration client, pas un
-  secret, mais **la clé d'API doit être restreinte dans la console Google Cloud**.
+      secret, mais **la clé d'API doit être restreinte dans la console Google Cloud**.
 - [ ] Nouveau build (Android `versionCode` 5, iOS `buildNumber` 6) depuis le `main` déployé.
 
 ---
@@ -187,17 +187,17 @@ Aucun doc ne suivait cette liste. Rien de ceci n'est fait.
 **Lot 3 du doc 17** : les fiches détaillées sont dans la PR #51 (ouverte, pas encore dans `main` au 13/11) ; après
 fusion, voir `17_ROADMAP_CORRECTIFS_POST_D2.md`.
 
-| Fiche  | Sujet                                                                                     | Gravité   | Porteur | Effort |
-| ------ | ----------------------------------------------------------------------------------------- | --------- | ------- | ------ |
-| FIX-32 | Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits          | 🟡 Mineur | Ismael  | M      |
-| FIX-33 | Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app (contrat fait, #48) | 🟡 Mineur | Ozias | S |
-| FIX-34 | Notifications écrites en français en dur côté serveur                                     | 🟡 Mineur | Ismael  | M      |
-| FIX-35 | Réponses de prêt sans `Cache-Control: private` alors qu'elles dépendent du lecteur         | 🟡 Mineur | Ozias   | XS     |
-| FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)      | 🟡 Mineur | Ismael  | S      |
-| FIX-38 | Aucune notification quand le prêteur change la date de retour                             | 🟠 Majeur | Ismael  | M      |
-| FIX-39 | Limites de connexion : par email seul, et compteurs en mémoire                            | 🟡 Mineur | Ozias   | S      |
-| FIX-40 | Inscription sans vérification de l'email (prérequis de la connexion Google/Apple)         | 🟠 Majeur | Ozias   | M      |
-| FIX-41 | Pierres tombales orphelines après la suppression de l'emprunteur                          | 🟡 Mineur | Ozias   | S      |
+| Fiche  | Sujet                                                                                                     | Gravité   | Porteur | Effort |
+| ------ | --------------------------------------------------------------------------------------------------------- | --------- | ------- | ------ |
+| FIX-32 | Accès aux ressources : une règle partagée, et `deletedAt` oublié à deux endroits                          | 🟡 Mineur | Ismael  | M      |
+| FIX-33 | Erreurs d'envoi : champ `photo`/`avatar`, taille égale à la limite, messages de l'app (contrat fait, #48) | 🟡 Mineur | Ozias   | S      |
+| FIX-34 | Notifications écrites en français en dur côté serveur                                                     | 🟡 Mineur | Ismael  | M      |
+| FIX-35 | Réponses de prêt sans `Cache-Control: private` alors qu'elles dépendent du lecteur                        | 🟡 Mineur | Ozias   | XS     |
+| FIX-36 | Finitions photos (barre d'état, galerie dupliquée, chargement, zoom, PNG sur le web)                      | 🟡 Mineur | Ismael  | S      |
+| FIX-38 | Aucune notification quand le prêteur change la date de retour                                             | 🟠 Majeur | Ismael  | M      |
+| FIX-39 | Limites de connexion : par email seul, et compteurs en mémoire                                            | 🟡 Mineur | Ozias   | S      |
+| FIX-40 | Inscription sans vérification de l'email (prérequis de la connexion Google/Apple)                         | 🟠 Majeur | Ozias   | M      |
+| FIX-41 | Pierres tombales orphelines après la suppression de l'emprunteur                                          | 🟡 Mineur | Ozias   | S      |
 
 Suite non numérotée : test `LoanWizard` « MONEY flow » dépendant du fuseau (mock du calendrier en UTC) : à passer en
 date locale et à ajouter à `test:tz`.
@@ -268,15 +268,15 @@ Commandes de base : `docs/CLAUDE.md` (section Commandes) et `07_GUIDE_LANCEMENT_
 
 ## 9. Infrastructure, comptes et coûts
 
-| Service            | Titulaire / accès                                         | Ressources                                                                                  | Coût                                              |
-| ------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Fly.io             | Organisation personnelle d'Ozias ; Ismael ADMIN           | `return-api` (1 machine toujours allumée), `return-db` (volume 1 Go + instantanés), `return-redis` (Upstash, à l'usage) | 29,13 € sur 5 mois, soit **~5,80 €/mois** (Billing Fly, relevé par Ozias le 13/11) |
-| Apple Developer    | Ozias (Team `WA935JW2DV`)                                 | App Store Connect, app `6828146094`, TestFlight                                              | 99 $/an, renouvellement **fin octobre 2027**      |
-| Google Play Console | Ismael                                                   | App `com.ideogen.returnapp`, piste de test interne                                           | 25 $, une fois                                    |
-| Expo / EAS         | Ismael, owner `natismael`, projet `595176ea-3595-4aec-8ba5-b56da4f48a67` | Builds, certificats iOS, credentials push                                       | Plan gratuit (Free), confirmé par Ismael                     |
-| Firebase           | Ismael                                                    | Projet Firebase (clé de service FCM pour Android)                                            | Plan gratuit (Spark), confirmé par Ismael                   |
-| Cloudflare R2      | Ozias                                                     | Bucket des photos                                                                            | Gratuit sous 10 Go de stockage                    |
-| GitHub             | `Ideogenium/Return`                                       | Dépôt public, CI                                                                             | Gratuit                                           |
+| Service             | Titulaire / accès                                                        | Ressources                                                                                                              | Coût                                                                               |
+| ------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Fly.io              | Organisation personnelle d'Ozias ; Ismael ADMIN                          | `return-api` (1 machine toujours allumée), `return-db` (volume 1 Go + instantanés), `return-redis` (Upstash, à l'usage) | 29,13 € sur 5 mois, soit **~5,80 €/mois** (Billing Fly, relevé par Ozias le 13/11) |
+| Apple Developer     | Ozias (Team `WA935JW2DV`)                                                | App Store Connect, app `6828146094`, TestFlight                                                                         | 99 $/an, renouvellement **fin octobre 2027**                                       |
+| Google Play Console | Ismael                                                                   | App `com.ideogen.returnapp`, piste de test interne                                                                      | 25 $, une fois                                                                     |
+| Expo / EAS          | Ismael, owner `natismael`, projet `595176ea-3595-4aec-8ba5-b56da4f48a67` | Builds, certificats iOS, credentials push                                                                               | Plan gratuit (Free), confirmé par Ismael                                           |
+| Firebase            | Ismael                                                                   | Projet Firebase (clé de service FCM pour Android)                                                                       | Plan gratuit (Spark), confirmé par Ismael                                          |
+| Cloudflare R2       | Ozias                                                                    | Bucket des photos                                                                                                       | Gratuit sous 10 Go de stockage                                                     |
+| GitHub              | `Ideogenium/Return`                                                      | Dépôt public, CI                                                                                                        | Gratuit                                                                            |
 
 ### Recréer l'infrastructure à partir de zéro
 
@@ -287,11 +287,11 @@ Squelette ; les procédures détaillées sont dans les docs 07 (lancement backen
    - `fly apps create return-api --org personal` ; la machine est décrite par `backend/fly.toml` (`cdg`,
      shared-cpu-1x 512 Mo, `min_machines_running = 1`) ;
    - `fly postgres create --name return-db --region cdg --initial-cluster-size 1 --vm-size shared-cpu-1x
-     --volume-size 1` : image `flyio/postgres-flex:17.2`, 256 Mo, volume chiffré de 1 Go, **non managé**,
+--volume-size 1` : image `flyio/postgres-flex:17.2`, 256 Mo, volume chiffré de 1 Go, **non managé**,
      instantanés quotidiens gardés 5 jours ; puis `fly postgres attach return-db -a return-api` (pose `DATABASE_URL`) ;
    - `fly redis create` : nom `return-redis`, région `cdg`, plan Pay-as-you-go, éviction **désactivée** (la liste
      noire ne doit jamais être évincée) ; copier l'URL affichée dans `fly secrets set REDIS_URL=… -a return-api`.
-   Les commandes exactes de mars 2026 ne sont pas conservées ; celles-ci reproduisent la configuration relevée.
+     Les commandes exactes de mars 2026 ne sont pas conservées ; celles-ci reproduisent la configuration relevée.
 2. **Secrets Fly** (`fly secrets set … -a return-api`, **avant** le premier déploiement) : variables de
    `backend/src/config/env.validation.ts`, modèle dans `backend/.env.example` :
    - obligatoires : `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET` ;
@@ -308,7 +308,7 @@ Squelette ; les procédures détaillées sont dans les docs 07 (lancement backen
 4. **Déploiement** : `cd backend && fly deploy` (applique les migrations via `release_command`), puis
    `GET https://return-api.fly.dev/health`.
 5. **EAS** : `eas build --platform android|ios --profile production`, `eas submit --profile production --platform
-   android|ios`. Credentials : certificat et profil iOS, clé APNs, clé de service FCM (`eas credentials`), clé API App
+android|ios`. Credentials : certificat et profil iOS, clé APNs, clé de service FCM (`eas credentials`), clé API App
    Store Connect ; clé de service Play dans `frontend/google-play-service-account.json` (gitignorée, **locale** :
    à recréer, `eas.json` la référence).
 6. **Comptes de test** : en créer pour les revues Apple et Google (section 5).
@@ -320,20 +320,20 @@ Squelette ; les procédures détaillées sont dans les docs 07 (lancement backen
 À lancer **après la fusion de ce document**, **une action à la fois**, en cochant. Données de la base fictives : pas
 d'export.
 
-| #  | Action                                                                                          | Qui    | Fait |
-| -- | ----------------------------------------------------------------------------------------------- | ------ | ---- |
-| 1  | Poser les tags : `prod-v12` sur `3564e29`, `build-5` sur `fa416a9`, `cloture` sur le `main` final | Ismael | ☐    |
-| 2  | Fly : supprimer l'API `return-api` (arrête les CRON)                                              | Ozias  | ☐    |
-| 3  | Fly : supprimer `return-redis` (Upstash)                                                          | Ozias  | ☐    |
-| 4  | Fly : supprimer la base `return-db` (et ses instantanés)                                          | Ozias  | ☐    |
-| 5  | R2 : vider puis supprimer le bucket ; révoquer le jeton d'API R2                                  | Ozias  | ☐    |
-| 6  | Révoquer la clé d'API App Store Connect                                                           | Ozias  | ☐    |
-| 7  | Supprimer le robot Expo `return-api-preprod` (rôle Viewer, organisation commune) qui fournit `EXPO_ACCESS_TOKEN`, après la suppression de l'API Fly                                        | Ozias  | ☐    |
-| 8  | Révoquer la clé de service Play (`google-play-service-account.json`, locale) et supprimer le fichier | Ismael | ☐    |
-| 9  | Révoquer la clé de service FCM (Firebase)                                                         | Ismael | ☐    |
-| 10 | Apple : couper le renouvellement automatique (échéance fin octobre 2027)                          | Ozias  | ☐    |
-| 11 | Supprimer les branches fusionnées et la branche `feature/sprint-5-reminders-notifications` (FCM direct, remplacé par Expo Push, abandonnée) | Ismael | ☐ |
-| 12 | **Archiver le dépôt GitHub** (lecture seule, réversible), en dernier                              | Ozias  | ☐    |
+| #   | Action                                                                                                                                              | Qui    | Fait |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---- |
+| 1   | Poser les tags : `prod-v12` sur `3564e29`, `build-5` sur `fa416a9`, `cloture` sur le `main` final                                                   | Ismael | ☐    |
+| 2   | Fly : supprimer l'API `return-api` (arrête les CRON)                                                                                                | Ozias  | ☐    |
+| 3   | Fly : supprimer `return-redis` (Upstash)                                                                                                            | Ozias  | ☐    |
+| 4   | Fly : supprimer la base `return-db` (et ses instantanés)                                                                                            | Ozias  | ☐    |
+| 5   | R2 : vider puis supprimer le bucket ; révoquer le jeton d'API R2                                                                                    | Ozias  | ☐    |
+| 6   | Révoquer la clé d'API App Store Connect                                                                                                             | Ozias  | ☐    |
+| 7   | Supprimer le robot Expo `return-api-preprod` (rôle Viewer, organisation commune) qui fournit `EXPO_ACCESS_TOKEN`, après la suppression de l'API Fly | Ozias  | ☐    |
+| 8   | Révoquer la clé de service Play (`google-play-service-account.json`, locale) et supprimer le fichier                                                | Ismael | ☐    |
+| 9   | Révoquer la clé de service FCM (Firebase)                                                                                                           | Ismael | ☐    |
+| 10  | Apple : couper le renouvellement automatique (échéance fin octobre 2027)                                                                            | Ozias  | ☐    |
+| 11  | Supprimer les branches fusionnées et la branche `feature/sprint-5-reminders-notifications` (FCM direct, remplacé par Expo Push, abandonnée)         | Ismael | ☐    |
+| 12  | **Archiver le dépôt GitHub** (lecture seule, réversible), en dernier                                                                                | Ozias  | ☐    |
 
 **On garde** (gratuit et utile à une reprise) : le compte Fly vide, le projet EAS (certificats iOS), l'app sur la piste
 interne Play, le projet Firebase.
@@ -344,28 +344,28 @@ interne Play, le projet Firebase.
 
 Les anciens docs ne sont pas réécrits : ce tableau les corrige.
 
-| Doc | Affirmation fausse ou datée | Réalité |
-| --- | --------------------------- | ------- |
-| 01 (l.55, 100, 112, 306) | File de jobs **BullMQ** | Jamais implémenté. Les CRON tournent in-process (`@nestjs/schedule`), d'où 1 seule machine (CORR-09). BullMQ absent de `backend/package.json`. |
-| 01 (l.59, 66, 131) | Push par **Firebase Cloud Messaging** direct | Expo Push Service (`expo-server-sdk`). FCM ne sert qu'à Android via les credentials EAS. |
-| 01 (l.101, 124, 638, 645) | Monitoring **Sentry** | Absent des dépendances. Seuls Winston (logs JSON) et Fly Metrics. |
-| 01 (l.134) | Analytics **PostHog** | Absent. |
-| 01 (l.226) | OpenAPI auto-généré par **Swagger** | Absent des dépendances. Le contrat est `docs/openapi.yaml`, écrit à la main et lint par Spectral en CI. |
-| 01 (l.299-318, 619), 04 (l.757), 08 | PostgreSQL **managé** / free allowance | Fly Postgres non managé (`return-db`, volume 1 Go) : sauvegardes et mises à jour à notre charge (doc 09). |
-| 01 | Redis « cache et file de jobs » | Redis ne sert qu'à la blacklist JWT et à l'invalidation des comptes supprimés (clé `user-deleted:<id>`). |
-| `README.md` (dernière ligne) | « Projet en phase de spécifications — développement à venir » | Projet développé, en pré-production, clôturé le 13/11/2026. |
-| `docs/CLAUDE.md` (l.10, 13) | Phase « pré-production (octobre 2026) », plan en cours = doc 17 | Projet clôturé ; prod au D2, D3 non déployé ; reprise : ce document. |
-| 08 (PREPROD-006) | Secrets dont `JWT_REFRESH_SECRET`, `CORS_ORIGIN=*` | `JWT_REFRESH_SECRET` inutilisé (FIX-31) ; CORS strict en production (ADR 0009). |
-| 08, 09, 10 | Cases ☐ « après D2 » ou statuts de déploiement | Le D2 est en prod depuis le 31/10 ; statuts non remis à jour. |
-| 10, 11 (l.65), 13 (l.96) | `UPLOAD_BASE_URL`, scheduler externe `/v1/cron/tick` comme pistes | Abandonnées : R2 (FEAT-01) et CRON in-process. |
-| 11, 12, 13, 14, 16 | Nombreux ☐ (14 dans le doc 13, 6 dans le doc 11, 3 dans le doc 16, etc.) | Beaucoup de lignes sont faites ; les statuts n'ont pas suivi. Se fier au code et au doc 17. |
-| 16 (l.642) | Notifications d'invitation : « 3 valeurs `NotificationType` », refus notifié | Décision finale du doc 17 : **2** types (`CONTACT_INVITATION_RECEIVED`, `…_ACCEPTED`), ni refus ni expiration. |
-| 16 (en-tête) | `fix/preprod-corrections` base de travail | Abandonné : depuis le doc 17, une branche par fiche depuis `main`. |
-| 15 (ACC-A1) | Apple ID « dédié Ideogen » | Apple ID personnel d'Ozias (précisé dans le même doc, FEAT-03). |
-| 17 | Colonne « Statut » : tout à ☐ ; build « 5 » et « main (`3564e29`) » | Plusieurs fiches fusionnées ; build 5 livré le 31/10. Corrigé dans #51. |
-| 00 à 06 | Planning et statuts d'origine | Historique ; pour l'état réel, voir sections 2 à 4. |
-| `docs/openapi.yaml` | — | Reste la référence du contrat. |
-| ADR 0007 | Citée par les docs 16 et 17 (« organisation par fonctionnalité ») | Écrite le 25/10 mais jamais commitée ; ajoutée à la clôture (`docs/adr/0007-organisation-par-fonctionnalite.md`). |
+| Doc                                 | Affirmation fausse ou datée                                                  | Réalité                                                                                                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 01 (l.55, 100, 112, 306)            | File de jobs **BullMQ**                                                      | Jamais implémenté. Les CRON tournent in-process (`@nestjs/schedule`), d'où 1 seule machine (CORR-09). BullMQ absent de `backend/package.json`. |
+| 01 (l.59, 66, 131)                  | Push par **Firebase Cloud Messaging** direct                                 | Expo Push Service (`expo-server-sdk`). FCM ne sert qu'à Android via les credentials EAS.                                                       |
+| 01 (l.101, 124, 638, 645)           | Monitoring **Sentry**                                                        | Absent des dépendances. Seuls Winston (logs JSON) et Fly Metrics.                                                                              |
+| 01 (l.134)                          | Analytics **PostHog**                                                        | Absent.                                                                                                                                        |
+| 01 (l.226)                          | OpenAPI auto-généré par **Swagger**                                          | Absent des dépendances. Le contrat est `docs/openapi.yaml`, écrit à la main et lint par Spectral en CI.                                        |
+| 01 (l.299-318, 619), 04 (l.757), 08 | PostgreSQL **managé** / free allowance                                       | Fly Postgres non managé (`return-db`, volume 1 Go) : sauvegardes et mises à jour à notre charge (doc 09).                                      |
+| 01                                  | Redis « cache et file de jobs »                                              | Redis ne sert qu'à la blacklist JWT et à l'invalidation des comptes supprimés (clé `user-deleted:<id>`).                                       |
+| `README.md` (dernière ligne)        | « Projet en phase de spécifications — développement à venir »                | Projet développé, en pré-production, clôturé le 13/11/2026.                                                                                    |
+| `docs/CLAUDE.md` (l.10, 13)         | Phase « pré-production (octobre 2026) », plan en cours = doc 17              | Projet clôturé ; prod au D2, D3 non déployé ; reprise : ce document.                                                                           |
+| 08 (PREPROD-006)                    | Secrets dont `JWT_REFRESH_SECRET`, `CORS_ORIGIN=*`                           | `JWT_REFRESH_SECRET` inutilisé (FIX-31) ; CORS strict en production (ADR 0009).                                                                |
+| 08, 09, 10                          | Cases ☐ « après D2 » ou statuts de déploiement                               | Le D2 est en prod depuis le 31/10 ; statuts non remis à jour.                                                                                  |
+| 10, 11 (l.65), 13 (l.96)            | `UPLOAD_BASE_URL`, scheduler externe `/v1/cron/tick` comme pistes            | Abandonnées : R2 (FEAT-01) et CRON in-process.                                                                                                 |
+| 11, 12, 13, 14, 16                  | Nombreux ☐ (14 dans le doc 13, 6 dans le doc 11, 3 dans le doc 16, etc.)     | Beaucoup de lignes sont faites ; les statuts n'ont pas suivi. Se fier au code et au doc 17.                                                    |
+| 16 (l.642)                          | Notifications d'invitation : « 3 valeurs `NotificationType` », refus notifié | Décision finale du doc 17 : **2** types (`CONTACT_INVITATION_RECEIVED`, `…_ACCEPTED`), ni refus ni expiration.                                 |
+| 16 (en-tête)                        | `fix/preprod-corrections` base de travail                                    | Abandonné : depuis le doc 17, une branche par fiche depuis `main`.                                                                             |
+| 15 (ACC-A1)                         | Apple ID « dédié Ideogen »                                                   | Apple ID personnel d'Ozias (précisé dans le même doc, FEAT-03).                                                                                |
+| 17                                  | Colonne « Statut » : tout à ☐ ; build « 5 » et « main (`3564e29`) »          | Plusieurs fiches fusionnées ; build 5 livré le 31/10. Corrigé dans #51.                                                                        |
+| 00 à 06                             | Planning et statuts d'origine                                                | Historique ; pour l'état réel, voir sections 2 à 4.                                                                                            |
+| `docs/openapi.yaml`                 | —                                                                            | Reste la référence du contrat.                                                                                                                 |
+| ADR 0007                            | Citée par les docs 16 et 17 (« organisation par fonctionnalité »)            | Écrite le 25/10 mais jamais commitée ; ajoutée à la clôture (`docs/adr/0007-organisation-par-fonctionnalite.md`).                              |
 
 Nom trompeur : `backend/src/firebase/` (importé par `app.module.ts`) n'est pas du code mort. `FirebaseService`
 envoie les push via `expo-server-sdk` (Expo Push Service) ; seul le nom est resté (dette mineure : renommer le module,
